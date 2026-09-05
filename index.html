@@ -3,89 +3,218 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SubKiller</title>
+    <meta name="description" content="Track subscription costs and upcoming renewals privately in your browser. No account or signup required." />
+    <meta name="theme-color" content="#0a0918" />
+    <meta property="og:title" content="SubKiller — Private subscription tracker" />
+    <meta property="og:description" content="See what your subscriptions cost, what renews next, and what may be worth cancelling." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://asvenor.github.io/SubKiller/" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="canonical" href="https://asvenor.github.io/SubKiller/" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <title>SubKiller — Private subscription tracker</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <section class="landing" aria-label="Welcome section">
-      <div class="landing-content">
-        <p class="landing-kicker">Welcome to SubKiller</p>
-        <h1>Stop wasting money on subscriptions you barely use.</h1>
-        <p>
-          SubKiller turns recurring payments into clear numbers and fast cancel decisions. Add a subscription,
-          compare monthly and yearly spend, and spot the services that are draining your budget.
-        </p>
-      </div>
+    <a class="skip-link" href="#workspace">Skip to subscription tracker</a>
 
-      <div class="hero-visual" aria-hidden="true">
-        <div class="orb orb-one"></div>
-        <div class="orb orb-two"></div>
-        <div class="mock-card spend-card">
-          <span>Monthly spend</span>
-          <strong>$126.42</strong>
-          <small>Across 8 subscriptions</small>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="SubKiller home">
+        <span class="brand-mark" aria-hidden="true">SK</span>
+        <span>SubKiller</span>
+      </a>
+      <div class="privacy-badge"><span aria-hidden="true">●</span> Stored on this device</div>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Private · no signup</p>
+          <h1 id="page-title">Know what renews. Keep what matters.</h1>
+          <p class="intro-copy">Track recurring costs, catch upcoming renewals, and make calmer cancellation decisions. Your list stays in this browser.</p>
+          <a class="btn primary intro-cta" href="#workspace">Start tracking</a>
         </div>
-        <div class="mock-card savings-card">
-          <span>Possible savings</span>
-          <strong>$420/yr</strong>
-          <small>Cancel low-usage services</small>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="orb orb-one"></div>
+          <div class="orb orb-two"></div>
+          <div class="mock-card spend-card">
+            <span>Monthly spend</span>
+            <strong>$126.42</strong>
+            <small>Across 8 subscriptions</small>
+          </div>
+          <div class="mock-card savings-card">
+            <span>Possible savings</span>
+            <strong>$420 / year</strong>
+            <small>Based on usage and importance</small>
+          </div>
         </div>
-        <div class="pulse-ring"></div>
-      </div>
-    </section>
+      </section>
 
-    <main id="tool" class="container">
-      <header class="hero">
-        <h2>Track your subscriptions in minutes.</h2>
-        <p>
-          Add your recurring payments and see your monthly cost, yearly cost, and what you should cancel first.
-        </p>
-        <div class="currency-control">
-          <label for="currency">Currency</label>
-          <select id="currency" name="currency" aria-label="Choose currency">
-            <option value="USD" selected>USD ($)</option>
-            <option value="CHF">CHF (CHF)</option>
-            <option value="EUR">EUR (€)</option>
-            <option value="GBP">GBP (£)</option>
-          </select>
+      <section id="workspace" class="workspace" aria-label="Subscription tracker">
+        <section class="panel form-panel" aria-labelledby="form-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Subscription details</p>
+              <h2 id="form-title">Add a subscription</h2>
+            </div>
+            <span id="edit-indicator" class="edit-indicator" hidden>Editing</span>
+          </div>
+
+          <form id="subscription-form" class="subscription-form" novalidate>
+            <input id="subscription-id" name="subscriptionId" type="hidden" />
+
+            <div class="field field-wide">
+              <label for="name">Subscription name</label>
+              <input id="name" name="name" type="text" maxlength="80" autocomplete="off" placeholder="Netflix" aria-describedby="name-error" required />
+              <p class="field-error" id="name-error"></p>
+            </div>
+
+            <div class="field">
+              <label for="price">Price</label>
+              <div class="price-input">
+                <span id="price-currency">USD</span>
+                <input id="price" name="price" type="number" min="0" max="9999999.99" step="0.01" inputmode="decimal" placeholder="15.99" aria-describedby="price-error" required />
+              </div>
+              <p class="field-error" id="price-error"></p>
+            </div>
+
+            <div class="field">
+              <label for="cycle">Billing cycle</label>
+              <select id="cycle" name="cycle" required>
+                <option value="weekly">Weekly</option>
+                <option value="monthly" selected>Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="renewal-date">Next renewal <span class="optional">Optional</span></label>
+              <input id="renewal-date" name="renewalDate" type="date" />
+            </div>
+
+            <div class="field">
+              <label for="status">Status</label>
+              <select id="status" name="status" required>
+                <option value="active" selected>Active</option>
+                <option value="trial">Free trial</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="usage">How often do you use it?</label>
+              <select id="usage" name="usage" required>
+                <option value="often">Often</option>
+                <option value="sometimes" selected>Sometimes</option>
+                <option value="rarely">Rarely</option>
+                <option value="never">Never</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="importance">How important is it?</label>
+              <select id="importance" name="importance" required>
+                <option value="essential">Essential</option>
+                <option value="useful" selected>Useful</option>
+                <option value="optional">Optional</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="category">Category</label>
+              <select id="category" name="category" required>
+                <option value="entertainment">Entertainment</option>
+                <option value="software">Software</option>
+                <option value="fitness">Fitness</option>
+                <option value="gaming">Gaming</option>
+                <option value="cloud">Cloud</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div class="field field-wide">
+              <label for="cancellation-url">Cancellation page <span class="optional">Optional</span></label>
+              <input id="cancellation-url" name="cancellationUrl" type="url" inputmode="url" placeholder="https://service.example/account" aria-describedby="cancellation-help url-error" />
+              <p id="cancellation-help" class="field-help">Add the provider’s account or cancellation page for quick access later.</p>
+              <p class="field-error" id="url-error"></p>
+            </div>
+
+            <div class="form-actions field-wide">
+              <button id="submit-button" type="submit" class="btn primary">Add subscription</button>
+              <button id="cancel-edit" type="button" class="btn secondary" hidden>Cancel edit</button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="summary-stack" aria-label="Subscription summary">
+          <section class="panel currency-panel">
+            <div class="currency-row">
+              <div>
+                <label for="currency">List currency</label>
+                <p>Applies to every amount in this list.</p>
+              </div>
+              <select id="currency" name="currency" aria-describedby="currency-note">
+                <option value="USD">USD ($)</option>
+                <option value="CHF">CHF</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+              </select>
+            </div>
+            <p id="currency-note" class="field-help">Changing this label does not convert existing amounts.</p>
+          </section>
+
+          <section class="panel stats-panel" aria-labelledby="totals-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">At a glance</p>
+                <h2 id="totals-title">Your totals</h2>
+              </div>
+              <span id="active-count" class="count-badge">0 active</span>
+            </div>
+            <p id="main-yearly-message" class="yearly-total">$0.00 <span>per year</span></p>
+            <dl class="stats-list">
+              <div><dt>Monthly cost</dt><dd id="total-monthly">$0.00</dd></div>
+              <div><dt>Possible yearly savings</dt><dd id="possible-savings">$0.00</dd></div>
+              <div><dt>Renewing within 30 days</dt><dd id="renewal-count">0</dd></div>
+            </dl>
+            <button id="clear-all" class="btn danger quiet-danger" type="button" disabled>Clear all subscriptions</button>
+          </section>
+        </aside>
+      </section>
+
+      <section class="panel renewals-panel" aria-labelledby="renewals-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Next 90 days</p>
+            <h2 id="renewals-title">Upcoming renewals</h2>
+          </div>
         </div>
-      </header>
+        <div id="renewal-list" class="renewal-list"></div>
+      </section>
 
-      <section class="panel form-panel" aria-label="Add subscription">
-        <h2>Add Subscription</h2>
-        <form id="subscription-form" class="subscription-form">
-          <div class="field">
-            <label for="name">Subscription name</label>
-            <input id="name" name="name" type="text" placeholder="Netflix" required />
+      <section class="panel list-panel" aria-labelledby="list-title">
+        <div class="list-heading">
+          <div>
+            <p class="eyebrow">Your list</p>
+            <h2 id="list-title">Subscriptions</h2>
           </div>
-
-          <div class="field">
-            <label for="price">Price</label>
-            <input id="price" name="price" type="number" min="0" step="0.01" placeholder="15.99" required />
+          <div class="data-actions">
+            <button id="export-data" class="btn secondary" type="button">Export backup</button>
+            <button id="import-data" class="btn secondary" type="button">Import backup</button>
+            <input id="import-file" type="file" accept="application/json,.json" hidden />
           </div>
+        </div>
 
-          <div class="field">
-            <label for="cycle">Billing cycle</label>
-            <select id="cycle" name="cycle" required>
-              <option value="weekly">Weekly</option>
-              <option value="monthly" selected>Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
+        <div class="filters" aria-label="Filter and sort subscriptions">
+          <div class="field search-field">
+            <label for="search">Search</label>
+            <input id="search" type="search" placeholder="Search by name" />
           </div>
-
           <div class="field">
-            <label for="usage">Usage level</label>
-            <select id="usage" name="usage" required>
-              <option value="often">Often</option>
-              <option value="sometimes">Sometimes</option>
-              <option value="rarely">Rarely</option>
-              <option value="never">Never</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="category">Category</label>
-            <select id="category" name="category" required>
+            <label for="filter-category">Category</label>
+            <select id="filter-category">
+              <option value="all">All categories</option>
               <option value="entertainment">Entertainment</option>
               <option value="software">Software</option>
               <option value="fitness">Fitness</option>
@@ -94,104 +223,70 @@
               <option value="other">Other</option>
             </select>
           </div>
+          <div class="field">
+            <label for="filter-status">Status</label>
+            <select id="filter-status">
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="trial">Free trial</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sort">Sort</label>
+            <select id="sort">
+              <option value="yearly-desc">Highest yearly cost</option>
+              <option value="renewal-asc">Next renewal</option>
+              <option value="name-asc">Name A–Z</option>
+            </select>
+          </div>
+        </div>
 
-          <button type="submit" class="btn primary">Add subscription</button>
-        </form>
-      </section>
-
-      <section class="results-grid" aria-label="Summary">
-        <article class="panel yearly-highlight">
-          <p class="eyebrow">Main result</p>
-          <h2 id="main-yearly-message">Your subscriptions cost you $0.00 per year.</h2>
-        </article>
-
-        <article class="panel stats-panel">
-          <h3>Totals</h3>
-          <ul class="stats-list">
-            <li><span>Total monthly cost</span><strong id="total-monthly">$0.00</strong></li>
-            <li><span>Total yearly cost</span><strong id="total-yearly">$0.00</strong></li>
-            <li><span>Active subscriptions</span><strong id="active-count">0</strong></li>
-            <li><span>Possible yearly savings</span><strong id="possible-savings">$0.00</strong></li>
-          </ul>
-          <button id="clear-all" class="btn danger" type="button">Clear all</button>
-        </article>
-      </section>
-
-      <section class="panel list-panel" aria-label="Subscription list">
-        <h2>Your subscriptions</h2>
+        <p id="list-summary" class="list-summary"></p>
         <div id="subscription-list" class="subscription-list"></div>
       </section>
 
-      <section class="panel feedback-panel" aria-labelledby="feedback-title">
-        <div>
-          <h2 id="feedback-title">Help Improve SubKiller</h2>
-          <p class="feedback-note">
-            Share quick feedback through Google Forms. No subscription information is collected by SubKiller;
-            the only purpose is improving the tool.
-          </p>
-        </div>
-        <a class="btn primary" href="https://forms.gle/xdrcAc2wWaxzGUVR6" target="_blank" rel="noopener noreferrer">
-          Give feedback
-        </a>
-      </section>
-
-      <section class="info-grid" aria-label="Subscription help">
-        <section class="panel faq-panel" aria-labelledby="faq-title">
-          <h2 id="faq-title">Frequently Asked Questions</h2>
-
-          <div class="faq-list">
-            <details>
-              <summary>What is SubKiller?</summary>
-              <p>SubKiller is a simple tool that helps you see how much your subscriptions cost per month and per year. It helps make recurring expenses easier to understand.</p>
-            </details>
-            <details>
-              <summary>Does SubKiller cancel subscriptions for me?</summary>
-              <p>No. SubKiller does not cancel subscriptions automatically. It helps you track your recurring costs so you can decide what to keep, cancel, or review.</p>
-            </details>
-            <details>
-              <summary>Is my data saved?</summary>
-              <p>Your subscriptions are saved locally in your browser if local storage is enabled. This means the data stays on your device and is not sent to a server.</p>
-            </details>
-            <details>
-              <summary>Do I need an account?</summary>
-              <p>No. SubKiller works without an account, login, or sign-up.</p>
-            </details>
-            <details>
-              <summary>Why should I track yearly costs?</summary>
-              <p>Small monthly payments can look harmless, but they can become expensive over a full year. Seeing the yearly total makes the real cost easier to judge.</p>
-            </details>
-            <details>
-              <summary>Can I use SubKiller for free?</summary>
-              <p>Yes. The current version of SubKiller is free to use.</p>
-            </details>
-            <details>
-              <summary>Who is SubKiller for?</summary>
-              <p>SubKiller is useful for anyone who wants a clearer overview of subscriptions, memberships, apps, streaming services, software tools, and other recurring payments.</p>
-            </details>
-          </div>
+      <section class="support-grid" aria-label="Help and feedback">
+        <section class="panel guide-panel">
+          <p class="eyebrow">How recommendations work</p>
+          <h2>Usage, importance, and cost—together.</h2>
+          <p>SubKiller prioritizes optional services you rarely or never use. Essential subscriptions are never presented as easy savings. Every card explains its recommendation.</p>
         </section>
 
-        <section class="panel tips-panel" aria-labelledby="tips-title">
-          <h2 id="tips-title">Smart Subscription Tips</h2>
-          <ul class="tips-list">
-            <li>Review your subscriptions once per month.</li>
-            <li>Cancel services you have not used in the last 30 to 60 days.</li>
-            <li>Be careful with free trials that turn into paid plans.</li>
-            <li>Track yearly subscriptions, not only monthly ones.</li>
-            <li>Separate must-have subscriptions from nice-to-have subscriptions.</li>
-            <li>Set a reminder before expensive renewals.</li>
-            <li>Look at the total yearly cost before deciding if something is worth keeping.</li>
-          </ul>
-          <p class="disclaimer">SubKiller provides general information to help you understand your recurring costs. It is not financial advice. You are responsible for your own financial decisions.</p>
+        <section class="panel feedback-panel">
+          <p class="eyebrow">Shape the beta</p>
+          <h2>What would make this more useful?</h2>
+          <p>Share feedback through Google Forms. The form opens on Google and is subject to Google’s privacy practices.</p>
+          <a class="btn primary" href="https://forms.gle/xdrcAc2wWaxzGUVR6" target="_blank" rel="noopener noreferrer">Give feedback</a>
         </section>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>SubKiller by edbuilds — A simple no-signup subscription cost calculator.</p>
-      <p>Built to help you understand your recurring costs before they add up.</p>
+      <p><strong>SubKiller</strong> by edbuilds</p>
+      <nav aria-label="Footer">
+        <a href="./privacy.html">Privacy</a>
+        <a href="https://github.com/Asvenor/SubKiller">Source</a>
+      </nav>
     </footer>
 
-    <script src="./script.js"></script>
+    <dialog id="clear-dialog" class="confirm-dialog" aria-labelledby="clear-title">
+      <form method="dialog">
+        <h2 id="clear-title">Clear every subscription?</h2>
+        <p>This removes the entire list from this browser. Export a backup first if you may need it later.</p>
+        <div class="dialog-actions">
+          <button class="btn secondary" value="cancel">Keep my list</button>
+          <button id="confirm-clear" class="btn danger" value="confirm">Clear everything</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+      <span id="toast-message"></span>
+      <button id="toast-action" class="toast-action" type="button" hidden></button>
+    </div>
+    <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <script type="module" src="./script.js"></script>
   </body>
 </html>
