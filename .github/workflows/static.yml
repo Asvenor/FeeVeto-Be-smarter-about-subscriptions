@@ -1,4 +1,4 @@
-name: Test and deploy SubKiller
+name: Test and deploy FeeVeto
 
 on:
   push:
@@ -47,9 +47,10 @@ jobs:
         uses: actions/configure-pages@v5
       - name: Prepare public site
         run: |
-          mkdir -p _site/src
-          cp index.html privacy.html style.css script.js favicon.svg robots.txt sitemap.xml _site/
-          cp src/*.js _site/src/
+          mkdir -p _site/js _site/data
+          cp index.html privacy.html style.css favicon.svg robots.txt sitemap.xml _site/
+          cp js/*.js _site/js/
+          cp data/*.js _site/data/
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:

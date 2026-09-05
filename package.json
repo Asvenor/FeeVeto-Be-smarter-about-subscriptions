@@ -1,11 +1,11 @@
 {
-  "name": "subkiller",
-  "version": "1.0.0-beta.1",
+  "name": "feeveto",
+  "version": "2.0.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check": "node --check script.js && node --test"
+    "check": "node --check js/app.js && node --test"
   },
   "engines": {
     "node": ">=20"
