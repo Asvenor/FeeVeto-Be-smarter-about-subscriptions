@@ -10,7 +10,7 @@ export const APP_CONFIG = Object.freeze({
   legacySubscriptionsKey: 'subkiller_subscriptions',
   legacyCurrencyKey: 'subkiller_currency',
   defaultCurrency: 'CHF',
-  repositoryUrl: 'https://github.com/Asvenor/SubKiller',
+  repositoryUrl: 'https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions',
   feedbackUrl: 'https://forms.gle/xdrcAc2wWaxzGUVR6',
 });
 
