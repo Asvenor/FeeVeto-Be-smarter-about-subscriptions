@@ -53,6 +53,13 @@ export function normalizeDetailedReview(value) {
   if (!value || typeof value !== 'object') return null;
   const text = (input, max = 240) => String(input || '').trim().slice(0, max);
   const booleanOrNull = (input) => (typeof input === 'boolean' ? input : null);
+  const rawCategory = value.categoryAnswers && typeof value.categoryAnswers === 'object' ? value.categoryAnswers : {};
+  const booleanCategoryKeys = ['exclusiveContent', 'rotateServices', 'adSupportedPlan', 'basicFeaturesOnly', 'collaborationRequired', 'proprietaryFormat', 'openSourceAcceptable', 'criticalBackup', 'includedElsewhere', 'payPerVisitCheaper', 'multiplayerRequired', 'includedGamesUsed', 'pausePractical'];
+  const categoryAnswers = Object.fromEntries(booleanCategoryKeys.map((key) => [key, rawCategory[key] === true]));
+  categoryAnswers.storageUsed = text(rawCategory.storageUsed, 40);
+  categoryAnswers.timesPerMonth = rawCategory.timesPerMonth !== null && rawCategory.timesPerMonth !== '' && Number.isFinite(Number(rawCategory.timesPerMonth))
+    ? Math.max(0, Math.min(100, Number(rawCategory.timesPerMonth)))
+    : null;
   return {
     satisfaction: ['very_satisfied', 'satisfied', 'neutral', 'dissatisfied', 'very_dissatisfied'].includes(value.satisfaction) ? value.satisfaction : '',
     householdUse: booleanOrNull(value.householdUse),
@@ -64,7 +71,7 @@ export function normalizeDetailedReview(value) {
     seasonal: booleanOrNull(value.seasonal),
     activeContract: booleanOrNull(value.activeContract),
     neededFeatures: text(value.neededFeatures),
-    categoryAnswers: value.categoryAnswers && typeof value.categoryAnswers === 'object' ? value.categoryAnswers : {},
+    categoryAnswers,
     completedAt: text(value.completedAt, 40),
   };
 }

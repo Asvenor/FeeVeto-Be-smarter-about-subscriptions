@@ -51,7 +51,12 @@ function alternativeCard(item, currency) {
   link.target = '_blank';
   link.rel = item.isAffiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer';
   card.append(link);
-  if (item.isAffiliate) card.append(element('span', 'paid-link', 'Paid link'));
+  if (item.isAffiliate) {
+    card.append(
+      element('span', 'paid-link', 'Paid link'),
+      element('p', 'affiliate-disclosure', 'We may earn a commission if you purchase through this link, at no additional cost to you. Affiliate relationships do not affect how alternatives are ranked.'),
+    );
+  }
   return card;
 }
 
@@ -74,6 +79,7 @@ function subscriptionCard(item, result, alternatives) {
   );
   const perUse = estimatedCostPerUse(item.amountMinor, item.cycle, item.usage);
   if (perUse !== null) metrics.append(line('Estimated cost per use', `Approximately ${formatMoney(perUse, item.currency)}`));
+  if (item.renewalDate) metrics.append(line('Renewal date', new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${item.renewalDate}T12:00:00`))));
   card.append(metrics);
 
   const explanation = element('div', 'recommendation-copy');

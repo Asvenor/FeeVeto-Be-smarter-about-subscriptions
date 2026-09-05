@@ -172,6 +172,7 @@ input[aria-invalid="true"] { border-color: var(--color-danger); }
 .alternative-heading { display: flex; justify-content: space-between; gap: .7rem; }
 .alternative-type, .paid-link { color: var(--color-green-dark); font-size: .72rem; font-weight: 850; text-transform: capitalize; }
 .alternative-card > p, .alternative-detail { margin-block: .5rem; color: var(--color-text-muted); font-size: .84rem; }
+.affiliate-disclosure { font-size: .75rem !important; }
 .card-actions { justify-content: flex-start; flex-wrap: wrap; margin-top: auto; }
 .empty-state { grid-column: 1 / -1; border: 1px dashed #abc1b0; border-radius: var(--radius-medium); background: rgba(255, 255, 255, .55); padding: 2rem; color: var(--color-text-muted); text-align: center; }
 

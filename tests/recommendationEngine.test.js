@@ -48,3 +48,23 @@ test('active annual contract is reviewed before renewal', () => {
 test('overlapping service increases replacement likelihood', () => {
   assert.equal(evaluateSubscription(subscription({ detailedReview: review({ overlap: true, considerFree: true }) })).recommendation, 'replace');
 });
+
+test('critical backup detail protects low-visible-use cloud storage', () => {
+  const result = evaluateSubscription(subscription({ category: 'cloud', usage: 'never', detailedReview: review({ categoryAnswers: { criticalBackup: true } }) }));
+  assert.equal(result.recommendation, 'keep');
+});
+
+test('ad-supported streaming preference can support a downgrade', () => {
+  const result = evaluateSubscription(subscription({ category: 'streaming', detailedReview: review({ considerCheaper: true, categoryAnswers: { adSupportedPlan: true } }) }));
+  assert.equal(result.recommendation, 'downgrade');
+});
+
+test('low fitness usage and cheaper pay-per-visit option support downgrade', () => {
+  const result = evaluateSubscription(subscription({ category: 'fitness', detailedReview: review({ categoryAnswers: { payPerVisitCheaper: true, timesPerMonth: 3 } }) }));
+  assert.equal(result.recommendation, 'downgrade');
+});
+
+test('required multiplayer access protects an important gaming subscription', () => {
+  const result = evaluateSubscription(subscription({ category: 'gaming', importance: 'important', detailedReview: review({ categoryAnswers: { multiplayerRequired: true } }) }));
+  assert.equal(result.recommendation, 'keep');
+});

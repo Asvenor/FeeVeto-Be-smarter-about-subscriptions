@@ -15,14 +15,17 @@ const elements = {
   detailForm: byId('detail-form'), detailTitle: byId('detail-title'), toast: byId('toast'), toastMessage: byId('toast-message'), toastAction: byId('toast-action'), announcer: byId('announcer'),
 };
 
-const loaded = loadState(localStorage);
+const browserStorage = (() => {
+  try { return window.localStorage; } catch { return { getItem() { return null; }, setItem() { throw new Error('Storage unavailable'); } }; }
+})();
+const loaded = loadState(browserStorage);
 let state = loaded.state;
 let activeFilter = 'all';
 let toastTimer;
 const alternativesProvider = new LocalAlternativesProvider();
 
 function persist() {
-  if (!saveState(localStorage, state)) showToast('Your changes work for now, but this browser could not save them.');
+  if (!saveState(browserStorage, state)) showToast('Your changes work for now, but this browser could not save them.');
 }
 
 function render() {
@@ -102,8 +105,9 @@ function categoryAnswers(form) {
   const names = ['exclusiveContent', 'rotateServices', 'adSupportedPlan', 'basicFeaturesOnly', 'collaborationRequired', 'proprietaryFormat', 'openSourceAcceptable', 'criticalBackup', 'includedElsewhere', 'payPerVisitCheaper', 'multiplayerRequired', 'includedGamesUsed', 'pausePractical'];
   const answers = Object.fromEntries(names.map((name) => [name, Boolean(form.elements[name]?.checked)]));
   answers.storageUsed = String(form.elements.storageUsed?.value || '').trim().slice(0, 40);
-  const times = Number(form.elements.timesPerMonth?.value);
-  answers.timesPerMonth = Number.isFinite(times) && times >= 0 ? times : null;
+  const rawTimes = String(form.elements.timesPerMonth?.value || '').trim();
+  const times = Number(rawTimes);
+  answers.timesPerMonth = rawTimes && Number.isFinite(times) && times >= 0 ? times : null;
   return answers;
 }
 

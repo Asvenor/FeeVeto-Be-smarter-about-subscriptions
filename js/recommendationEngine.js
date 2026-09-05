@@ -79,11 +79,60 @@ export function evaluateSubscription(item) {
     ], { score: Math.max(score, 58), confidence, shouldShowAlternatives: item.usage === 'never' });
   }
 
+  if (item.category === 'cloud' && review?.categoryAnswers?.criticalBackup) {
+    return result(review.categoryAnswers.includedElsewhere ? 'keep_review_plan' : 'keep', review.categoryAnswers.includedElsewhere ? 'Critical backup matters, but equivalent storage may already be included elsewhere.' : 'Critical backup value is not measured only by how often the app is opened.', [
+      'You identified this service as a critical backup.',
+      review.categoryAnswers.includedElsewhere ? 'You also reported equivalent storage elsewhere, so verify coverage before changing anything.' : 'Reliable recovery coverage supports keeping it.',
+    ], { score: Math.max(score, 55), confidence, shouldShowAlternatives: Boolean(review.categoryAnswers.includedElsewhere) });
+  }
+
+  if (item.category === 'cloud' && review?.categoryAnswers?.includedElsewhere && (review.considerCheaper || review.considerFree)) {
+    return result('replace', 'Equivalent storage may already be available through another product.', [
+      'You reported overlapping storage elsewhere.',
+      'You are open to a cheaper or free alternative.',
+    ], { score, confidence, shouldShowAlternatives: true });
+  }
+
   if (review?.seasonal && item.category === 'streaming') {
     return result('pause_rotate', 'A seasonal service may deliver better value when used only during the months you need it.', [
       'You described this streaming subscription as seasonal.',
       'Pausing or rotating can preserve access without paying continuously.',
     ], { score, confidence, shouldShowAlternatives: false });
+  }
+
+  if (item.category === 'streaming' && review?.categoryAnswers?.rotateServices && ['monthly', 'less_than_monthly', 'never'].includes(item.usage)) {
+    return result('pause_rotate', 'Rotating streaming services may match your viewing pattern better than continuous access.', [
+      'You said rotation is practical.',
+      'Your reported viewing frequency does not require constant access.',
+    ], { score, confidence, shouldShowAlternatives: false });
+  }
+
+  if (item.category === 'streaming' && review?.categoryAnswers?.adSupportedPlan && review.considerCheaper) {
+    return result('downgrade', 'An ad-supported plan may preserve access at a lower price.', [
+      'You are willing to consider a cheaper plan.',
+      'You said an ad-supported plan would be acceptable.',
+    ], { score, confidence, shouldShowAlternatives: true });
+  }
+
+  if (item.category === 'fitness' && review?.categoryAnswers?.payPerVisitCheaper && Number.isFinite(review.categoryAnswers.timesPerMonth) && review.categoryAnswers.timesPerMonth <= 4) {
+    return result('downgrade', 'A lower-commitment or pay-per-visit option may fit the usage you reported.', [
+      'You use the service four times per month or fewer.',
+      'You believe pay-per-visit may cost less.',
+    ], { score, confidence, shouldShowAlternatives: true });
+  }
+
+  if (item.category === 'gaming' && review?.categoryAnswers?.pausePractical && ['monthly', 'less_than_monthly', 'never'].includes(item.usage)) {
+    return result('pause_rotate', 'Pausing between releases may suit your gaming pattern.', [
+      'You said pausing is practical.',
+      'Your current usage is monthly or less.',
+    ], { score, confidence, shouldShowAlternatives: false });
+  }
+
+  if (item.category === 'gaming' && (review?.categoryAnswers?.multiplayerRequired || review?.categoryAnswers?.includedGamesUsed) && ['essential', 'important'].includes(item.importance)) {
+    return result('keep', 'The subscription supports gaming access or content you actively value.', [
+      review.categoryAnswers.multiplayerRequired ? 'You need it for multiplayer access.' : 'You use the included games regularly.',
+      'You marked the service as important or essential.',
+    ], { score: Math.max(score, 55), confidence, shouldShowAlternatives: false });
   }
 
   const basicOnly = /\bbasic\b/i.test(review?.neededFeatures || '') || review?.categoryAnswers?.basicFeaturesOnly === true;
