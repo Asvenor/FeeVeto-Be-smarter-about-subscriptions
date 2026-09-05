@@ -5,6 +5,9 @@ import { renderDashboard } from './render.js';
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
 
+document.title = `${APP_CONFIG.brandName} — ${APP_CONFIG.slogan}`;
+document.querySelector('meta[name="description"]')?.setAttribute('content', APP_CONFIG.description);
+
 const byId = (id) => document.getElementById(id);
 const elements = {
   form: byId('subscription-form'), formTitle: byId('form-title'), editBadge: byId('edit-badge'), submitButton: byId('submit-button'), cancelEdit: byId('cancel-edit'),
@@ -162,7 +165,8 @@ elements.form.addEventListener('submit', (event) => {
   if (!item) return showToast('Check the subscription details and try again.');
   if (editingId) state.subscriptions[state.subscriptions.findIndex((entry) => entry.id === editingId)] = item; else state.subscriptions.push(item);
   persist(); resetForm(); render();
-  showToast(`${item.name} ${editingId ? 'updated' : 'added'}.`); announce(`${item.name} ${editingId ? 'updated' : 'added'} to the audit.`);
+  showToast(`${item.name} ${editingId ? 'updated' : 'added'}.`);
+  announce(editingId ? `${item.name} updated in the audit.` : `${item.name} added to the audit.`);
 });
 
 elements.detailForm.addEventListener('submit', (event) => {
