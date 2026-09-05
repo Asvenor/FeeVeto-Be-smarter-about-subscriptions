@@ -49,4 +49,4 @@ The application stores subscription data in browser local storage and has no bac
 
 ## License
 
-No license has been selected yet. Until one is added, normal copyright rules apply.
+SubKiller is available under the [MIT License](./LICENSE).
