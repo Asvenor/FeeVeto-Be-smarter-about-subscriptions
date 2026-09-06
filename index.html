@@ -22,7 +22,13 @@
       <nav class="nav-shell" aria-label="Primary navigation">
         <a class="brand" href="#top" aria-label="FeeVeto home"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a>
         <div class="nav-links"><a href="#how-it-works">How it works</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a></div>
-        <a class="button button-primary button-small" href="#audit">Start audit</a>
+        <div class="nav-actions">
+          <span id="auth-loading" class="auth-loading" aria-hidden="true">Account</span>
+          <div id="signed-out-controls" class="auth-controls" hidden><button id="sign-in-button" class="auth-link" type="button">Sign in</button><button id="sign-up-button" class="button button-secondary button-small" type="button">Sign up</button></div>
+          <div id="signed-in-controls" class="signed-in-controls" hidden><span class="sr-only">Signed in</span><div id="user-button"></div></div>
+          <span id="auth-status" class="sr-only" role="status" hidden></span>
+          <a class="button button-primary button-small nav-audit-button" href="#audit">Start audit</a>
+        </div>
       </nav>
     </header>
 
@@ -43,7 +49,7 @@
         </aside>
       </section>
 
-      <section class="trust-strip" aria-label="Privacy and access facts"><div class="section-shell trust-grid"><span>No account required</span><span>No bank connection</span><span>Entries stored in this browser</span><span>Free to use</span></div></section>
+      <section class="trust-strip" aria-label="Privacy and access facts"><div class="section-shell trust-grid"><span>Account optional</span><span>No bank connection</span><span>Entries stored in this browser</span><span>Free to use</span></div></section>
 
       <section id="audit" class="audit-section section-shell" aria-labelledby="audit-title">
         <div class="section-intro"><p class="eyebrow">Your private audit</p><h2 id="audit-title">Start with the essentials.</h2><p>A quick audit creates a preliminary recommendation. Open the detailed review only when you want a more confident result.</p></div>
@@ -114,7 +120,7 @@
 
       <section id="privacy" class="privacy-section section-shell" aria-labelledby="privacy-title">
         <div class="privacy-copy"><p class="eyebrow">Private by default</p><h2 id="privacy-title">Your audit stays with you.</h2><p>Your subscription entries are stored locally in this browser and are not sent to FeeVeto. Clearing browser data, using private-browsing mode, or switching devices may remove or hide your saved entries.</p><a href="./privacy.html">Read the privacy overview</a></div>
-        <div class="privacy-points"><article><h3>No account</h3><p>There is no profile or cloud database in this version.</p></article><article><h3>No financial connection</h3><p>FeeVeto does not connect to banks or automatically detect subscriptions.</p></article><article><h3>Portable backup</h3><p>You can export a local JSON backup and import it in another browser.</p></article></div>
+        <div class="privacy-points"><article><h3>Optional account</h3><p>Clerk handles sign-in and profile security. Your audit is not uploaded or synced to your account.</p></article><article><h3>No financial connection</h3><p>FeeVeto does not connect to banks or automatically detect subscriptions.</p></article><article><h3>Portable backup</h3><p>You can export a local JSON backup and import it in another browser.</p></article></div>
       </section>
 
       <section id="faq" class="faq-section section-shell" aria-labelledby="faq-title">
@@ -124,6 +130,7 @@
           <details><summary>How are recommendations made?</summary><p>A deterministic set of documented rules weighs usage, importance, satisfaction, household use, overlap, contracts, seasonality, and switching difficulty. Every result includes reasons and a confidence level.</p></details>
           <details><summary>Does changing currency convert prices?</summary><p>No. Every subscription keeps its saved currency. Dashboard totals include only the selected audit currency because FeeVeto has no live exchange-rate service.</p></details>
           <details><summary>Where is my information stored?</summary><p>Subscription and questionnaire data are stored in this browser’s local storage. Export a backup if you plan to clear browser data or change devices.</p></details>
+          <details><summary>What does creating an account do?</summary><p>Clerk provides secure sign-in and profile management for future account features. In this release, your audit remains local to this browser and is not synced to your account.</p></details>
           <details><summary>Are alternative prices always current?</summary><p>Only alternatives with a verification date and sufficient local data are displayed. You should still confirm prices, features, and availability with the provider.</p></details>
         </div>
       </section>

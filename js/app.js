@@ -4,6 +4,7 @@ import { LocalAlternativesProvider } from './alternativeProvider.js';
 import { renderDashboard } from './render.js';
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
+import { initializeAuth } from './auth.js';
 
 document.title = `${APP_CONFIG.brandName} — ${APP_CONFIG.slogan}`;
 document.querySelector('meta[name="description"]')?.setAttribute('content', APP_CONFIG.description);
@@ -225,6 +226,7 @@ elements.importFile.addEventListener('change', async () => {
 });
 
 render();
+initializeAuth();
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');

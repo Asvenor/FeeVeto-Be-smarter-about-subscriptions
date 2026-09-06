@@ -2,3 +2,7 @@
 node_modules/
 coverage/
 _site/
+dist/
+.env
+.env.*
+!.env.example
