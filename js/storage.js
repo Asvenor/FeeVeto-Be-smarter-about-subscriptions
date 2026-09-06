@@ -7,6 +7,7 @@ import {
   STATUS_OPTIONS,
   USAGE_OPTIONS,
 } from './config.js';
+import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById } from './serviceCatalog.js';
 
 const validValues = (options) => new Set(options.map(([value]) => value));
 const CYCLES = validValues(BILLING_CYCLES);
@@ -60,6 +61,14 @@ export function normalizeDetailedReview(value) {
   categoryAnswers.timesPerMonth = rawCategory.timesPerMonth !== null && rawCategory.timesPerMonth !== '' && Number.isFinite(Number(rawCategory.timesPerMonth))
     ? Math.max(0, Math.min(100, Number(rawCategory.timesPerMonth)))
     : null;
+  const serviceId = SERVICE_IDS.includes(value.serviceId) ? value.serviceId : '';
+  const allowedRequirements = new Set(serviceById(serviceId)?.requirements.map(([id]) => id) || []);
+  const requirementList = (input) => Array.isArray(input)
+    ? [...new Set(input.map((item) => text(item, 80)).filter((item) => allowedRequirements.has(item)))].slice(0, 12)
+    : [];
+  const mustHaveRequirements = requirementList(value.mustHaveRequirements);
+  const niceToHaveRequirements = requirementList(value.niceToHaveRequirements).filter((item) => !mustHaveRequirements.includes(item));
+  const storageRequired = Number(value.storageRequiredGb);
   return {
     satisfaction: ['very_satisfied', 'satisfied', 'neutral', 'dissatisfied', 'very_dissatisfied'].includes(value.satisfaction) ? value.satisfaction : '',
     householdUse: booleanOrNull(value.householdUse),
@@ -68,8 +77,16 @@ export function normalizeDetailedReview(value) {
     considerCheaper: booleanOrNull(value.considerCheaper),
     considerFree: booleanOrNull(value.considerFree),
     acceptAds: booleanOrNull(value.acceptAds),
+    acceptFreeLimits: booleanOrNull(value.acceptFreeLimits),
     seasonal: booleanOrNull(value.seasonal),
     activeContract: booleanOrNull(value.activeContract),
+    serviceId,
+    productType: PRODUCT_TYPE_IDS.includes(value.productType) ? value.productType : '',
+    country: /^[A-Za-z]{2}$/.test(text(value.country, 2)) ? text(value.country, 2).toUpperCase() : '',
+    platform: ['web', 'windows', 'macos', 'linux', 'ios', 'android', 'smart_tv', 'game_console'].includes(value.platform) ? value.platform : '',
+    storageRequiredGb: Number.isFinite(storageRequired) && storageRequired >= 0 && storageRequired <= 100_000 ? storageRequired : null,
+    mustHaveRequirements,
+    niceToHaveRequirements,
     neededFeatures: text(value.neededFeatures),
     categoryAnswers,
     completedAt: text(value.completedAt, 40),

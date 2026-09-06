@@ -1,7 +1,8 @@
 import { APP_CONFIG } from './config.js';
 import { fromMinorUnits } from './calculations.js';
-import { LocalAlternativesProvider } from './alternativeProvider.js';
+import { BackendAlternativesProvider } from './alternativeProvider.js';
 import { renderDashboard } from './render.js';
+import { detectSupportedService, PRODUCT_TYPES, serviceById, SUPPORTED_SERVICES } from './serviceCatalog.js';
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
@@ -17,6 +18,7 @@ const elements = {
   actionCount: byId('action-count'), currencySummary: byId('currency-summary'), search: byId('result-search'), clearAll: byId('clear-all'), clearDialog: byId('clear-dialog'),
   confirmClear: byId('confirm-clear'), exportData: byId('export-data'), importData: byId('import-data'), importFile: byId('import-file'), detailDialog: byId('detail-dialog'),
   detailForm: byId('detail-form'), detailTitle: byId('detail-title'), toast: byId('toast'), toastMessage: byId('toast-message'), toastAction: byId('toast-action'), announcer: byId('announcer'),
+  requirementQuestions: byId('requirement-questions'), serviceSupport: byId('service-support'),
 };
 
 const browserStorage = (() => {
@@ -26,7 +28,8 @@ const loaded = loadState(browserStorage);
 let state = loaded.state;
 let activeFilter = 'all';
 let toastTimer;
-const alternativesProvider = new LocalAlternativesProvider();
+const alternativesProvider = new BackendAlternativesProvider();
+const alternativeResults = new Map();
 
 function persist() {
   if (!saveState(browserStorage, state)) showToast('Your changes work for now, but this browser could not save them.');
@@ -35,7 +38,7 @@ function persist() {
 function render() {
   elements.auditCurrency.value = state.auditCurrency;
   elements.priceCurrency.textContent = state.auditCurrency;
-  renderDashboard({ state, elements, filter: activeFilter, query: elements.search.value, alternativesProvider });
+  renderDashboard({ state, elements, filter: activeFilter, query: elements.search.value, alternativeResults });
 }
 
 function announce(message) {
@@ -119,6 +122,56 @@ function setRadio(form, name, value) {
   for (const input of form.querySelectorAll(`[name="${name}"]`)) input.checked = value !== null && input.value === String(value);
 }
 
+function fillAlternativeSelectors() {
+  const serviceSelect = elements.detailForm.elements.serviceId;
+  const productTypeSelect = elements.detailForm.elements.productType;
+  serviceSelect.replaceChildren(new Option('Choose or confirm a service', ''));
+  for (const service of SUPPORTED_SERVICES) serviceSelect.append(new Option(service.name, service.id));
+  productTypeSelect.replaceChildren(new Option('Choose a product type', ''));
+  for (const [id, label] of PRODUCT_TYPES) productTypeSelect.append(new Option(label, id));
+}
+
+function renderRequirementQuestions(serviceId, review = null) {
+  const service = serviceById(serviceId);
+  byId('storage-requirement').hidden = serviceId !== 'dropbox';
+  elements.requirementQuestions.replaceChildren();
+  if (!service) {
+    elements.serviceSupport.textContent = 'This service is not supported yet. Choose one of the six supported services only if it is the subscription you actually use.';
+    return;
+  }
+  elements.serviceSupport.textContent = `${service.name} is supported. Mark only requirements the catalogue can verify.`;
+  const mustHave = new Set(review?.mustHaveRequirements || []);
+  const niceToHave = new Set(review?.niceToHaveRequirements || []);
+  const heading = document.createElement('h3');
+  heading.textContent = `${service.name} requirements`;
+  elements.requirementQuestions.append(heading);
+  for (const [id, label] of service.requirements) {
+    const row = document.createElement('label');
+    row.className = 'requirement-row';
+    const text = document.createElement('span');
+    text.textContent = label;
+    const select = document.createElement('select');
+    select.name = `requirement_${id}`;
+    select.setAttribute('aria-label', `${label} priority`);
+    select.append(new Option('Not needed', ''), new Option('Must have', 'must'), new Option('Nice to have', 'nice'));
+    select.value = mustHave.has(id) ? 'must' : niceToHave.has(id) ? 'nice' : '';
+    row.append(text, select);
+    elements.requirementQuestions.append(row);
+  }
+}
+
+function requirementChoices(formData, serviceId) {
+  const service = serviceById(serviceId);
+  const mustHaveRequirements = [];
+  const niceToHaveRequirements = [];
+  for (const [id] of service?.requirements || []) {
+    const choice = formData.get(`requirement_${id}`);
+    if (choice === 'must') mustHaveRequirements.push(id);
+    if (choice === 'nice') niceToHaveRequirements.push(id);
+  }
+  return { mustHaveRequirements, niceToHaveRequirements };
+}
+
 function openDetailedReview(id) {
   const item = state.subscriptions.find((entry) => entry.id === id);
   if (!item) return;
@@ -126,11 +179,18 @@ function openDetailedReview(id) {
   elements.detailForm.elements.subscriptionId.value = id;
   elements.detailTitle.textContent = `Review ${item.name}`;
   const review = item.detailedReview;
+  const detectedService = serviceById(review?.serviceId) || detectSupportedService(item.name);
+  elements.detailForm.elements.serviceId.value = detectedService?.id || '';
+  elements.detailForm.elements.productType.value = review?.productType || detectedService?.productType || '';
+  elements.detailForm.elements.country.value = review?.country || '';
+  elements.detailForm.elements.platform.value = review?.platform || '';
+  elements.detailForm.elements.storageRequiredGb.value = review?.storageRequiredGb ?? '';
+  renderRequirementQuestions(detectedService?.id || '', review);
   if (review) {
     elements.detailForm.elements.satisfaction.value = review.satisfaction;
     elements.detailForm.elements.switchingDifficulty.value = review.switchingDifficulty;
     elements.detailForm.elements.neededFeatures.value = review.neededFeatures;
-    for (const name of ['householdUse', 'overlap', 'considerCheaper', 'considerFree', 'acceptAds', 'seasonal', 'activeContract']) setRadio(elements.detailForm, name, review[name]);
+    for (const name of ['householdUse', 'overlap', 'considerCheaper', 'considerFree', 'acceptAds', 'acceptFreeLimits', 'seasonal', 'activeContract']) setRadio(elements.detailForm, name, review[name]);
     for (const [name, value] of Object.entries(review.categoryAnswers || {})) {
       const control = elements.detailForm.elements[name];
       if (!control) continue;
@@ -145,6 +205,7 @@ function deleteSubscription(id) {
   const index = state.subscriptions.findIndex((item) => item.id === id);
   if (index < 0) return;
   const [removed] = state.subscriptions.splice(index, 1);
+  alternativeResults.delete(id);
   persist(); render(); announce(`${removed.name} deleted.`);
   showToast(`${removed.name} deleted.`, 'Undo', () => { state.subscriptions.splice(index, 0, removed); persist(); render(); elements.toast.hidden = true; announce(`${removed.name} restored.`); });
 }
@@ -175,21 +236,54 @@ elements.detailForm.addEventListener('submit', (event) => {
   const formData = new FormData(elements.detailForm);
   const item = state.subscriptions.find((entry) => entry.id === formData.get('subscriptionId'));
   if (!item) return elements.detailDialog.close();
+  const serviceId = String(formData.get('serviceId') || '');
+  const requirementPriorities = requirementChoices(formData, serviceId);
+  const rawStorageRequired = String(formData.get('storageRequiredGb') || '').trim();
+  const storageRequired = rawStorageRequired ? Number(rawStorageRequired) : Number.NaN;
   item.detailedReview = {
     satisfaction: String(formData.get('satisfaction') || ''), householdUse: booleanValue(formData, 'householdUse'), overlap: booleanValue(formData, 'overlap'),
     switchingDifficulty: String(formData.get('switchingDifficulty') || ''), considerCheaper: booleanValue(formData, 'considerCheaper'), considerFree: booleanValue(formData, 'considerFree'),
-    acceptAds: booleanValue(formData, 'acceptAds'), seasonal: booleanValue(formData, 'seasonal'), activeContract: booleanValue(formData, 'activeContract'),
+    acceptAds: booleanValue(formData, 'acceptAds'), acceptFreeLimits: booleanValue(formData, 'acceptFreeLimits'), seasonal: booleanValue(formData, 'seasonal'), activeContract: booleanValue(formData, 'activeContract'),
+    serviceId, productType: String(formData.get('productType') || ''), country: String(formData.get('country') || '').trim().toUpperCase().slice(0, 2),
+    platform: String(formData.get('platform') || ''), storageRequiredGb: Number.isFinite(storageRequired) && storageRequired >= 0 ? storageRequired : null,
+    ...requirementPriorities,
     neededFeatures: String(formData.get('neededFeatures') || '').trim().slice(0, 240), categoryAnswers: categoryAnswers(elements.detailForm), completedAt: new Date().toISOString(),
   };
   item.updatedAt = new Date().toISOString();
-  persist(); render(); elements.detailDialog.close(); showToast(`Detailed review saved for ${item.name}.`); announce(`Recommendation updated for ${item.name}.`);
+  persist(); alternativeResults.delete(item.id); render(); elements.detailDialog.close(); showToast(`Detailed review saved for ${item.name}.`); announce(`Recommendation updated for ${item.name}.`);
+  void refreshAlternatives(item);
 });
+
+elements.detailForm.elements.serviceId.addEventListener('change', () => {
+  const service = serviceById(elements.detailForm.elements.serviceId.value);
+  if (service) elements.detailForm.elements.productType.value = service.productType;
+  renderRequirementQuestions(service?.id || '');
+});
+
+async function refreshAlternatives(item) {
+  alternativeResults.set(item.id, { status: 'loading', accessScope: 'public', items: [], message: '' });
+  render();
+  try {
+    const clerk = await clerkPromise;
+    const token = await clerk?.session?.getToken?.() || '';
+    const result = await alternativesProvider.getAlternatives(item, token);
+    if (!state.subscriptions.some((entry) => entry.id === item.id)) return;
+    alternativeResults.set(item.id, { status: 'ready', ...result });
+  } catch (error) {
+    alternativeResults.set(item.id, { status: 'error', accessScope: 'public', items: [], message: error instanceof Error ? error.message : 'Alternatives could not be loaded.' });
+  }
+  render();
+}
 
 elements.list.addEventListener('click', (event) => {
   const target = event.target.closest('[data-action]');
   if (!target) return;
   if (target.dataset.action === 'edit') beginEdit(target.dataset.id);
   if (target.dataset.action === 'detail') openDetailedReview(target.dataset.id);
+  if (target.dataset.action === 'alternatives') {
+    const item = state.subscriptions.find((entry) => entry.id === target.dataset.id);
+    if (item) void refreshAlternatives(item);
+  }
   if (target.dataset.action === 'delete') deleteSubscription(target.dataset.id);
 });
 
@@ -225,8 +319,9 @@ elements.importFile.addEventListener('change', async () => {
   } catch (error) { showToast(error instanceof Error ? error.message : 'The backup could not be imported.'); }
 });
 
+fillAlternativeSelectors();
 render();
-initializeAuth();
+const clerkPromise = initializeAuth();
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');
