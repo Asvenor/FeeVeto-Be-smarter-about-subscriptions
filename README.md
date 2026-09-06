@@ -46,7 +46,9 @@ fixtures/                     Fictional public catalogue data for validation and
 scripts/                      Private-catalogue validation and explicit KV import tools
 tests/                        Calculation, decision, alternatives, storage, and page-contract tests
 vite.config.js                Multi-page production build configuration
-functions/api/                Cloudflare Pages Functions for access and alternatives
+worker.js                     Cloudflare Worker router for protected APIs and static assets
+wrangler.jsonc                Versioned Worker, asset, and private KV binding configuration
+functions/api/                Reusable Cloudflare handlers for access and alternatives
 functions/_shared/            Clerk verification, access policy, private catalogue matching, and HTTP helpers
 ```
 
@@ -81,7 +83,7 @@ The repository includes `.env.example` as a safe template. Local credentials bel
 
 ### Server-controlled access
 
-Cloudflare Pages Functions verify each Clerk session before reading access settings. After verification, the backend fetches the Clerk Backend User and reads only `privateMetadata`:
+The Cloudflare Worker verifies each Clerk session before reading access settings. After verification, the backend fetches the Clerk Backend User and reads only `privateMetadata`:
 
 - `{ "role": "admin", "betaAccess": false }` grants admin privileges and complimentary premium access.
 - `{ "role": "user", "betaAccess": true }` grants complimentary premium access without admin privileges.
@@ -193,26 +195,21 @@ The repository workflow installs locked dependencies and runs the full test and 
 
 Before deployment, create the repository Actions variable `VITE_CLERK_PUBLISHABLE_KEY` with FeeVeto’s Clerk publishable key. Publishable keys are intended for browser use; never configure `CLERK_SECRET_KEY` in the frontend or Pages build.
 
-### Cloudflare Pages
+### Cloudflare Workers
 
-FeeVeto is a static Vite site.
+FeeVeto uses a module Worker so the protected Clerk/KV endpoints and static Vite assets run on the same origin. The previously used assets-only deploy command is insufficient because assets-only Workers cannot receive runtime secrets or bindings.
 
-1. Create a Pages project from the GitHub repository.
-2. Choose the Vite framework preset.
-3. Use `npm run build` as the build command.
-4. Set the output directory to `dist`.
-5. Use Node.js 20 or newer if a build environment is requested.
-6. Add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
-7. Add `CLERK_PUBLISHABLE_KEY` as a Pages Functions variable and `CLERK_SECRET_KEY` as an encrypted Pages Functions secret. The publishable values may be the same key; the secret key must never enter the Vite build.
-8. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated list of additional trusted frontend origins. The current request origin is always included automatically for same-origin Cloudflare deployments.
-9. Create a Workers KV namespace for the private curated catalogue.
-10. Under **Settings → Bindings**, add that namespace with the exact variable name `FEEVETO_ALTERNATIVES` for Production and Preview.
-11. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
-12. Deploy and test authentication, all four access states, catalogue filtering, storage, module paths, and privacy links on the final domain.
+1. Keep the existing Git-connected Worker named `feeveto`.
+2. Use `npm run build` as the build command and `npx wrangler deploy` as the deploy command.
+3. Use Node.js 20 or newer and add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
+4. Keep `worker.js` and `wrangler.jsonc` at the repository root. The Worker routes `/api/*` through the existing protected handlers and delegates all other requests to the `ASSETS` binding.
+5. The versioned `wrangler.jsonc` connects `FEEVETO_ALTERNATIVES` to the dedicated `feeveto-alternatives` KV namespace. If a separate Preview Worker is added later, give it a separate namespace instead of sharing production catalogue state.
+6. Add `CLERK_PUBLISHABLE_KEY` as a runtime variable and `CLERK_SECRET_KEY` as an encrypted runtime secret. The publishable values may be the same key; the secret key must never enter Vite or a tracked file.
+7. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated runtime variable for additional trusted frontend origins. The current request origin is always included automatically.
+8. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
+9. Deploy and test authentication, all four access states, catalogue filtering, storage, module paths, and privacy links on the final domain.
 
-In Cloudflare, configure both Production and Preview under **Workers & Pages → FeeVeto project → Settings → Variables and Secrets**. Encrypt `CLERK_SECRET_KEY`. Configure the KV namespace under **Settings → Bindings** and redeploy after adding it. The `/functions` directory must remain at the repository root; Cloudflare builds it separately from `dist`.
-
-For local Pages Functions testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, build with `npm run build`, then run `npx wrangler pages dev dist --kv=FEEVETO_ALTERNATIVES`. Put only fictional data in shared development fixtures.
+For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, run `npm run build`, then run `npx wrangler dev`. Put only fictional data in shared development fixtures.
 
 ### Assigning owner and beta access in Clerk
 
