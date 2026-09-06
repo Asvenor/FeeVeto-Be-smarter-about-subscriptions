@@ -37,12 +37,28 @@ function alternativeCard(item, serviceId) {
   const card = element('article', 'alternative-card');
   const heading = element('div', 'alternative-heading');
   heading.append(element('h4', '', `${item.productName} — ${item.planName}`), element('span', 'alternative-type', item.pricingLabel));
-  card.append(heading, element('p', '', item.description), element('p', 'alternative-match', item.whyMatches));
+  card.append(heading, element('p', `alternative-status ${item.matchStatus === 'confirmed' ? 'confirmed' : 'candidate'}`, item.matchLabel), element('p', '', item.description), element('p', 'alternative-match', item.whyMatches));
   const facts = element('dl', 'alternative-facts');
-  facts.append(line('Pricing model', item.pricingLabel), line('Verified', item.verifiedAt));
+  const price = item.price || {};
+  let priceText = 'Unknown—check current pricing';
+  if (item.pricingModel === 'free' && price.amountMinor === 0) priceText = 'Free';
+  else if (Number.isSafeInteger(price.amountMinor) && price.currency) {
+    const interval = price.billingInterval === 'one_time' ? ' one-time' : price.billingInterval ? ` / ${price.billingInterval}` : '';
+    priceText = `${formatMoney(price.amountMinor, price.currency)}${interval}`;
+  }
+  facts.append(
+    line('Pricing model', item.pricingLabel),
+    line('Verified price', priceText),
+    line('Switching effort', item.switchingDifficulty || 'Unknown'),
+    line('Claims verified', item.verifiedAt),
+  );
   card.append(facts);
   if (item.supportedRequirements?.length) card.append(element('p', 'alternative-detail', `Supports: ${item.supportedRequirements.map((id) => requirementLabel(serviceId, id)).join(', ')}`));
   if (item.limitations?.length) card.append(element('p', 'alternative-detail', `Trade-offs: ${item.limitations.join(' ')}`));
+  if (item.usageLimits?.length) card.append(element('p', 'alternative-detail', `Plan limits: ${item.usageLimits.join(' ')}`));
+  if (price.upfrontCommitmentMonths) card.append(element('p', 'alternative-detail', `Commitment: ${price.upfrontCommitmentMonths} months paid or committed up front.`));
+  if (price.introductoryTerms) card.append(element('p', 'alternative-detail', `Introductory terms: ${price.introductoryTerms}`));
+  if (price.renewalTerms) card.append(element('p', 'alternative-detail', `Renewal terms: ${price.renewalTerms}`));
   if (item.verificationNotes?.length) card.append(element('p', 'verification-note', item.verificationNotes.join(' ')));
   const destination = officialDestination(item);
   const link = element('a', 'button button-secondary button-small', item.actionLabel || 'Visit official website');

@@ -53,9 +53,26 @@ test('requirement completeness distinguishes unanswered from not needed', () => 
   const partial = buildDetailedReview(formData({ category: 'software', serviceId: 'canva', productType: 'graphic_design', requirement_templates: 'must' }));
   assert.equal(requirementsComplete(partial), false);
   const completeData = formData({ category: 'software', serviceId: 'canva', productType: 'graphic_design' });
-  for (const id of ['social_graphics', 'presentations', 'templates', 'background_removal', 'brand_assets', 'team_collaboration']) completeData.set(`requirement_${id}`, 'not_needed');
+  for (const id of ['social_graphics', 'presentations', 'templates', 'background_removal', 'one_click_resize', 'brand_assets', 'team_collaboration']) completeData.set(`requirement_${id}`, 'not_needed');
   assert.equal(requirementsComplete(buildDetailedReview(completeData)), true);
   assert.equal(requirementsComplete({ ...buildDetailedReview(completeData), productType: 'photo_editor' }), false);
+});
+
+test('product-specific matching inputs are stored only when applicable', () => {
+  const review = buildDetailedReview(formData({
+    category: 'other', serviceId: 'duolingo', productType: 'language_learning',
+    targetLanguage: 'German', learnerLevel: 'intermediate', specificSubject: 'History',
+    requiredTitle: 'A title', requiredGame: 'A game', requiredServerCountry: 'CH',
+  }));
+  assert.equal(review.targetLanguage, 'German');
+  assert.equal(review.learnerLevel, 'intermediate');
+  assert.equal(review.specificSubject, '');
+  assert.equal(review.requiredTitle, '');
+  assert.equal(review.requiredGame, '');
+  assert.equal(review.requiredServerCountry, '');
+  assert.equal(buildDetailedReview(formData({ productType: 'game_catalogue', requiredGame: 'A game' })).requiredGame, 'A game');
+  assert.equal(buildDetailedReview(formData({ productType: 'vpn', requiredServerCountry: 'ch' })).requiredServerCountry, 'CH');
+  assert.equal(buildDetailedReview(formData({ productType: 'online_courses', specificSubject: 'History' })).specificSubject, 'History');
 });
 
 test('saving an edit replaces the existing subscription without duplication', () => {

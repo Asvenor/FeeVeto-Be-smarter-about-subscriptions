@@ -15,6 +15,7 @@ export function recommendationRequestFor(subscription) {
     productType: review.productType || service.productType,
     mustHave: Array.isArray(review.mustHaveRequirements) ? review.mustHaveRequirements : [],
     niceToHave: Array.isArray(review.niceToHaveRequirements) ? review.niceToHaveRequirements : [],
+    notNeeded: Array.isArray(review.notNeededRequirements) ? review.notNeededRequirements : [],
     country: review.country || '',
     platform: review.platform || '',
     acceptAds: review.acceptAds,
@@ -22,6 +23,12 @@ export function recommendationRequestFor(subscription) {
     includePaid: review.considerCheaper,
     includeFree: review.considerFree,
     storageRequiredGb: Number.isFinite(review.storageRequiredGb) ? review.storageRequiredGb : null,
+    requiredTitle: review.requiredTitle || '',
+    requiredGame: review.requiredGame || '',
+    requiredServerCountry: review.requiredServerCountry || '',
+    targetLanguage: review.targetLanguage || '',
+    learnerLevel: review.learnerLevel || '',
+    specificSubject: review.specificSubject || '',
   };
 }
 

@@ -45,7 +45,8 @@ export function buildDetailedReview(formData, completedAt = new Date().toISOStri
   const rawStorage = String(formData.get('storageRequiredGb') || '').trim();
   const storage = Number(rawStorage);
   const country = String(formData.get('country') || '').trim().toUpperCase();
-  const adsApply = ['streaming_video', 'ai_assistant'].includes(productType);
+  const adsApply = ['streaming_video', 'ai_assistant', 'photo_editor', 'music_streaming', 'home_workouts'].includes(productType);
+  const shortText = (name, max = 80) => String(formData.get(name) || '').trim().slice(0, max);
   return {
     satisfaction: String(formData.get('satisfaction') || ''),
     householdUse: booleanChoice(formData, 'householdUse'),
@@ -62,6 +63,14 @@ export function buildDetailedReview(formData, completedAt = new Date().toISOStri
     country: serviceId && /^[A-Z]{2}$/.test(country) ? country : '',
     platform: serviceId ? String(formData.get('platform') || '') : '',
     storageRequiredGb: productType === 'cloud_storage' && rawStorage && Number.isFinite(storage) && storage >= 0 && storage <= 100_000 ? storage : null,
+    requiredTitle: ['streaming_video', 'audiobooks'].includes(productType) ? shortText('requiredTitle') : '',
+    requiredGame: productType === 'game_catalogue' ? shortText('requiredGame') : '',
+    requiredServerCountry: productType === 'vpn' && /^[A-Z]{2}$/.test(shortText('requiredServerCountry', 2).toUpperCase())
+      ? shortText('requiredServerCountry', 2).toUpperCase() : '',
+    targetLanguage: productType === 'language_learning' ? shortText('targetLanguage', 40) : '',
+    learnerLevel: productType === 'language_learning' && ['beginner', 'intermediate', 'advanced'].includes(formData.get('learnerLevel'))
+      ? formData.get('learnerLevel') : '',
+    specificSubject: productType === 'online_courses' ? shortText('specificSubject', 80) : '',
     ...requirementChoices(formData, serviceId),
     neededFeatures: String(formData.get('neededFeatures') || '').trim().slice(0, 240),
     categoryAnswers: categoryAnswersFrom(formData, category),
@@ -91,6 +100,10 @@ export function upsertSubscription(subscriptions, item) {
 export function categoryForProductType(productType) {
   if (productType === 'streaming_video') return 'streaming';
   if (productType === 'cloud_storage') return 'cloud';
-  if (['graphic_design', 'photo_editor', 'ai_assistant'].includes(productType)) return 'software';
+  if (['graphic_design', 'photo_editor', 'ai_assistant', 'video_editing', 'office_suite', 'pdf_editor', 'note_taking', 'proofreading', 'task_management', 'password_manager', 'vpn'].includes(productType)) return 'software';
+  if (['music_streaming', 'audiobooks'].includes(productType)) return 'streaming';
+  if (['home_workouts', 'meditation'].includes(productType)) return 'fitness';
+  if (productType === 'game_catalogue') return 'gaming';
+  if (['language_learning', 'online_courses'].includes(productType)) return 'learning';
   return '';
 }

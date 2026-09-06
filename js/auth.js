@@ -71,7 +71,7 @@ function renderAccessBadge(element, access) {
   if (element.textContent) element.hidden = false;
 }
 
-export async function initializeAuth() {
+export async function initializeAuth({ onAccessChange = () => {} } = {}) {
   const elements = authElements();
   if (Object.values(elements).some((element) => !element)) return null;
 
@@ -94,6 +94,7 @@ export async function initializeAuth() {
       const access = await fetchAccessStatus(clerk);
       if (request !== accessRequest || !clerk.isSignedIn) return;
       renderAccessBadge(elements.accessBadge, access);
+      onAccessChange(access);
     };
 
     const renderAuth = () => {
@@ -112,6 +113,7 @@ export async function initializeAuth() {
         userButtonMounted = false;
         accessRequest += 1;
         renderAccessBadge(elements.accessBadge, ORDINARY_ACCESS);
+        onAccessChange(ORDINARY_ACCESS);
       }
     };
 
