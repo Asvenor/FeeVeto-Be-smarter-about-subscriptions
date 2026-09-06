@@ -15,6 +15,7 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 - Evidence-based potential savings totals
 - Add, edit, delete, clear, filter, and search controls
 - JSON backup export and import
+- Optional Clerk sign-up, sign-in, profile management, and sign-out controls
 - Local alternatives provider that displays only sufficiently verified entries
 - Device-local storage with one-time migration from the former app formats
 - Responsive, keyboard-friendly, reduced-motion interface
@@ -26,6 +27,7 @@ index.html                    One-page marketing, audit, results, and detailed-r
 privacy.html                  Plain-language privacy overview
 style.css                     Light responsive visual system
 js/app.js                     Browser events and application state coordination
+js/auth.js                    Clerk initialization and signed-in/signed-out navigation controls
 js/config.js                  Brand, storage keys, options, and global configuration
 js/storage.js                 Validation, persistence, recovery, import, and migration
 js/calculations.js            Pure cost and date calculations
@@ -35,6 +37,7 @@ js/render.js                  Safe DOM rendering for totals, results, and altern
 js/validation.js              Quick-audit input validation
 data/alternatives.js          Locally maintained verified alternative records
 tests/                        Calculation, decision, alternatives, storage, and page-contract tests
+vite.config.js                Multi-page production build configuration
 ```
 
 ## How recommendations work
@@ -59,6 +62,12 @@ Potential savings totals include only strong cancellation candidates. They do no
 FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains the selected audit currency and subscriptions, including optional detailed-review answers. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
 No analytics are included. Subscription names, prices, questionnaire answers, and totals are not transmitted by the application.
+
+## Authentication
+
+Clerk provides optional account creation, sign-in, profile management, and sign-out. Authentication is deliberately separate from the subscription audit: signing in does not upload, attach, or synchronize audit entries. The browser loads ClerkJS and Clerk UI from the application’s Clerk Frontend API domain, following Clerk’s official script-tag integration. The build accepts `VITE_CLERK_PUBLISHABLE_KEY` or the Clerk CLI’s `CLERK_PUBLISHABLE_KEY` and injects only that public value; no Clerk secret is used in browser code.
+
+The repository includes `.env.example` as a safe template. Local credentials belong in `.env.local`, which is ignored by Git. The project is linked to Clerk application `app_3IxBTR7IHayTnEm7oToPCrk8yNL` through the Clerk CLI.
 
 ## Migration from the former app
 
@@ -120,17 +129,18 @@ Affiliate URLs must not be added until approved. Set `isAffiliate: true` only fo
 
 ## Run locally
 
-Serve the repository from its root. ES modules do not work reliably when the HTML file is opened directly.
+Install dependencies, then start the Vite development server:
 
 ```sh
-python3 -m http.server 4173
+npm install
+npm run dev
 ```
 
-Open `http://localhost:4173`.
+Open the local address Vite prints, normally `http://127.0.0.1:5173`. Clerk authentication requires `VITE_CLERK_PUBLISHABLE_KEY` in an ignored `.env.local` file.
 
 ## Run tests
 
-Node.js 20 or newer is required. No packages need to be installed.
+Node.js 20 or newer is required.
 
 ```sh
 npm run check
@@ -150,6 +160,8 @@ The command checks the browser entry module and runs all Node tests.
 8. Test keyboard navigation and visible focus.
 9. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
 10. Open the browser console and confirm there are no errors.
+11. Sign up with a fictional test identity, confirm the profile button appears, open account management, sign out, and confirm the Sign in and Sign up buttons return.
+12. Confirm the same local audit remains available before and after sign-in; authentication must not imply cloud sync.
 
 Use fictional subscription information during testing.
 
@@ -157,25 +169,28 @@ Use fictional subscription information during testing.
 
 ### GitHub Pages
 
-The repository workflow runs the full test suite for pull requests and `main`. After checks pass on `main`, it publishes only the public HTML, CSS, JavaScript, data, icon, robots, and sitemap files.
+The repository workflow installs locked dependencies and runs the full test and production-build suite for pull requests and `main`. After checks pass on `main`, it builds the Vite application and publishes only `dist`, plus the robots and sitemap files.
+
+Before deployment, create the repository Actions variable `VITE_CLERK_PUBLISHABLE_KEY` with FeeVeto’s Clerk publishable key. Publishable keys are intended for browser use; never configure `CLERK_SECRET_KEY` in the frontend or Pages build.
 
 ### Cloudflare Pages
 
-FeeVeto is a static site and needs no build framework.
+FeeVeto is a static Vite site.
 
 1. Create a Pages project from the GitHub repository.
-2. Choose no framework preset.
-3. Leave the build command empty, or use `npm run check` when Cloudflare supports a separate deploy step after checks.
-4. Set the output directory to the repository root.
+2. Choose the Vite framework preset.
+3. Use `npm run build` as the build command.
+4. Set the output directory to `dist`.
 5. Use Node.js 20 or newer if a build environment is requested.
-6. Deploy and test storage, module paths, and privacy links on the final domain.
+6. Add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable, then deploy and test authentication, storage, module paths, and privacy links on the final domain.
 
 Do not add payment, analytics, or API credentials to frontend files.
 
 ## Current limitations
 
 - Data remains in one browser unless manually exported and imported.
-- No bank connection, automatic detection, automatic cancellation, accounts, or cloud sync
+- No bank connection, automatic detection, automatic cancellation, or cloud sync
+- Accounts authenticate identity only; audits still remain in one browser
 - No live currency conversion; mixed-currency entries are excluded from combined totals
 - No notification delivery when the page is closed
 - No production alternatives are shown until verified records are added
@@ -186,7 +201,7 @@ Do not add payment, analytics, or API credentials to frontend files.
 
 A future API-backed alternatives provider can implement the same `getAlternatives(subscription, userPreferences)` interface. It should keep API keys on a server, validate and cache provider data, include provenance and verification dates, and return the same normalized shape used by the local provider. The UI should continue to hide insufficiently verified records.
 
-Accounts, payments, cloud sync, and live pricing are deliberately outside this release. They require a privacy review, secure backend design, recovery behavior, and updated documentation before implementation.
+Payments, cloud sync, and live pricing are deliberately outside this release. Connecting audit data to an account would require a privacy review, secure backend design, recovery behavior, and updated documentation before implementation.
 
 ## License
 

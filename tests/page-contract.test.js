@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url);
 
 test('one-page audit contains the required sections and controls', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
-  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="detail-dialog"', 'id="subscription-list"', 'id="announcer"']) {
+  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="detail-dialog"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"']) {
     assert.ok(html.includes(value), `Missing ${value}`);
   }
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
@@ -23,8 +23,22 @@ test('old product name is not visible in page copy or metadata', async () => {
 test('privacy page uses precise local storage wording', async () => {
   const html = await readFile(new URL('privacy.html', root), 'utf8');
   assert.match(html, /stored locally in this browser/i);
-  assert.match(html, /not sent to FeeVeto/i);
+  assert.match(html, /not sent to FeeVeto or attached to your Clerk account/i);
   assert.match(html, /private-browsing mode/i);
+  assert.match(html, /Clerk for optional authentication/i);
+});
+
+test('Clerk integration uses only a Vite publishable key in browser code', async () => {
+  const auth = await readFile(new URL('js/auth.js', root), 'utf8');
+  const viteConfig = await readFile(new URL('vite.config.js', root), 'utf8');
+  assert.match(viteConfig, /VITE_CLERK_PUBLISHABLE_KEY/);
+  assert.match(viteConfig, /CLERK_PUBLISHABLE_KEY/);
+  assert.match(auth, /__FEEVETO_CLERK_PUBLISHABLE_KEY__/);
+  assert.match(auth, /mountUserButton/);
+  assert.match(auth, /openSignIn/);
+  assert.match(auth, /openSignUp/);
+  assert.doesNotMatch(auth, /CLERK_SECRET_KEY/);
+  assert.doesNotMatch(viteConfig, /environment\.CLERK_SECRET_KEY/);
 });
 
 test('visual system is light and respects reduced motion', async () => {
