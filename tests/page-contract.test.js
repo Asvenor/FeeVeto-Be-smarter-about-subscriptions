@@ -6,12 +6,23 @@ const root = new URL('../', import.meta.url);
 
 test('one-page audit contains the required sections and controls', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
-  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="detail-dialog"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"', 'id="service-id"', 'id="product-type"', 'id="requirement-questions"']) {
+  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"', 'id="service-id"', 'id="product-type"', 'id="requirement-questions"', 'Save and review']) {
     assert.ok(html.includes(value), `Missing ${value}`);
   }
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(new Set(ids).size, ids.length, 'Page must not contain duplicate IDs');
   assert.doesNotMatch(html, /\son(?:click|change|submit)=/i);
+});
+
+test('subscription inputs use one adaptive form without a detailed-review dialog', async () => {
+  const html = await readFile(new URL('index.html', root), 'utf8');
+  const app = await readFile(new URL('js/app.js', root), 'utf8');
+  const render = await readFile(new URL('js/render.js', root), 'utf8');
+  assert.doesNotMatch(html, /detail-dialog|detail-form|Save detailed review|Review in more detail/);
+  assert.doesNotMatch(app, /openDetailedReview|detailDialog|detailForm|data-close-detail/);
+  assert.doesNotMatch(html, /name="adSupportedPlan"/);
+  assert.match(render, /Retry alternatives/);
+  assert.match(app, /upsertSubscription/);
 });
 
 test('old product name is not visible in page copy or metadata', async () => {

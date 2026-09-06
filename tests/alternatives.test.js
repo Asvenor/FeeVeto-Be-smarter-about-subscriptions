@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeRecommendationQuery, selectRecommendations, validateOffer } from '../functions/_shared/alternatives.js';
 import { handleRecommendationsRequest } from '../functions/api/alternatives/recommendations.js';
+import { recommendationRequestFor } from '../js/alternativeProvider.js';
 import { detectSupportedService, serviceById, SERVICE_IDS } from '../js/serviceCatalog.js';
 
 function offer(overrides = {}) {
@@ -69,6 +70,41 @@ test('free-plan limits require explicit acceptance', () => {
   const free = offer({ id: 'fictional-free', planName: 'Free', pricingModel: 'free', pricingUrl: null, freePlanLimits: true });
   assert.equal(selectRecommendations([free], query('canva', { acceptFreeLimits: false }), { premiumAccess: true }).items.length, 0);
   assert.equal(selectRecommendations([free], query('canva', { acceptFreeLimits: true }), { premiumAccess: true }).items.length, 1);
+});
+
+test('free and paid preferences filter independently without changing access control', () => {
+  const paid = offer({ id: 'paid-choice' });
+  const free = offer({ id: 'free-choice', pricingModel: 'free', pricingUrl: null, freePlanLimits: false });
+  const freeOnly = selectRecommendations([paid, free], query('canva', { includePaid: false, includeFree: true }), { premiumAccess: true });
+  const paidOnly = selectRecommendations([paid, free], query('canva', { includePaid: true, includeFree: false }), { premiumAccess: true });
+  assert.deepEqual(freeOnly.items.map(({ id }) => id), ['free-choice']);
+  assert.deepEqual(paidOnly.items.map(({ id }) => id), ['paid-choice']);
+  assert.equal(selectRecommendations([free], query('canva', { includePaid: false, includeFree: true }), { premiumAccess: false }).items.length, 0);
+});
+
+test('unanswered matching preferences remain distinct from No', () => {
+  const normalized = normalizeRecommendationQuery(query('canva', { acceptAds: null, acceptFreeLimits: null, includePaid: null, includeFree: null }));
+  assert.equal(normalized.acceptAds, null);
+  assert.equal(normalized.acceptFreeLimits, null);
+  assert.equal(normalized.includePaid, null);
+  assert.equal(normalized.includeFree, null);
+});
+
+test('the unified save creates a minimal alternative request with preserved preferences', () => {
+  const requestBody = recommendationRequestFor({
+    name: 'Private entered name', amountMinor: 9999, neededNotes: 'Do not send',
+    detailedReview: {
+      serviceId: 'canva', productType: 'graphic_design', mustHaveRequirements: ['templates'], niceToHaveRequirements: [],
+      country: 'CH', platform: 'web', acceptAds: null, acceptFreeLimits: false, considerCheaper: true, considerFree: false,
+      storageRequiredGb: null, neededFeatures: 'Private note',
+    },
+  });
+  assert.equal(requestBody.includePaid, true);
+  assert.equal(requestBody.includeFree, false);
+  assert.equal(requestBody.acceptAds, null);
+  assert.equal('name' in requestBody, false);
+  assert.equal('amountMinor' in requestBody, false);
+  assert.equal('neededFeatures' in requestBody, false);
 });
 
 test('a temporary free trial cannot be classified as a permanent free plan', () => {

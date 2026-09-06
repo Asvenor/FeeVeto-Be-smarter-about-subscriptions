@@ -53,6 +53,14 @@ function detailedScore(item) {
   return score;
 }
 
+function reviewConfidence(review) {
+  if (!review) return 'low';
+  const coreAnswers = [review.satisfaction, review.switchingDifficulty, review.householdUse, review.overlap, review.activeContract];
+  const answered = coreAnswers.filter((value) => value !== '' && value !== null && value !== undefined).length;
+  if (answered === coreAnswers.length) return 'high';
+  return answered > 0 ? 'medium' : 'low';
+}
+
 export function evaluateSubscription(item) {
   if (item.status === 'cancelled') {
     return result('cancelled', 'This entry is excluded from active totals.', ['You marked the subscription as cancelled.'], { score: 0, confidence: 'high', shouldShowAlternatives: false });
@@ -60,7 +68,7 @@ export function evaluateSubscription(item) {
 
   const review = item.detailedReview;
   const score = detailedScore(item);
-  const confidence = review ? 'high' : 'low';
+  const confidence = reviewConfidence(review);
   const cost = annualCost(item.amountMinor, item.cycle) || 0;
   const costPerUse = estimatedCostPerUse(item.amountMinor, item.cycle, item.usage);
   const costReason = costPerUse === null ? '' : 'Its estimated cost per use can now be compared with its value to you.';
@@ -107,7 +115,7 @@ export function evaluateSubscription(item) {
     ], { score, confidence, shouldShowAlternatives: false });
   }
 
-  if (item.category === 'streaming' && review?.categoryAnswers?.adSupportedPlan && review.considerCheaper) {
+  if (item.category === 'streaming' && (review?.acceptAds === true || review?.categoryAnswers?.adSupportedPlan === true) && review.considerCheaper) {
     return result('downgrade', 'An ad-supported plan may preserve access at a lower price.', [
       'You are willing to consider a cheaper plan.',
       'You said an ad-supported plan would be acceptable.',
@@ -183,12 +191,12 @@ export function evaluateSubscription(item) {
   if (score >= DECISION_THRESHOLDS.review) {
     return result('keep_review_plan', 'The service may still be useful, but the current plan deserves a closer look.', [
       'Your answers show a mixed balance between value and cost.',
-      costReason || 'A detailed review can account for household use, overlap, and switching difficulty.',
+      costReason || 'Optional context can account for household use, overlap, and switching difficulty.',
     ], { score, confidence, shouldShowAlternatives: Boolean(review?.considerCheaper || review?.considerFree) });
   }
 
-  return result('more_information_needed', 'The quick audit raises questions without enough evidence for a strong action.', [
+  return result('more_information_needed', 'The current answers raise questions without enough evidence for a strong action.', [
     'Usage and importance are both relatively low.',
-    'Complete the detailed review before deciding whether to switch or cancel.',
+    'Add more optional context before deciding whether to switch or cancel.',
   ], { score, confidence: 'low', shouldShowAlternatives: false, warnings: cost > 0 ? [] : ['A zero price means there is no direct cost saving to calculate.'] });
 }

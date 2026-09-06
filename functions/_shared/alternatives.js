@@ -41,8 +41,10 @@ export function normalizeRecommendationQuery(value) {
     niceToHave,
     country,
     platform,
-    acceptAds: value.acceptAds === true,
-    acceptFreeLimits: value.acceptFreeLimits === true,
+    acceptAds: typeof value.acceptAds === 'boolean' ? value.acceptAds : null,
+    acceptFreeLimits: typeof value.acceptFreeLimits === 'boolean' ? value.acceptFreeLimits : null,
+    includePaid: typeof value.includePaid === 'boolean' ? value.includePaid : null,
+    includeFree: typeof value.includeFree === 'boolean' ? value.includeFree : null,
     storageRequiredGb: Number.isFinite(storage) && storage >= 0 && storage <= 100_000 ? storage : null,
   };
 }
@@ -82,15 +84,15 @@ function compatibility(offer, query) {
   if (offer.providerServiceId === query.serviceId && offer.relationship !== 'downgrade') return null;
   if (!query.mustHave.every((feature) => offer.features.includes(feature))) return null;
   if (query.storageRequiredGb !== null && (offer.storageGb === null || offer.storageGb < query.storageRequiredGb)) return null;
-  if (offer.advertisements === true && !query.acceptAds) return null;
-  if (offer.pricingModel === 'free' && offer.freePlanLimits && !query.acceptFreeLimits) return null;
+  if (offer.advertisements === true && query.acceptAds !== true) return null;
+  if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits !== true) return null;
   if (query.country && offer.countryAvailability.status === 'limited' && !offer.countryAvailability.countries.includes(query.country)) return null;
   if (query.platform && offer.platforms.length && !offer.platforms.includes(query.platform)) return null;
 
   const verification = [];
   if (query.country && offer.countryAvailability.status === 'unknown') verification.push('Confirm availability in your country with the provider.');
   if (query.platform && !offer.platforms.length) verification.push('Confirm support for your required platform with the provider.');
-  if (offer.advertisements === null && !query.acceptAds) verification.push('Confirm whether advertisements are present.');
+  if (offer.advertisements === null && query.acceptAds !== true) verification.push('Confirm whether advertisements are present.');
   const preferredMatches = query.niceToHave.filter((feature) => offer.features.includes(feature));
   let rankScore = query.mustHave.length * 40 + preferredMatches.length * 12 - offer.limitations.length * 2 - verification.length * 8;
   if (offer.providerServiceId === query.serviceId) rankScore += 4;
@@ -142,6 +144,8 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
     if (!offer || seen.has(offer.id)) continue;
     seen.add(offer.id);
     if (!premiumAccess && offer.pricingModel === 'free') continue;
+    if (offer.pricingModel === 'free' && query.includeFree === false) continue;
+    if (offer.pricingModel !== 'free' && query.includePaid === false) continue;
     const match = compatibility(offer, query);
     if (match) matches.push({ offer, match });
   }

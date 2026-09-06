@@ -6,8 +6,8 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 
 ## Current features
 
-- Quick audit using price, billing cycle, category, usage, and importance
-- Optional detailed review for satisfaction, household use, overlap, contracts, seasonality, switching difficulty, and needed features
+- One adaptive form for cost, usage, requirements, and optional switching context
+- One “Save and review” action that stores the entry, calculates the audit, and retrieves authorized alternatives
 - Transparent recommendations with reasons, confidence, and cautious wording
 - Weekly, monthly, quarterly, and yearly cost normalization
 - Per-subscription currencies without fake exchange-rate conversion
@@ -24,7 +24,7 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 ## File structure
 
 ```text
-index.html                    One-page marketing, audit, results, and detailed-review structure
+index.html                    One-page marketing, unified adaptive audit form, and results
 privacy.html                  Plain-language privacy overview
 style.css                     Light responsive visual system
 js/app.js                     Browser events and application state coordination
@@ -47,7 +47,7 @@ functions/_shared/            Clerk verification, access policy, private catalog
 
 ## How recommendations work
 
-The engine uses normal JavaScript rules rather than an AI service. It starts with named weights for usage and importance. A completed detailed review adds context such as satisfaction, household use, overlapping services, switching difficulty, seasonality, and contract status.
+The engine uses normal JavaScript rules rather than an AI service. It starts with named weights for usage and importance. Optional answers in the same form add context such as satisfaction, household use, overlapping services, switching difficulty, seasonality, and contract status. Unanswered values remain distinct from “No,” so incomplete context does not produce high confidence.
 
 Several safety rules run before the general score:
 
@@ -64,9 +64,9 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 ## Local storage and privacy
 
-FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains the selected audit currency and subscriptions, including optional detailed-review answers. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
+FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains the selected audit currency and subscriptions, including optional adaptive-form answers. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
-No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When the user explicitly requests alternatives, the browser sends only a supported service ID, product type, structured requirements, country, platform, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
+No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When a supported service is saved or its alternatives are retried, the browser sends only a supported service ID, product type, structured requirements, country, platform, free/paid choices, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
 
 ## Authentication
 
@@ -98,14 +98,14 @@ Migration:
 2. Preserves its name and integer price value.
 3. Attaches the former list currency to each subscription.
 4. Maps old billing, usage, importance, and category values to the new model.
-5. Adds safe defaults for status, timestamps, and detailed review.
+5. Adds safe defaults for status, timestamps, and optional review context.
 6. Writes the FeeVeto v2 state and a completion marker.
 
 The old keys are not deleted. The completion marker and new-state precedence prevent repeated duplication.
 
 ## Curated alternatives
 
-The browser recognizes aliases for the six supported subscriptions, but unknown names remain unsupported until the user explicitly corrects the service and product type. The detailed review offers service-specific requirements with three priorities: not needed, must have, and nice to have. Optional free text remains a private note and is not interpreted by the matcher.
+The browser recognizes aliases for the six supported subscriptions inside the unified form, but unknown names still work in the basic audit. Users can correct the detected service and product type before saving. Service-specific requirements preserve four states: unanswered, must have, nice to have, and not needed. Optional free text remains a private note and is not interpreted by the matcher.
 
 `BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. The Cloudflare Function reads the catalogue from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v1`, validates every record, applies deterministic matching, and returns at most three results.
 
@@ -159,18 +159,18 @@ The command checks the browser entry module and runs all Node tests.
 
 ## Manual testing
 
-1. Add a monthly subscription and confirm monthly and annual equivalents.
-2. Add a quarterly subscription and confirm its totals.
-3. Edit an entry and confirm the saved card changes without duplication.
-4. Open “Review in more detail,” answer the household/contract/seasonal questions, and confirm the recommendation and confidence change.
-5. Switch the new-entry currency, add another subscription, and confirm the first entry keeps its original currency.
-6. Try the All, Keep, Review, Save money, and Alternatives filters.
-7. Export a backup, add another test entry, and import the backup.
-8. Test keyboard navigation and visible focus.
-9. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
-10. Open the browser console and confirm there are no errors.
-11. Sign up with a fictional test identity, confirm the profile button appears, open account management, sign out, and confirm the Sign in and Sign up buttons return.
-12. Confirm the same local audit remains available before and after sign-in; authentication must not imply cloud sync.
+1. Enter a supported service, answer its visible requirements, choose switching preferences, and select “Save and review.” Confirm one result appears with its audit and alternatives state.
+2. Add an unknown service and confirm the basic audit still works without catalogue claims.
+3. Edit an entry and confirm every saved answer is populated and the entry is updated without duplication.
+4. Change the service or product type and confirm irrelevant old requirements do not affect the new match.
+5. Leave optional questions unanswered and confirm they remain unanswered after save and edit.
+6. Simulate an unavailable alternatives endpoint and confirm the saved result remains with a Retry alternatives action.
+7. Switch the new-entry currency, add another subscription, and confirm the first entry keeps its original currency.
+8. Try the All, Keep, Review, Save money, and Alternatives filters.
+9. Export a backup, add another test entry, and import the backup.
+10. Test keyboard navigation, validation focus, result focus, and visible focus styles.
+11. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
+12. Test signed-out, ordinary, beta, and admin accounts and confirm the catalogue access restrictions remain server-controlled.
 
 Use fictional subscription information during testing.
 
