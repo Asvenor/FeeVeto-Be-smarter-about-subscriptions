@@ -17,7 +17,7 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 - Add, edit, delete, clear, filter, and search controls
 - JSON backup export and import
 - Optional Clerk sign-up, sign-in, profile management, and sign-out controls
-- Curated alternatives for Canva, Netflix, ChatGPT, Adobe Photoshop, Claude, and Dropbox
+- Curated matching for six launch subscriptions plus verified additional product types
 - Server-side product-type and requirement matching with protected free-plan records
 - Device-local storage with one-time migration from the former app formats
 - Responsive, keyboard-friendly, reduced-motion interface
@@ -42,6 +42,8 @@ js/serviceCatalog.js         Supported-service aliases, product types, and struc
 js/render.js                  Safe DOM rendering for totals, results, and alternatives
 js/validation.js              Quick-audit input validation
 data/alternatives.js          Intentionally empty public catalogue placeholder
+fixtures/                     Fictional public catalogue data for validation and tests
+scripts/                      Private-catalogue validation and explicit KV import tools
 tests/                        Calculation, decision, alternatives, storage, and page-contract tests
 vite.config.js                Multi-page production build configuration
 functions/api/                Cloudflare Pages Functions for access and alternatives
@@ -69,7 +71,7 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains one global display-currency preference and subscriptions, including each entry's original billing currency and optional adaptive-form answers. The existing `auditCurrency` field remains the persisted preference name for backup compatibility. New visitors default to USD. Existing valid preferences, imported backups, legacy preferences, saved amounts, and saved billing currencies are preserved. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
-No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When a supported service is saved or its alternatives are retried, the browser sends only a supported service ID, product type, structured requirements, country, platform, free/paid choices, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
+No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When a supported service is saved or its alternatives are retried, the browser sends only a supported service ID, product type, structured requirements, country, platform, applicable title/game/server-country/language/level/subject constraints, free/paid choices, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
 
 ## Authentication
 
@@ -108,36 +110,38 @@ The old keys are not deleted. The completion marker and new-state precedence pre
 
 ## Curated alternatives
 
-The browser recognizes aliases for the six supported subscriptions inside the unified form, but unknown names still work in the basic audit. Users can correct the detected service and product type before saving. Service-specific requirements preserve four states: unanswered, must have, nice to have, and not needed. Optional free text remains a private note and is not interpreted by the matcher.
+The browser recognizes aliases for the six launch subscriptions and additional supported use cases inside the unified form, but unknown names still work in the basic audit. Users can correct the detected service and product type before saving. Service-specific requirements preserve four states: unanswered, must have, nice to have, and not needed. Product-specific structured questions appear in that same form. Optional free text remains a private note and is not interpreted by the matcher.
 
-`BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. The Cloudflare Function reads the catalogue from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v1`, validates every record, applies deterministic matching, and returns at most three results.
+`BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. The Cloudflare Function reads schema-version 2 data from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v2`, validates every record, applies deterministic matching, and returns at most three results.
 
-Matching first requires the same product type. It then excludes missing must-have features, insufficient storage, known country or platform incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. Unknown availability remains clearly marked for provider verification. Nice-to-have matches, limitations, and verification uncertainty affect ordering. Affiliate status is not accepted as a scoring input.
+Matching first requires the same product type. It then excludes explicitly unsupported must-haves, insufficient storage, known country/platform/language/level incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. Unknown critical facts remain eligible only as candidates with provider-verification notes; incomplete answers never create a confirmed match. Nice-to-have matches, limitations, switching effort, and verification uncertainty affect deterministic ordering. Affiliate status is not accepted as a scoring input.
 
 Signed-out and ordinary accounts can receive suitable paid or one-time-purchase records. Free-plan records are filtered on the backend before matching and are returned only when the server-verified Clerk entitlement has `premiumAccess: true`. Paid access remains a separate Stripe-ready resolver.
 
-The current alternatives response identifies the pricing model and links to the provider's verified pricing page; it does not return or total numerical provider prices. Missing numerical prices therefore remain unknown rather than appearing as zero. Any later numerical catalogue price must include and retain its verified source currency instead of following the display-currency preference.
+The alternatives response identifies the pricing model and returns a verified numerical provider price only when the private record has reliable plan, region, currency, interval, and verification evidence. Missing prices remain unknown rather than appearing as zero. Source currencies are retained, annual commitments stay annual, introductory and renewal terms stay separate, and no cross-currency savings are calculated.
 
 ### Private catalogue schema
 
 Production records must never be committed. Keep the reviewed JSON outside Git, upload it to Workers KV, and preserve a private backup. Each offer contains:
 
-- A unique ID, product and exact plan name, relevant original services, product type, and downgrade/replacement relationship
+- Stable catalogue, product, and exact plan IDs; relevant original services; product type; and downgrade/replacement relationship
 - `pricingModel`: `free`, `subscription`, or `one_time`
-- Plan-specific features, limitations, platforms, country availability, advertisement status, optional storage capacity, and free-plan-limit status
+- Nullable price in minor units, source currency, interval, upfront commitment, and separate introductory and renewal terms
+- Explicitly supported, unsupported, and unknown plan features; limitations; usage limits; platforms; country availability; advertisement status; optional capacity; and free-plan-limit status
 - HTTPS official and pricing destinations, official source URLs, and the actual verification date
 - `affiliateUrl: null` and `affiliateStatus: "not_applied"`
 
-Temporary trials must use `trialOnly: true`; the validator rejects a record that is simultaneously marked as a free plan and a temporary trial. The current response never calculates savings or exposes source and affiliate fields.
+Temporary trials are not catalogue offers: the validator rejects `trialOnly: true`. The response never calculates savings or exposes evidence and affiliate fields.
 
 ### Adding or updating an offer
 
 1. Verify every claim against current official product, pricing, documentation, or support pages.
-2. Update the private catalogue JSON; never add it to `data/`, `js/`, HTML, or another tracked path.
+2. Update `.private/verified-alternatives.json`; the entire directory is ignored and must never be added to Git, `data/`, `js/`, HTML, or another tracked path.
 3. Record uncertain country, platform, or advertisement compatibility as `unknown` rather than guessing.
 4. Keep different plans as different records and label same-provider lower plans as `downgrade`.
-5. Upload the complete JSON value to KV key `catalogue:v1`.
-6. Add only fictional records to tests and run `npm run check`.
+5. Run `node scripts/catalogue-validate.mjs .private/verified-alternatives.json`.
+6. Test with development storage, then explicitly upload the complete JSON to KV key `catalogue:v2` using `npm run catalogue:publish -- --file .private/verified-alternatives.json --namespace-id <KV_NAMESPACE_ID> --remote`.
+7. Add only fictional records to tracked tests and fixtures, then run `npm run check`.
 
 All current outbound actions use the verified `officialUrl` directly with `rel="noopener noreferrer"`. No tracking redirects, affiliate parameters, external alternatives API, pricing API, search API, or AI recommendation model are used.
 
@@ -160,7 +164,7 @@ Node.js 20 or newer is required.
 npm run check
 ```
 
-The command checks the browser entry module and runs all Node tests.
+The command checks browser and backend modules, validates the fictional public fixture, runs all Node tests, and builds the production bundle.
 
 ## Manual testing
 
@@ -203,7 +207,7 @@ FeeVeto is a static Vite site.
 8. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated list of additional trusted frontend origins. The current request origin is always included automatically for same-origin Cloudflare deployments.
 9. Create a Workers KV namespace for the private curated catalogue.
 10. Under **Settings → Bindings**, add that namespace with the exact variable name `FEEVETO_ALTERNATIVES` for Production and Preview.
-11. Add the private catalogue JSON as KV key `catalogue:v1`. The JSON root must contain `{"schemaVersion":1,"offers":[...]}`.
+11. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
 12. Deploy and test authentication, all four access states, catalogue filtering, storage, module paths, and privacy links on the final domain.
 
 In Cloudflare, configure both Production and Preview under **Workers & Pages → FeeVeto project → Settings → Variables and Secrets**. Encrypt `CLERK_SECRET_KEY`. Configure the KV namespace under **Settings → Bindings** and redeploy after adding it. The `/functions` directory must remain at the repository root; Cloudflare builds it separately from `dist`.
@@ -231,7 +235,7 @@ Do not add payment, analytics, or API credentials to frontend files.
 - Accounts authenticate identity only; audits still remain in one browser
 - No live currency conversion; real amounts retain their original currencies and mixed-currency audits use separate subtotals
 - No notification delivery when the page is closed
-- Curated matching is limited to the first six supported subscriptions
+- Catalogue coverage is curated and intentionally incomplete; unsupported products and unverified use cases return an honest no-match state
 - Real catalogue records require the private Cloudflare KV binding and are intentionally absent from Git
 - Cost-per-use is an estimate based on a frequency range
 - Recommendations depend on the accuracy and completeness of user-entered answers

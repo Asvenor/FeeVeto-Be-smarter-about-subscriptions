@@ -1,4 +1,4 @@
-export const CATALOGUE_KEY = 'catalogue:v1';
+export const CATALOGUE_KEY = 'catalogue:v2';
 
 export class CatalogueConfigurationError extends Error {
   constructor(message) {
@@ -13,7 +13,7 @@ export async function loadPrivateCatalogue(context) {
     throw new CatalogueConfigurationError('The FEEVETO_ALTERNATIVES KV binding is not configured.');
   }
   const catalogue = await store.get(CATALOGUE_KEY, { type: 'json', cacheTtl: 60 });
-  if (!catalogue || catalogue.schemaVersion !== 1 || !Array.isArray(catalogue.offers)) {
+  if (!catalogue || catalogue.schemaVersion !== 2 || !Array.isArray(catalogue.offers)) {
     throw new CatalogueConfigurationError('The private alternatives catalogue is missing or invalid.');
   }
   return catalogue.offers;

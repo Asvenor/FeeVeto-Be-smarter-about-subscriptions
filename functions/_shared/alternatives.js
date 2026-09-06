@@ -1,16 +1,34 @@
 import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById } from '../../js/serviceCatalog.js';
 
 const PRICING_MODELS = new Set(['free', 'subscription', 'one_time']);
+const BILLING_INTERVALS = new Set(['monthly', 'yearly', 'varies', 'one_time']);
 const RELATIONSHIPS = new Set(['replacement', 'downgrade']);
 const AFFILIATE_STATUSES = new Set(['not_applied']);
 const AVAILABILITY = new Set(['worldwide', 'limited', 'unknown']);
+const SWITCHING_DIFFICULTIES = new Set(['easy', 'moderate', 'complex', 'unknown']);
+const LEARNER_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
 const PLATFORMS = new Set(['web', 'windows', 'macos', 'linux', 'ios', 'android', 'smart_tv', 'game_console']);
+
+export const MATCH_WEIGHTS = Object.freeze({
+  MUST_HAVE: 40,
+  NICE_TO_HAVE: 12,
+  SAME_SERVICE_DOWNGRADE: 4,
+  LIMITATION: -2,
+  VERIFICATION_NEEDED: -8,
+  SWITCHING_MODERATE: -3,
+  SWITCHING_COMPLEX: -7,
+});
 
 function text(value, max = 240) {
   return String(value || '').trim().slice(0, max);
 }
 
-function stringList(value, maxItems = 20, maxLength = 80) {
+function nullableText(value, max = 240) {
+  const normalized = text(value, max);
+  return normalized || null;
+}
+
+function stringList(value, maxItems = 24, maxLength = 80) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => text(item, maxLength)).filter(Boolean))].slice(0, maxItems);
 }
@@ -24,13 +42,33 @@ function httpsUrl(value) {
   }
 }
 
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function nullableMinorUnits(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 && number <= 999_999_999 ? number : Number.NaN;
+}
+
+function nonOverlappingLists(features, unsupportedFeatures, unknownFeatures) {
+  const supported = new Set(features);
+  const unsupported = new Set(unsupportedFeatures);
+  return !unsupportedFeatures.some((item) => supported.has(item))
+    && !unknownFeatures.some((item) => supported.has(item) || unsupported.has(item));
+}
+
 export function normalizeRecommendationQuery(value) {
   if (!value || typeof value !== 'object' || !SERVICE_IDS.includes(value.serviceId)) return null;
   const service = serviceById(value.serviceId);
   const requirementIds = new Set(service.requirements.map(([id]) => id));
   const mustHave = stringList(value.mustHave).filter((id) => requirementIds.has(id));
   const niceToHave = stringList(value.niceToHave).filter((id) => requirementIds.has(id) && !mustHave.includes(id));
+  const notNeeded = stringList(value.notNeeded).filter((id) => requirementIds.has(id) && !mustHave.includes(id) && !niceToHave.includes(id));
   const country = /^[A-Za-z]{2}$/.test(text(value.country, 2)) ? text(value.country, 2).toUpperCase() : '';
+  const requiredServerCountry = /^[A-Za-z]{2}$/.test(text(value.requiredServerCountry, 2))
+    ? text(value.requiredServerCountry, 2).toUpperCase() : '';
   const platform = PLATFORMS.has(value.platform) ? value.platform : '';
   const rawStorage = value.storageRequiredGb;
   const storage = rawStorage === null || rawStorage === undefined || rawStorage === '' ? Number.NaN : Number(rawStorage);
@@ -39,6 +77,9 @@ export function normalizeRecommendationQuery(value) {
     productType: PRODUCT_TYPE_IDS.includes(value.productType) ? value.productType : service.productType,
     mustHave,
     niceToHave,
+    notNeeded,
+    answeredRequirementCount: new Set([...mustHave, ...niceToHave, ...notNeeded]).size,
+    requirementCount: service.requirements.length,
     country,
     platform,
     acceptAds: typeof value.acceptAds === 'boolean' ? value.acceptAds : null,
@@ -46,57 +87,151 @@ export function normalizeRecommendationQuery(value) {
     includePaid: typeof value.includePaid === 'boolean' ? value.includePaid : null,
     includeFree: typeof value.includeFree === 'boolean' ? value.includeFree : null,
     storageRequiredGb: Number.isFinite(storage) && storage >= 0 && storage <= 100_000 ? storage : null,
+    requiredTitle: text(value.requiredTitle, 80),
+    requiredGame: text(value.requiredGame, 80),
+    requiredServerCountry,
+    targetLanguage: text(value.targetLanguage, 40),
+    learnerLevel: LEARNER_LEVELS.has(value.learnerLevel) ? value.learnerLevel : '',
+    specificSubject: text(value.specificSubject, 80),
   };
 }
 
 export function validateOffer(value) {
   if (!value || typeof value !== 'object') return null;
+  const id = text(value.id, 80);
+  const productId = text(value.productId, 80);
+  const offerId = text(value.offerId, 80);
   const officialUrl = httpsUrl(value.officialUrl);
   const pricingUrl = value.pricingUrl ? httpsUrl(value.pricingUrl) : '';
-  const sourceUrls = stringList(value.sourceUrls, 8, 500).map(httpsUrl).filter(Boolean);
-  const relevantServices = stringList(value.relevantServices).filter((id) => SERVICE_IDS.includes(id));
+  const sourceUrls = stringList(value.sourceUrls, 10, 500).map(httpsUrl).filter(Boolean);
+  const relevantServices = stringList(value.relevantServices).filter((serviceId) => SERVICE_IDS.includes(serviceId));
   const productType = PRODUCT_TYPE_IDS.includes(value.productType) ? value.productType : '';
+  const allowedFeatureIds = new Set(
+    relevantServices.flatMap((serviceId) => serviceById(serviceId)?.requirements.map(([featureId]) => featureId) || []),
+  );
   const pricingModel = PRICING_MODELS.has(value.pricingModel) ? value.pricingModel : '';
   const relationship = RELATIONSHIPS.has(value.relationship) ? value.relationship : '';
   const availabilityStatus = AVAILABILITY.has(value.countryAvailability?.status) ? value.countryAvailability.status : '';
   const countries = stringList(value.countryAvailability?.countries).filter((country) => /^[A-Z]{2}$/.test(country));
   const platforms = stringList(value.platforms).filter((platform) => PLATFORMS.has(platform));
-  if (!text(value.id, 80) || !text(value.productName, 80) || !text(value.planName, 80) || !text(value.description)
-    || !officialUrl || !sourceUrls.length || !relevantServices.length || !productType || !pricingModel || !relationship
-    || !availabilityStatus || !/^\d{4}-\d{2}-\d{2}$/.test(value.verifiedAt) || !AFFILIATE_STATUSES.has(value.affiliateStatus)
-    || value.affiliateUrl !== null || (pricingModel === 'free' && value.trialOnly === true)) return null;
-  if (availabilityStatus === 'limited' && !countries.length) return null;
+  const features = stringList(value.features);
+  const unsupportedFeatures = stringList(value.unsupportedFeatures);
+  const unknownFeatures = stringList(value.unknownFeatures);
+  const priceMinor = nullableMinorUnits(value.priceMinor);
+  const priceCurrency = /^[A-Z]{3}$/.test(text(value.priceCurrency, 3)) ? text(value.priceCurrency, 3) : null;
+  const billingInterval = BILLING_INTERVALS.has(value.billingInterval) ? value.billingInterval : null;
+  const upfrontCommitmentMonths = value.upfrontCommitmentMonths === null || value.upfrontCommitmentMonths === undefined
+    ? null : Number(value.upfrontCommitmentMonths);
+  const switchingDifficulty = SWITCHING_DIFFICULTIES.has(value.switchingDifficulty) ? value.switchingDifficulty : '';
+  const languages = stringList(value.languages, 40, 40);
+  const levels = stringList(value.levels).filter((level) => LEARNER_LEVELS.has(level));
+  const serverCountries = stringList(value.serverCountries).filter((country) => /^[A-Z]{2}$/.test(country));
+
+  const requiredText = id && productId && offerId && text(value.productName, 80) && text(value.planName, 80) && text(value.description);
+  const requiredEnums = productType && pricingModel && relationship && availabilityStatus && switchingDifficulty;
+  const validCommitment = upfrontCommitmentMonths === null
+    || (Number.isInteger(upfrontCommitmentMonths) && upfrontCommitmentMonths >= 0 && upfrontCommitmentMonths <= 120);
+  const validPrice = !Number.isNaN(priceMinor)
+    && (priceMinor === null
+      ? priceCurrency === null && (value.priceVerifiedAt === null || value.priceVerifiedAt === undefined || value.priceVerifiedAt === '')
+      : pricingModel === 'free' || Boolean(priceCurrency))
+    && (pricingModel === 'free' ? priceMinor === 0 && billingInterval === null : true)
+    && (pricingModel === 'subscription' ? ['monthly', 'yearly', 'varies'].includes(billingInterval) : true)
+    && (pricingModel === 'one_time' ? billingInterval === 'one_time' : true)
+    && (priceMinor === null || validDate(value.priceVerifiedAt));
+  const sameProductType = relevantServices.every((serviceId) => serviceById(serviceId)?.productType === productType);
+  const validFeatures = [...features, ...unsupportedFeatures, ...unknownFeatures]
+    .every((featureId) => allowedFeatureIds.has(featureId));
+
+  if (!requiredText || !officialUrl || (value.pricingUrl && !pricingUrl) || !sourceUrls.length || !relevantServices.length || !requiredEnums
+    || !validDate(value.verifiedAt) || !AFFILIATE_STATUSES.has(value.affiliateStatus) || value.affiliateUrl !== null
+    || value.trialOnly === true || (availabilityStatus === 'limited' && !countries.length) || !validCommitment
+    || !validPrice || !sameProductType || !validFeatures
+    || !nonOverlappingLists(features, unsupportedFeatures, unknownFeatures)) return null;
+
   return {
-    id: text(value.id, 80), productName: text(value.productName, 80), planName: text(value.planName, 80),
+    id, productId, offerId,
+    productName: text(value.productName, 80), planName: text(value.planName, 80),
     providerServiceId: SERVICE_IDS.includes(value.providerServiceId) ? value.providerServiceId : '',
     relevantServices, productType, description: text(value.description), pricingModel, relationship,
-    features: stringList(value.features), limitations: stringList(value.limitations, 8, 160), platforms,
-    countryAvailability: { status: availabilityStatus, countries },
+    features, unsupportedFeatures, unknownFeatures,
+    limitations: stringList(value.limitations, 10, 180), usageLimits: stringList(value.usageLimits, 10, 180),
+    platforms, countryAvailability: { status: availabilityStatus, countries },
     advertisements: value.advertisements === true ? true : value.advertisements === false ? false : null,
     storageGb: Number.isFinite(Number(value.storageGb)) && Number(value.storageGb) >= 0 ? Number(value.storageGb) : null,
-    freePlanLimits: value.freePlanLimits === true, officialUrl, pricingUrl: pricingUrl || null,
-    sourceUrls, verifiedAt: value.verifiedAt, affiliateUrl: null, affiliateStatus: 'not_applied', trialOnly: false,
+    freePlanLimits: value.freePlanLimits === true,
+    languages, levels, serverCountries, switchingDifficulty,
+    priceMinor, priceCurrency, billingInterval, upfrontCommitmentMonths,
+    introductoryTerms: nullableText(value.introductoryTerms, 180),
+    renewalTerms: nullableText(value.renewalTerms, 180),
+    priceVerifiedAt: priceMinor === null ? null : value.priceVerifiedAt,
+    officialUrl, pricingUrl: pricingUrl || null, sourceUrls,
+    verifiedAt: value.verifiedAt, affiliateUrl: null, affiliateStatus: 'not_applied', trialOnly: false,
   };
 }
 
 function compatibility(offer, query) {
   if (!offer.relevantServices.includes(query.serviceId) || offer.productType !== query.productType) return null;
   if (offer.providerServiceId === query.serviceId && offer.relationship !== 'downgrade') return null;
-  if (!query.mustHave.every((feature) => offer.features.includes(feature))) return null;
-  if (query.storageRequiredGb !== null && (offer.storageGb === null || offer.storageGb < query.storageRequiredGb)) return null;
-  if (offer.advertisements === true && query.acceptAds !== true) return null;
-  if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits !== true) return null;
-  if (query.country && offer.countryAvailability.status === 'limited' && !offer.countryAvailability.countries.includes(query.country)) return null;
-  if (query.platform && offer.platforms.length && !offer.platforms.includes(query.platform)) return null;
 
   const verification = [];
-  if (query.country && offer.countryAvailability.status === 'unknown') verification.push('Confirm availability in your country with the provider.');
-  if (query.platform && !offer.platforms.length) verification.push('Confirm support for your required platform with the provider.');
-  if (offer.advertisements === null && query.acceptAds !== true) verification.push('Confirm whether advertisements are present.');
+  const supportedMustHave = [];
+  for (const feature of query.mustHave) {
+    if (offer.unsupportedFeatures.includes(feature)) return null;
+    if (offer.features.includes(feature)) supportedMustHave.push(feature);
+    else verification.push(`Confirm the must-have requirement “${feature}” with the provider.`);
+  }
+
+  if (query.storageRequiredGb !== null) {
+    if (offer.storageGb !== null && offer.storageGb < query.storageRequiredGb) return null;
+    if (offer.storageGb === null) verification.push('Confirm that the plan has enough storage.');
+  }
+  if (offer.advertisements === true && query.acceptAds === false) return null;
+  if (offer.advertisements === true && query.acceptAds === null) verification.push('This plan includes advertising; confirm that is acceptable.');
+  if (offer.advertisements === null && query.acceptAds === false) verification.push('Confirm whether advertisements are present.');
+  if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits === false) return null;
+  if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits === null) verification.push('Confirm that the free-plan limits are acceptable.');
+
+  if (query.country) {
+    if (offer.countryAvailability.status === 'limited' && !offer.countryAvailability.countries.includes(query.country)) return null;
+    if (offer.countryAvailability.status === 'unknown') verification.push('Confirm availability in your country with the provider.');
+  } else if (offer.countryAvailability.status !== 'worldwide') verification.push('Add your country or confirm availability with the provider.');
+
+  if (query.platform) {
+    if (offer.platforms.length && !offer.platforms.includes(query.platform)) return null;
+    if (!offer.platforms.length) verification.push('Confirm support for your required platform with the provider.');
+  }
+
+  if (query.requiredServerCountry) {
+    if (offer.serverCountries.length && !offer.serverCountries.includes(query.requiredServerCountry)) return null;
+    if (!offer.serverCountries.length) verification.push(`Confirm a server is available in ${query.requiredServerCountry}.`);
+  }
+
+  if (query.targetLanguage) {
+    const target = query.targetLanguage.toLocaleLowerCase();
+    if (offer.languages.length && !offer.languages.some((language) => language.toLocaleLowerCase() === target)) return null;
+    if (!offer.languages.length) verification.push(`Confirm support for ${query.targetLanguage}.`);
+  }
+  if (query.learnerLevel) {
+    if (offer.levels.length && !offer.levels.includes(query.learnerLevel)) return null;
+    if (!offer.levels.length) verification.push(`Confirm content for the ${query.learnerLevel} level.`);
+  }
+  if (query.requiredTitle) verification.push(`Confirm that “${query.requiredTitle}” is currently available.`);
+  if (query.requiredGame) verification.push(`Confirm that “${query.requiredGame}” is currently included on the required platform.`);
+  if (query.specificSubject) verification.push(`Confirm a suitable ${query.specificSubject} course, level, outcomes, and assessment before switching.`);
+  if (query.answeredRequirementCount < query.requirementCount) verification.push('Some service requirements are unanswered.');
+
   const preferredMatches = query.niceToHave.filter((feature) => offer.features.includes(feature));
-  let rankScore = query.mustHave.length * 40 + preferredMatches.length * 12 - offer.limitations.length * 2 - verification.length * 8;
-  if (offer.providerServiceId === query.serviceId) rankScore += 4;
-  return { verification, preferredMatches, rankScore };
+  const switchingPenalty = offer.switchingDifficulty === 'complex'
+    ? MATCH_WEIGHTS.SWITCHING_COMPLEX
+    : offer.switchingDifficulty === 'moderate' ? MATCH_WEIGHTS.SWITCHING_MODERATE : 0;
+  const rankScore = supportedMustHave.length * MATCH_WEIGHTS.MUST_HAVE
+    + preferredMatches.length * MATCH_WEIGHTS.NICE_TO_HAVE
+    + (offer.providerServiceId === query.serviceId ? MATCH_WEIGHTS.SAME_SERVICE_DOWNGRADE : 0)
+    + offer.limitations.length * MATCH_WEIGHTS.LIMITATION
+    + verification.length * MATCH_WEIGHTS.VERIFICATION_NEEDED
+    + switchingPenalty;
+  return { verification: [...new Set(verification)], preferredMatches, supportedMustHave, rankScore };
 }
 
 function relationshipFor(offer, query) {
@@ -111,11 +246,13 @@ function pricingLabel(offer, query) {
 }
 
 function resultFor(offer, query, match) {
-  const supported = [...new Set([...query.mustHave, ...match.preferredMatches])];
+  const supported = [...new Set([...match.supportedMustHave, ...match.preferredMatches])];
   const relationship = relationshipFor(offer, query);
   const why = supported.length
-    ? `Matches ${supported.length} of the requirements you selected without claiming unverified savings.`
-    : relationship === 'downgrade' ? 'Keeps you with the same provider on a lower or free plan.' : 'Solves the same core product need.';
+    ? `Supports ${supported.length} selected ${supported.length === 1 ? 'requirement' : 'requirements'} based on the verified plan record.`
+    : relationship === 'downgrade'
+      ? 'Keeps the same provider on a lower or free plan, subject to the limitations shown.'
+      : 'Addresses the same product type, but more information is needed before treating it as a confirmed fit.';
   return {
     id: offer.id,
     productName: offer.productName,
@@ -123,11 +260,24 @@ function resultFor(offer, query, match) {
     pricingLabel: pricingLabel(offer, query),
     pricingModel: offer.pricingModel,
     relationship,
+    matchStatus: match.verification.length ? 'candidate' : 'confirmed',
+    matchLabel: match.verification.length ? 'Candidate—needs verification' : 'Confirmed against your answers',
     description: offer.description,
     whyMatches: why,
     supportedRequirements: supported,
-    limitations: offer.limitations.slice(0, 2),
+    limitations: offer.limitations.slice(0, 3),
+    usageLimits: offer.usageLimits.slice(0, 3),
     verificationNotes: match.verification,
+    switchingDifficulty: offer.switchingDifficulty,
+    price: {
+      amountMinor: offer.priceMinor,
+      currency: offer.priceCurrency,
+      billingInterval: offer.billingInterval,
+      upfrontCommitmentMonths: offer.upfrontCommitmentMonths,
+      introductoryTerms: offer.introductoryTerms,
+      renewalTerms: offer.renewalTerms,
+      verifiedAt: offer.priceVerifiedAt,
+    },
     verifiedAt: offer.verifiedAt,
     officialUrl: offer.officialUrl,
     actionLabel: offer.pricingModel === 'free' ? 'View free plan' : offer.pricingUrl ? 'Check current pricing' : 'Visit official website',
@@ -136,7 +286,7 @@ function resultFor(offer, query, match) {
 
 export function selectRecommendations(catalogue, rawQuery, { premiumAccess = false } = {}) {
   const query = normalizeRecommendationQuery(rawQuery);
-  if (!query) return { accessScope: premiumAccess ? 'complete' : 'public', items: [], message: 'Choose one of the six supported services.' };
+  if (!query) return { accessScope: premiumAccess ? 'complete' : 'public', items: [], message: 'Choose a supported service for curated alternatives.' };
   const seen = new Set();
   const matches = [];
   for (const rawOffer of Array.isArray(catalogue) ? catalogue : []) {

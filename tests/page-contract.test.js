@@ -7,7 +7,7 @@ const root = new URL('../', import.meta.url);
 
 test('one-page audit contains the required sections and controls', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
-  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"', 'id="service-id"', 'id="product-type"', 'id="requirement-questions"', 'Save and review']) {
+  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"', 'id="service-id"', 'id="product-type"', 'id="requirement-questions"', 'id="required-title"', 'id="required-game"', 'id="server-country"', 'id="target-language"', 'id="learner-level"', 'id="specific-subject"', 'Save and review']) {
     assert.ok(html.includes(value), `Missing ${value}`);
   }
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
@@ -47,6 +47,17 @@ test('restricted catalogue records are absent from public frontend sources', asy
   assert.match(publicCatalogue, /Object\.freeze\(\[\]\)/);
   assert.doesNotMatch(provider, /data\/alternatives/);
   assert.match(await readFile(new URL('.gitignore', root), 'utf8'), /^\.private\/$/m);
+  const fixture = await readFile(new URL('fixtures/catalogue.example.json', root), 'utf8');
+  assert.match(fixture, /Fictional/);
+  assert.doesNotMatch(fixture, /Adobe Express|Mistral|Photopea|Disney\+|Proton Drive/i);
+});
+
+test('private catalogue access uses schema version 2 and a no-store API response', async () => {
+  const store = await readFile(new URL('functions/_shared/catalogue-store.js', root), 'utf8');
+  const http = await readFile(new URL('functions/_shared/http.js', root), 'utf8');
+  assert.match(store, /catalogue:v2/);
+  assert.match(store, /schemaVersion !== 2/);
+  assert.match(http, /['"]Cache-Control['"]:\s*['"]no-store['"]/i);
 });
 
 test('Clerk integration uses only a Vite publishable key in browser code', async () => {
@@ -59,6 +70,10 @@ test('Clerk integration uses only a Vite publishable key in browser code', async
   assert.match(auth, /mountUserButton/);
   assert.match(auth, /openSignIn/);
   assert.match(auth, /openSignUp/);
+  assert.match(auth, /onAccessChange\(ORDINARY_ACCESS\)/);
+  const app = await readFile(new URL('js/app.js', root), 'utf8');
+  assert.match(app, /alternativeResults\.clear\(\)/);
+  assert.match(app, /cached\.accessScope === 'complete'/);
   assert.doesNotMatch(auth, /CLERK_SECRET_KEY/);
   assert.doesNotMatch(access, /CLERK_SECRET_KEY|privateMetadata|localStorage/);
   assert.doesNotMatch(viteConfig, /environment\.CLERK_SECRET_KEY/);

@@ -6,15 +6,24 @@ import { recommendationRequestFor } from '../js/alternativeProvider.js';
 import { detectSupportedService, serviceById, SERVICE_IDS } from '../js/serviceCatalog.js';
 
 function offer(overrides = {}) {
-  return {
-    id: 'fictional-paid', productName: 'Fictional Studio', planName: 'Standard', providerServiceId: '',
+  const item = {
+    id: 'fictional-paid', productId: 'fictional-studio', offerId: 'standard', productName: 'Fictional Studio', planName: 'Standard', providerServiceId: '',
     relevantServices: ['canva'], productType: 'graphic_design', relationship: 'replacement', pricingModel: 'subscription',
-    description: 'A fictional test-only product.', features: ['social_graphics', 'templates'], limitations: ['Fictional limitation.'],
+    description: 'A fictional test-only product.', priceMinor: 999, priceCurrency: 'USD', billingInterval: 'monthly',
+    upfrontCommitmentMonths: 0, introductoryTerms: null, renewalTerms: 'Fictional monthly renewal.', priceVerifiedAt: '2026-09-06',
+    features: ['social_graphics', 'templates'], unsupportedFeatures: [], unknownFeatures: [], limitations: ['Fictional limitation.'], usageLimits: [],
     platforms: ['web'], countryAvailability: { status: 'worldwide', countries: [] }, advertisements: false,
-    storageGb: null, freePlanLimits: false, officialUrl: 'https://fictional.example/product', pricingUrl: 'https://fictional.example/pricing',
+    storageGb: null, freePlanLimits: false, languages: [], levels: [], serverCountries: [], switchingDifficulty: 'easy',
+    officialUrl: 'https://fictional.example/product', pricingUrl: 'https://fictional.example/pricing',
     sourceUrls: ['https://fictional.example/source'], verifiedAt: '2026-09-06', trialOnly: false,
     affiliateUrl: null, affiliateStatus: 'not_applied', ...overrides,
   };
+  if (item.pricingModel === 'free') {
+    if (!Object.hasOwn(overrides, 'priceMinor')) item.priceMinor = 0;
+    if (!Object.hasOwn(overrides, 'priceCurrency')) item.priceCurrency = null;
+    if (!Object.hasOwn(overrides, 'billingInterval')) item.billingInterval = null;
+  }
+  return item;
 }
 
 function query(serviceId, overrides = {}) {
@@ -31,16 +40,16 @@ function request(body, { token = '' } = {}) {
   return new Request('https://feeveto.example/api/alternatives/recommendations', { method: 'POST', headers, body: JSON.stringify(body) });
 }
 
-test('common aliases detect only the six supported subscriptions', () => {
+test('common aliases detect originals and expanded supported subscriptions', () => {
   assert.equal(detectSupportedService('Adobe Photoshop')?.id, 'photoshop');
   assert.equal(detectSupportedService('Chat GPT')?.id, 'chatgpt');
   assert.equal(detectSupportedService('Some unknown software'), null);
 });
 
-test('all six original subscriptions can be matched by product type', () => {
-  for (const serviceId of SERVICE_IDS) {
+test('the six original subscriptions can be matched by product type', () => {
+  for (const serviceId of ['canva', 'netflix', 'chatgpt', 'photoshop', 'claude', 'dropbox']) {
     const service = serviceById(serviceId);
-    const item = offer({ id: `fictional-${serviceId}`, relevantServices: [serviceId], productType: service.productType });
+    const item = offer({ id: `fictional-${serviceId}`, productId: `fictional-${serviceId}`, relevantServices: [serviceId], productType: service.productType, features: [], unsupportedFeatures: [], unknownFeatures: [] });
     assert.equal(selectRecommendations([item], query(serviceId), { premiumAccess: true }).items.length, 1, serviceId);
   }
 });
@@ -52,9 +61,46 @@ test('different requirements produce different deterministic results', () => {
   assert.equal(selectRecommendations([social, presentation], query('canva', { mustHave: ['presentations'] }), { premiumAccess: true }).items[0].id, 'fictional-slides');
 });
 
-test('an offer missing a must-have feature is excluded', () => {
-  const result = selectRecommendations([offer()], query('canva', { mustHave: ['background_removal'] }), { premiumAccess: true });
+test('Canva solo design and brand requirements select different fictional plans', () => {
+  const solo = offer({ id: 'solo-design', productId: 'solo-design', features: ['social_graphics', 'templates'], unsupportedFeatures: ['brand_assets', 'team_collaboration'] });
+  const teams = offer({ id: 'team-design', productId: 'team-design', features: ['social_graphics', 'templates', 'brand_assets', 'team_collaboration'] });
+  assert.equal(selectRecommendations([solo, teams], query('canva', { mustHave: ['templates'] }), { premiumAccess: true }).items[0].id, 'solo-design');
+  assert.deepEqual(selectRecommendations([solo, teams], query('canva', { mustHave: ['brand_assets', 'team_collaboration'] }), { premiumAccess: true }).items.map(({ id }) => id), ['team-design']);
+});
+
+test('Photoshop PSD and offline requirements exclude a casual browser editor', () => {
+  const casual = offer({ id: 'casual-editor', productId: 'casual-editor', relevantServices: ['photoshop'], productType: 'photo_editor', features: ['basic_adjustments'], unsupportedFeatures: ['psd_import_export', 'offline_desktop'] });
+  const desktop = offer({ id: 'desktop-editor', productId: 'desktop-editor', relevantServices: ['photoshop'], productType: 'photo_editor', features: ['basic_adjustments', 'psd_import_export', 'offline_desktop'] });
+  const result = selectRecommendations([casual, desktop], query('photoshop', { mustHave: ['psd_import_export', 'offline_desktop'] }), { premiumAccess: true });
+  assert.deepEqual(result.items.map(({ id }) => id), ['desktop-editor']);
+});
+
+test('general AI writing does not prove specialised terminal-agent support', () => {
+  const general = offer({ id: 'general-ai', productId: 'general-ai', relevantServices: ['chatgpt', 'claude'], productType: 'ai_assistant', features: ['general_writing'], unsupportedFeatures: ['ide_terminal_agent'] });
+  const agent = offer({ id: 'coding-agent', productId: 'coding-agent', relevantServices: ['chatgpt', 'claude'], productType: 'ai_assistant', features: ['general_writing', 'ide_terminal_agent'] });
+  assert.deepEqual(selectRecommendations([general, agent], query('claude', { mustHave: ['ide_terminal_agent'] }), { premiumAccess: true }).items.map(({ id }) => id), ['coding-agent']);
+});
+
+test('a different streaming catalogue cannot satisfy a required exclusive', () => {
+  const broadCatalogue = offer({ id: 'broad-streaming', productId: 'broad-streaming', relevantServices: ['netflix'], productType: 'streaming_video', features: ['films', 'series'], unsupportedFeatures: ['specific_exclusives'] });
+  assert.equal(selectRecommendations([broadCatalogue], query('netflix', { mustHave: ['specific_exclusives'], requiredTitle: 'Fictional exclusive' }), { premiumAccess: true }).items.length, 0);
+});
+
+test('unsupported services keep the honest basic-audit state', () => {
+  assert.equal(normalizeRecommendationQuery({ serviceId: 'unknown-service', productType: 'other' }), null);
+  assert.equal(selectRecommendations([], { serviceId: 'unknown-service' }).message, 'Choose a supported service for curated alternatives.');
+});
+
+test('an offer explicitly missing a must-have feature is excluded', () => {
+  const result = selectRecommendations([offer({ unsupportedFeatures: ['background_removal'] })], query('canva', { mustHave: ['background_removal'] }), { premiumAccess: true });
   assert.equal(result.items.length, 0);
+});
+
+test('an unknown must-have remains a candidate and never a confirmed match', () => {
+  const result = selectRecommendations([offer({ unknownFeatures: ['background_removal'] })], query('canva', { mustHave: ['background_removal'] }), { premiumAccess: true });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].matchStatus, 'candidate');
+  assert.match(result.items[0].verificationNotes[0], /must-have/i);
 });
 
 test('known incompatible country and platform are excluded while unknown compatibility is labelled', () => {
@@ -63,13 +109,20 @@ test('known incompatible country and platform are excluded while unknown compati
   const unknown = offer({ id: 'unknown', platforms: [], countryAvailability: { status: 'unknown', countries: [] }, advertisements: null });
   const result = selectRecommendations([unknown], query('canva', { country: 'CH', platform: 'macos', acceptAds: false }), { premiumAccess: true });
   assert.equal(result.items.length, 1);
-  assert.equal(result.items[0].verificationNotes.length, 3);
+  assert.equal(result.items[0].verificationNotes.length, 4);
+  assert.ok(result.items[0].verificationNotes.some((note) => /country/i.test(note)));
+  assert.ok(result.items[0].verificationNotes.some((note) => /platform/i.test(note)));
 });
 
 test('free-plan limits require explicit acceptance', () => {
   const free = offer({ id: 'fictional-free', planName: 'Free', pricingModel: 'free', pricingUrl: null, freePlanLimits: true });
   assert.equal(selectRecommendations([free], query('canva', { acceptFreeLimits: false }), { premiumAccess: true }).items.length, 0);
   assert.equal(selectRecommendations([free], query('canva', { acceptFreeLimits: true }), { premiumAccess: true }).items.length, 1);
+});
+
+test('capacity above a known plan limit is excluded', () => {
+  const small = offer({ id: 'small-cloud', productId: 'small-cloud', relevantServices: ['dropbox'], productType: 'cloud_storage', features: ['device_sync'], storageGb: 5 });
+  assert.equal(selectRecommendations([small], query('dropbox', { storageRequiredGb: 6 }), { premiumAccess: true }).items.length, 0);
 });
 
 test('free and paid preferences filter independently without changing access control', () => {
@@ -133,6 +186,7 @@ test('duplicate offers are returned once', () => {
 test('unsafe and non-HTTPS destinations are rejected', () => {
   assert.equal(validateOffer(offer({ officialUrl: 'javascript:alert(1)' })), null);
   assert.equal(validateOffer(offer({ officialUrl: 'http://fictional.example' })), null);
+  assert.equal(validateOffer(offer({ pricingUrl: 'http://fictional.example/pricing' })), null);
 });
 
 test('responses never invent numerical savings or expose affiliate destinations', () => {
@@ -142,9 +196,38 @@ test('responses never invent numerical savings or expose affiliate destinations'
   assert.equal(result.pricingLabel, 'Paid alternative');
 });
 
+test('unknown prices stay null and source currencies are preserved', () => {
+  const unknown = offer({ id: 'unknown-price', productId: 'unknown-price', priceMinor: null, priceCurrency: null, priceVerifiedAt: null, billingInterval: 'varies' });
+  const eur = offer({ id: 'eur-price', productId: 'eur-price', priceMinor: 1200, priceCurrency: 'EUR', billingInterval: 'yearly' });
+  const results = selectRecommendations([unknown, eur], query('canva'), { premiumAccess: true }).items;
+  assert.equal(results.find(({ id }) => id === 'unknown-price').price.amountMinor, null);
+  assert.equal(results.find(({ id }) => id === 'eur-price').price.currency, 'EUR');
+  assert.equal(results.some((item) => 'estimatedSavings' in item), false);
+});
+
+test('unknown prices cannot carry a misleading currency or verification date', () => {
+  assert.equal(validateOffer(offer({ priceMinor: null, priceCurrency: 'USD', priceVerifiedAt: null, billingInterval: 'varies' })), null);
+  assert.equal(validateOffer(offer({ priceMinor: null, priceCurrency: null, priceVerifiedAt: '2026-09-06', billingInterval: 'varies' })), null);
+});
+
+test('one-time and annual commitments are returned without monthly-equivalent claims', () => {
+  const once = offer({ id: 'one-time', productId: 'one-time', pricingModel: 'one_time', priceMinor: 25000, billingInterval: 'one_time', upfrontCommitmentMonths: 0, renewalTerms: 'No recurring fee.' });
+  const annual = offer({ id: 'annual', productId: 'annual', offerId: 'annual', priceMinor: 4900, billingInterval: 'yearly', upfrontCommitmentMonths: 12, introductoryTerms: 'First year only.', renewalTerms: 'Renews yearly.' });
+  const results = selectRecommendations([once, annual], query('canva'), { premiumAccess: true }).items;
+  assert.equal(results.find(({ id }) => id === 'one-time').pricingLabel, 'One-time purchase');
+  assert.equal(results.find(({ id }) => id === 'one-time').price.amountMinor, 25000);
+  assert.equal(results.find(({ id }) => id === 'annual').price.upfrontCommitmentMonths, 12);
+  assert.equal(results.find(({ id }) => id === 'annual').price.introductoryTerms, 'First year only.');
+  assert.equal(results.find(({ id }) => id === 'annual').price.renewalTerms, 'Renews yearly.');
+});
+
 test('invalid requirement identifiers and product types are normalized safely', () => {
   assert.deepEqual(normalizeRecommendationQuery(query('canva', { mustHave: ['templates', 'invented'], productType: 'invented' })).mustHave, ['templates']);
   assert.equal(normalizeRecommendationQuery(query('canva', { productType: 'invented' })).productType, 'graphic_design');
+});
+
+test('catalogue records cannot claim feature identifiers outside their product type', () => {
+  assert.equal(validateOffer(offer({ features: ['templates', 'invented_feature'] })), null);
 });
 
 test('signed-out and ordinary users cannot retrieve restricted free records directly', async () => {

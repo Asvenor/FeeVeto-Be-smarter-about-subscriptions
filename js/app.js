@@ -67,6 +67,7 @@ function showToast(message, actionLabel = '', action = null) {
 const errorFields = {
   name: ['name', 'name-error'], price: ['price', 'price-error'], cancellationUrl: ['cancellationUrl', 'url-error'],
   productType: ['productType', 'product-type-error'], country: ['country', 'country-error'], storageRequiredGb: ['storageRequiredGb', 'storage-error'],
+  requiredServerCountry: ['requiredServerCountry', 'server-country-error'],
 };
 
 function clearErrors() {
@@ -96,9 +97,11 @@ function adaptiveErrors(formData) {
   const productType = String(formData.get('productType') || '');
   const country = String(formData.get('country') || '').trim();
   const storage = String(formData.get('storageRequiredGb') || '').trim();
+  const requiredServerCountry = String(formData.get('requiredServerCountry') || '').trim();
   if (serviceId && !productType) errors.productType = 'Choose the product type for this supported service.';
   if (serviceId && country && !/^[A-Za-z]{2}$/.test(country)) errors.country = 'Use a two-letter country code, such as CH.';
   if (productType === 'cloud_storage' && storage && (!Number.isFinite(Number(storage)) || Number(storage) < 0 || Number(storage) > 100_000)) errors.storageRequiredGb = 'Enter storage from 0 to 100,000 GB.';
+  if (productType === 'vpn' && requiredServerCountry && !/^[A-Za-z]{2}$/.test(requiredServerCountry)) errors.requiredServerCountry = 'Use a two-letter country code, such as US.';
   return errors;
 }
 
@@ -184,8 +187,14 @@ function updateAdaptiveVisibility() {
   setApplicable(byId('alternative-platform-field'), Boolean(service));
   setApplicable(byId('free-limits-field'), Boolean(service));
   setApplicable(byId('free-alternatives-field'), Boolean(service));
-  setApplicable(byId('advertisement-field'), ['streaming_video', 'ai_assistant'].includes(productType));
+  setApplicable(byId('advertisement-field'), ['streaming_video', 'ai_assistant', 'photo_editor', 'music_streaming', 'home_workouts'].includes(productType));
   setApplicable(byId('storage-requirement'), productType === 'cloud_storage');
+  setApplicable(byId('required-title-field'), ['streaming_video', 'audiobooks'].includes(productType));
+  setApplicable(byId('required-game-field'), productType === 'game_catalogue');
+  setApplicable(byId('server-country-field'), productType === 'vpn');
+  setApplicable(byId('target-language-field'), productType === 'language_learning');
+  setApplicable(byId('learner-level-field'), productType === 'language_learning');
+  setApplicable(byId('specific-subject-field'), productType === 'online_courses');
   updateCategoryQuestions();
 }
 
@@ -216,7 +225,7 @@ function resetForm() {
 
 function populateReview(review) {
   if (!review) return;
-  for (const name of ['satisfaction', 'switchingDifficulty', 'country', 'platform', 'neededFeatures', 'storageRequiredGb']) {
+  for (const name of ['satisfaction', 'switchingDifficulty', 'country', 'platform', 'neededFeatures', 'storageRequiredGb', 'requiredTitle', 'requiredGame', 'requiredServerCountry', 'targetLanguage', 'learnerLevel', 'specificSubject']) {
     const control = elements.form.elements[name];
     if (control) control.value = review[name] ?? '';
   }
@@ -291,6 +300,11 @@ async function refreshAlternatives(item, focus = false) {
     const token = await clerk?.session?.getToken?.() || '';
     const result = await alternativesProvider.getAlternatives(item, token);
     if (!state.subscriptions.some((entry) => entry.id === item.id)) return;
+    if (result.accessScope === 'public') {
+      for (const [resultId, cached] of alternativeResults) {
+        if (cached.accessScope === 'complete') alternativeResults.delete(resultId);
+      }
+    }
     alternativeResults.set(item.id, { status: 'ready', ...result, requirementsComplete: complete });
   } catch (error) {
     alternativeResults.set(item.id, { status: 'error', accessScope: 'public', items: [], requirementsComplete: complete, message: error instanceof Error ? error.message : 'Alternatives could not be loaded.' });
@@ -420,7 +434,18 @@ fillCurrencyOptions(elements.form.elements.currency, state.auditCurrency);
 fillAlternativeSelectors();
 resetForm();
 render();
-const clerkPromise = initializeAuth();
+let accessSignature = '';
+const clerkPromise = initializeAuth({
+  onAccessChange(access) {
+    const nextSignature = JSON.stringify({ authenticated: access.authenticated, premiumAccess: access.premiumAccess });
+    if (accessSignature && accessSignature !== nextSignature) {
+      alternativeResults.clear();
+      render();
+      announce('Account access changed. Curated results were cleared and can be refreshed.');
+    }
+    accessSignature = nextSignature;
+  },
+});
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');
