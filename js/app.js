@@ -1,5 +1,6 @@
 import { APP_CONFIG } from './config.js';
 import { fromMinorUnits } from './calculations.js';
+import { fillCurrencyOptions, renderIllustrativeMoney, shouldApplyCurrencyDefault, validCurrencyPreference } from './currencyPreference.js';
 import { BackendAlternativesProvider } from './alternativeProvider.js';
 import { buildDetailedReview, categoryForProductType, requirementsComplete, upsertSubscription } from './formModel.js';
 import { renderDashboard } from './render.js';
@@ -14,9 +15,10 @@ document.querySelector('meta[name="description"]')?.setAttribute('content', APP_
 const byId = (id) => document.getElementById(id);
 const elements = {
   form: byId('subscription-form'), formTitle: byId('form-title'), editBadge: byId('edit-badge'), submitButton: byId('submit-button'), cancelEdit: byId('cancel-edit'),
-  auditCurrency: byId('audit-currency'), priceCurrency: byId('price-currency'), list: byId('subscription-list'), listSummary: byId('list-summary'),
+  currencyPreference: byId('currency-preference'), priceCurrency: byId('price-currency'), list: byId('subscription-list'), listSummary: byId('list-summary'),
   totalMonthly: byId('total-monthly'), totalAnnual: byId('total-annual'), potentialSavings: byId('potential-savings'), subscriptionCount: byId('subscription-count'),
-  actionCount: byId('action-count'), currencySummary: byId('currency-summary'), search: byId('result-search'), clearAll: byId('clear-all'), clearDialog: byId('clear-dialog'),
+  actionCount: byId('action-count'), currencySummary: byId('currency-summary'), summaryGrid: byId('summary-grid'), monthlyTotalLabel: byId('monthly-total-label'),
+  annualTotalLabel: byId('annual-total-label'), savingsTotalLabel: byId('savings-total-label'), search: byId('result-search'), clearAll: byId('clear-all'), clearDialog: byId('clear-dialog'),
   confirmClear: byId('confirm-clear'), exportData: byId('export-data'), importData: byId('import-data'), importFile: byId('import-file'),
   toast: byId('toast'), toastMessage: byId('toast-message'), toastAction: byId('toast-action'), announcer: byId('announcer'),
   requirementQuestions: byId('requirement-questions'), serviceSupport: byId('service-support'),
@@ -31,6 +33,7 @@ let activeFilter = 'all';
 let toastTimer;
 let autoServiceSelection = true;
 let categoryManuallyChanged = false;
+let entryCurrencyExplicitlyChanged = false;
 let renderedRequirementServiceId = '';
 const requirementDrafts = new Map();
 const alternativesProvider = new BackendAlternativesProvider();
@@ -41,7 +44,8 @@ function persist() {
 }
 
 function render() {
-  elements.auditCurrency.value = state.auditCurrency;
+  elements.currencyPreference.value = state.auditCurrency;
+  renderIllustrativeMoney(document, state.auditCurrency);
   renderDashboard({ state, elements, filter: activeFilter, query: elements.search.value, alternativeResults });
 }
 
@@ -202,6 +206,7 @@ function resetForm() {
   elements.editBadge.hidden = true;
   autoServiceSelection = true;
   categoryManuallyChanged = false;
+  entryCurrencyExplicitlyChanged = false;
   renderedRequirementServiceId = '';
   requirementDrafts.clear();
   renderRequirementsForSelection();
@@ -342,7 +347,10 @@ elements.form.elements.productType.addEventListener('change', () => {
 });
 
 elements.form.elements.category.addEventListener('change', () => { categoryManuallyChanged = true; updateCategoryQuestions(); });
-elements.form.elements.currency.addEventListener('change', () => { elements.priceCurrency.textContent = elements.form.elements.currency.value; });
+elements.form.elements.currency.addEventListener('change', () => {
+  entryCurrencyExplicitlyChanged = true;
+  elements.priceCurrency.textContent = elements.form.elements.currency.value;
+});
 
 elements.list.addEventListener('click', (event) => {
   const target = event.target.closest('[data-action]');
@@ -362,13 +370,20 @@ for (const tab of document.querySelectorAll('.filter-tab')) tab.addEventListener
 });
 
 elements.search.addEventListener('input', render);
-elements.auditCurrency.addEventListener('change', () => {
-  state.auditCurrency = elements.auditCurrency.value;
-  if (!elements.form.elements.subscriptionId.value) {
+elements.currencyPreference.addEventListener('change', () => {
+  state.auditCurrency = validCurrencyPreference(elements.currencyPreference.value);
+  const updatedEntryDefault = shouldApplyCurrencyDefault({
+    editingId: elements.form.elements.subscriptionId.value,
+    priceValue: elements.form.elements.price.value,
+    entryCurrencyExplicitlyChanged,
+  });
+  if (updatedEntryDefault) {
     elements.form.elements.currency.value = state.auditCurrency;
     elements.priceCurrency.textContent = state.auditCurrency;
   }
-  persist(); render(); showToast(`New entries will use ${state.auditCurrency}. Existing prices were not converted.`);
+  persist(); render();
+  const formNote = updatedEntryDefault ? 'The next new entry defaults to it.' : 'The currency on the current form was left unchanged.';
+  showToast(`Examples and ${state.auditCurrency} dashboard totals updated. ${formNote} Existing prices were not converted.`);
 });
 elements.cancelEdit.addEventListener('click', () => { resetForm(); elements.form.elements.name.focus(); });
 elements.clearAll.addEventListener('click', () => elements.clearDialog.showModal());
@@ -400,6 +415,8 @@ elements.importFile.addEventListener('change', async () => {
   } catch (error) { showToast(error instanceof Error ? error.message : 'The backup could not be imported.'); }
 });
 
+fillCurrencyOptions(elements.currencyPreference, state.auditCurrency);
+fillCurrencyOptions(elements.form.elements.currency, state.auditCurrency);
 fillAlternativeSelectors();
 resetForm();
 render();
@@ -407,3 +424,20 @@ const clerkPromise = initializeAuth();
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');
+
+window.addEventListener('storage', (event) => {
+  if (event.key !== APP_CONFIG.storageKey) return;
+  const nextCurrency = loadState(browserStorage).state.auditCurrency;
+  if (nextCurrency === state.auditCurrency) return;
+  state.auditCurrency = nextCurrency;
+  if (shouldApplyCurrencyDefault({
+    editingId: elements.form.elements.subscriptionId.value,
+    priceValue: elements.form.elements.price.value,
+    entryCurrencyExplicitlyChanged,
+  })) {
+    elements.form.elements.currency.value = nextCurrency;
+    elements.priceCurrency.textContent = nextCurrency;
+  }
+  render();
+  announce(`Display currency changed to ${nextCurrency}. Existing billing currencies were not changed.`);
+});

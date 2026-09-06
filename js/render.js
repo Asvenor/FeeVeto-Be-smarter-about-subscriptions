@@ -1,5 +1,5 @@
 import { annualCost, estimatedCostPerUse, formatMoney, monthlyCost } from './calculations.js';
-import { CATEGORY_OPTIONS, IMPORTANCE_OPTIONS, optionLabel, USAGE_OPTIONS } from './config.js';
+import { CATEGORY_OPTIONS, CURRENCIES, IMPORTANCE_OPTIONS, optionLabel, USAGE_OPTIONS } from './config.js';
 import { officialDestination } from './alternativeProvider.js';
 import { evaluateSubscription } from './recommendationEngine.js';
 import { requirementLabel, supportedServiceFor } from './serviceCatalog.js';
@@ -130,22 +130,42 @@ export function renderDashboard({ state, elements, filter, query, alternativeRes
     return { item, result, alternatives: alternativesState?.items || [], alternativesState };
   });
 
-  const included = recommendations.filter(({ item }) => item.currency === state.auditCurrency && item.status !== 'cancelled');
-  const totals = included.reduce((value, { item, result }) => {
-    value.monthly += monthlyCost(item.amountMinor, item.cycle) || 0;
-    value.annual += annualCost(item.amountMinor, item.cycle) || 0;
-    if (result.recommendation === 'strong_cancellation_candidate') value.savings += annualCost(item.amountMinor, item.cycle) || 0;
-    if (!['keep', 'cancelled'].includes(result.recommendation)) value.actions += 1;
-    return value;
-  }, { monthly: 0, annual: 0, savings: 0, actions: 0 });
-
-  elements.totalMonthly.textContent = formatMoney(totals.monthly, state.auditCurrency);
-  elements.totalAnnual.textContent = formatMoney(totals.annual, state.auditCurrency);
-  elements.potentialSavings.textContent = formatMoney(totals.savings, state.auditCurrency);
+  const active = recommendations.filter(({ item }) => item.status !== 'cancelled');
+  const totalsByCurrency = new Map(CURRENCIES.map((currency) => [currency, { monthly: 0, annual: 0, savings: 0, count: 0 }]));
+  for (const { item, result } of active) {
+    const totals = totalsByCurrency.get(item.currency);
+    totals.monthly += monthlyCost(item.amountMinor, item.cycle) || 0;
+    totals.annual += annualCost(item.amountMinor, item.cycle) || 0;
+    totals.count += 1;
+    if (result.recommendation === 'strong_cancellation_candidate') totals.savings += annualCost(item.amountMinor, item.cycle) || 0;
+  }
+  const selectedTotals = totalsByCurrency.get(state.auditCurrency);
+  const showSelectedTotals = active.length === 0 || selectedTotals.count > 0;
+  elements.totalMonthly.textContent = showSelectedTotals ? formatMoney(selectedTotals.monthly, state.auditCurrency) : '—';
+  elements.totalAnnual.textContent = showSelectedTotals ? formatMoney(selectedTotals.annual, state.auditCurrency) : '—';
+  elements.potentialSavings.textContent = showSelectedTotals ? formatMoney(selectedTotals.savings, state.auditCurrency) : '—';
+  elements.monthlyTotalLabel.textContent = `Monthly total (${state.auditCurrency})`;
+  elements.annualTotalLabel.textContent = `Annual total (${state.auditCurrency})`;
+  elements.savingsTotalLabel.textContent = `Potential annual savings (${state.auditCurrency})`;
+  elements.summaryGrid.setAttribute('aria-label', `Audit totals for subscriptions billed in ${state.auditCurrency}. Different currencies are not combined.`);
   elements.subscriptionCount.textContent = String(state.subscriptions.length);
-  elements.actionCount.textContent = String(totals.actions);
-  const excluded = state.subscriptions.filter((item) => item.currency !== state.auditCurrency && item.status !== 'cancelled').length;
-  elements.currencySummary.textContent = excluded ? `${excluded} active ${excluded === 1 ? 'subscription is' : 'subscriptions are'} excluded from ${state.auditCurrency} totals because FeeVeto does not convert currencies.` : `Totals include active subscriptions entered in ${state.auditCurrency}.`;
+  elements.actionCount.textContent = String(active.filter(({ result }) => !['keep', 'cancelled'].includes(result.recommendation)).length);
+  const otherTotals = CURRENCIES
+    .filter((currency) => currency !== state.auditCurrency && totalsByCurrency.get(currency).count > 0)
+    .map((currency) => {
+      const totals = totalsByCurrency.get(currency);
+      return `${currency}: ${formatMoney(totals.monthly, currency)} monthly and ${formatMoney(totals.annual, currency)} annually`;
+    });
+  if (!active.length) {
+    elements.currencySummary.textContent = `No active subscriptions yet. New entries default to ${state.auditCurrency}.`;
+  } else if (!selectedTotals.count) {
+    const originalTotals = otherTotals.join('; ');
+    elements.currencySummary.textContent = `No active subscriptions are billed in ${state.auditCurrency}, so ${state.auditCurrency} totals are not shown. Original-currency subtotals: ${originalTotals}. FeeVeto does not convert or combine currencies.`;
+  } else if (otherTotals.length) {
+    elements.currencySummary.textContent = `${state.auditCurrency} totals include ${selectedTotals.count} active ${selectedTotals.count === 1 ? 'subscription' : 'subscriptions'}. Other original-currency subtotals: ${otherTotals.join('; ')}. FeeVeto does not convert or combine currencies.`;
+  } else {
+    elements.currencySummary.textContent = `Totals include ${selectedTotals.count} active ${selectedTotals.count === 1 ? 'subscription' : 'subscriptions'} billed in ${state.auditCurrency}. No currency conversion is applied.`;
+  }
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visible = recommendations.filter(({ item, result, alternatives }) => (!normalizedQuery || item.name.toLocaleLowerCase().includes(normalizedQuery)) && matchesFilter(result, alternatives, filter));

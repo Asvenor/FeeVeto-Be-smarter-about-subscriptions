@@ -10,8 +10,9 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 - One “Save and review” action that stores the entry, calculates the audit, and retrieves authorized alternatives
 - Transparent recommendations with reasons, confidence, and cautious wording
 - Weekly, monthly, quarterly, and yearly cost normalization
-- Per-subscription currencies without fake exchange-rate conversion
-- Monthly and annual totals for the selected audit currency
+- One persisted global display-currency preference, defaulting to USD, for examples, dashboard subtotals, and new-entry defaults
+- Per-subscription original currencies without fake exchange-rate conversion
+- Separate monthly and annual subtotals for mixed-currency audits
 - Evidence-based potential savings totals
 - Add, edit, delete, clear, filter, and search controls
 - JSON backup export and import
@@ -31,6 +32,8 @@ js/app.js                     Browser events and application state coordination
 js/auth.js                    Clerk initialization and signed-in/signed-out navigation controls
 js/access.js                  Browser client for the server-verified access summary
 js/config.js                  Brand, storage keys, options, and global configuration
+js/currencyPreference.js      Shared currency options, safe form defaults, and illustrative amounts
+js/currencyPage.js            Currency preference synchronization on the privacy page
 js/storage.js                 Validation, persistence, recovery, import, and migration
 js/calculations.js            Pure cost and date calculations
 js/recommendationEngine.js    Pure deterministic decision logic
@@ -64,7 +67,7 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 ## Local storage and privacy
 
-FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains the selected audit currency and subscriptions, including optional adaptive-form answers. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
+FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains one global display-currency preference and subscriptions, including each entry's original billing currency and optional adaptive-form answers. The existing `auditCurrency` field remains the persisted preference name for backup compatibility. New visitors default to USD. Existing valid preferences, imported backups, legacy preferences, saved amounts, and saved billing currencies are preserved. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
 No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When a supported service is saved or its alternatives are retried, the browser sends only a supported service ID, product type, structured requirements, country, platform, free/paid choices, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
 
@@ -112,6 +115,8 @@ The browser recognizes aliases for the six supported subscriptions inside the un
 Matching first requires the same product type. It then excludes missing must-have features, insufficient storage, known country or platform incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. Unknown availability remains clearly marked for provider verification. Nice-to-have matches, limitations, and verification uncertainty affect ordering. Affiliate status is not accepted as a scoring input.
 
 Signed-out and ordinary accounts can receive suitable paid or one-time-purchase records. Free-plan records are filtered on the backend before matching and are returned only when the server-verified Clerk entitlement has `premiumAccess: true`. Paid access remains a separate Stripe-ready resolver.
+
+The current alternatives response identifies the pricing model and links to the provider's verified pricing page; it does not return or total numerical provider prices. Missing numerical prices therefore remain unknown rather than appearing as zero. Any later numerical catalogue price must include and retain its verified source currency instead of following the display-currency preference.
 
 ### Private catalogue schema
 
@@ -165,12 +170,14 @@ The command checks the browser entry module and runs all Node tests.
 4. Change the service or product type and confirm irrelevant old requirements do not affect the new match.
 5. Leave optional questions unanswered and confirm they remain unanswered after save and edit.
 6. Simulate an unavailable alternatives endpoint and confirm the saved result remains with a Retry alternatives action.
-7. Switch the new-entry currency, add another subscription, and confirm the first entry keeps its original currency.
-8. Try the All, Keep, Review, Save money, and Alternatives filters.
-9. Export a backup, add another test entry, and import the backup.
-10. Test keyboard navigation, validation focus, result focus, and visible focus styles.
-11. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
-12. Test signed-out, ordinary, beta, and admin accounts and confirm the catalogue access restrictions remain server-controlled.
+7. In a clean browser, confirm USD appears in every example and empty dashboard amount. Switch the global preference through EUR, GBP, and CHF and confirm examples, selected-currency dashboard totals, and untouched new-entry defaults update without a reload.
+8. Enter a partial price, switch the global preference, and confirm the unfinished entry keeps its current billing currency. Edit a saved CHF entry and confirm its amount and currency remain CHF unless explicitly changed.
+9. Add entries in multiple currencies and confirm FeeVeto shows separate original-currency subtotals, never a combined total, and never presents a missing selected-currency subtotal as zero.
+10. Try the All, Keep, Review, Save money, and Alternatives filters.
+11. Export a backup, add another test entry, and import the backup.
+12. Test keyboard navigation, validation focus, result focus, and visible focus styles.
+13. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
+14. Test signed-out, ordinary, beta, and admin accounts and confirm the catalogue access restrictions remain server-controlled.
 
 Use fictional subscription information during testing.
 
@@ -222,7 +229,7 @@ Do not add payment, analytics, or API credentials to frontend files.
 - Data remains in one browser unless manually exported and imported.
 - No bank connection, automatic detection, automatic cancellation, or cloud sync
 - Accounts authenticate identity only; audits still remain in one browser
-- No live currency conversion; mixed-currency entries are excluded from combined totals
+- No live currency conversion; real amounts retain their original currencies and mixed-currency audits use separate subtotals
 - No notification delivery when the page is closed
 - Curated matching is limited to the first six supported subscriptions
 - Real catalogue records require the private Cloudflare KV binding and are intentionally absent from Git

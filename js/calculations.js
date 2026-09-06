@@ -58,7 +58,24 @@ export function totalsForCurrency(subscriptions, currency, recommendationFor) {
 }
 
 export function formatMoney(minor, currency, locale) {
-  return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(fromMinorUnits(minor || 0));
+  if (!Number.isFinite(minor)) return 'Unknown';
+  const displayLocales = { USD: 'en-US', EUR: 'en-IE', GBP: 'en-GB', CHF: 'de-CH' };
+  return new Intl.NumberFormat(locale || displayLocales[currency] || 'en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(fromMinorUnits(minor));
+}
+
+export function formatWholeMoney(minor, currency) {
+  if (!Number.isFinite(minor)) return 'Unknown';
+  const displayLocales = { USD: 'en-US', EUR: 'en-IE', GBP: 'en-GB', CHF: 'de-CH' };
+  return new Intl.NumberFormat(displayLocales[currency] || 'en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(fromMinorUnits(minor));
 }
 
 export function parseLocalDate(value) {

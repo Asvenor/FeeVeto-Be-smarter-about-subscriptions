@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test",
-    "check": "node --check js/app.js && node --check js/auth.js && node --check js/access.js && node --check js/formModel.js && node --check js/serviceCatalog.js && node --check js/alternativeProvider.js && node --check functions/_shared/alternatives.js && node --check functions/_shared/catalogue-store.js && node --check functions/api/alternatives/recommendations.js && node --test && vite build"
+    "check": "node --check js/app.js && node --check js/auth.js && node --check js/access.js && node --check js/currencyPreference.js && node --check js/currencyPage.js && node --check js/formModel.js && node --check js/serviceCatalog.js && node --check js/alternativeProvider.js && node --check functions/_shared/alternatives.js && node --check functions/_shared/catalogue-store.js && node --check functions/api/alternatives/recommendations.js && node --test && vite build"
   },
   "engines": {
     "node": ">=20"
