@@ -1,71 +1,61 @@
-import { annualCost } from './calculations.js';
-import { VERIFIED_ALTERNATIVES } from '../data/alternatives.js';
+import { supportedServiceFor } from './serviceCatalog.js';
 
 export class AlternativesProvider {
-  getAlternatives() {
+  async getAlternatives() {
     throw new Error('AlternativesProvider.getAlternatives must be implemented.');
   }
 }
 
-function normalizedTags(values = []) {
-  return new Set(values.map((value) => String(value).trim().toLocaleLowerCase()).filter(Boolean));
+export function recommendationRequestFor(subscription) {
+  const review = subscription?.detailedReview;
+  const service = supportedServiceFor(subscription);
+  if (!review || !service) return null;
+  return {
+    serviceId: service.id,
+    productType: review.productType || service.productType,
+    mustHave: Array.isArray(review.mustHaveRequirements) ? review.mustHaveRequirements : [],
+    niceToHave: Array.isArray(review.niceToHaveRequirements) ? review.niceToHaveRequirements : [],
+    country: review.country || '',
+    platform: review.platform || '',
+    acceptAds: review.acceptAds === true,
+    acceptFreeLimits: review.acceptFreeLimits === true,
+    storageRequiredGb: Number.isFinite(review.storageRequiredGb) ? review.storageRequiredGb : null,
+  };
 }
 
-function verified(item) {
-  if (!item || !item.id || !item.serviceName || !item.description || !item.url || !item.lastVerified) return false;
-  if (!['free', 'cheaper', 'one-time', 'downgrade'].includes(item.alternativeType)) return false;
+export function officialDestination(offer) {
   try {
-    const url = new URL(item.url);
-    return ['http:', 'https:'].includes(url.protocol) && /^\d{4}-\d{2}-\d{2}$/.test(item.lastVerified);
+    const url = new URL(offer?.officialUrl);
+    return url.protocol === 'https:' ? url.href : '';
   } catch {
-    return false;
+    return '';
   }
 }
 
-function annualAlternativeCost(item) {
-  if (Number.isSafeInteger(item.yearlyPriceMinor) && item.yearlyPriceMinor >= 0) return item.yearlyPriceMinor;
-  if (Number.isSafeInteger(item.monthlyPriceMinor) && item.monthlyPriceMinor >= 0) return item.monthlyPriceMinor * 12;
-  return null;
+function normalizeResponse(value) {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.items)) throw new Error('The alternatives response was invalid.');
+  return {
+    accessScope: value.accessScope === 'complete' ? 'complete' : 'public',
+    message: String(value.message || ''),
+    items: value.items.filter((item) => officialDestination(item)).slice(0, 3),
+  };
 }
 
-function matchScore(item, subscription, preferences) {
-  const tags = normalizedTags(item.featureTags);
-  const required = normalizedTags(preferences.requiredFeatures);
-  const featureMatches = [...required].filter((tag) => tags.has(tag)).length;
-  const preferenceFit = (preferences.considerFree && item.alternativeType === 'free' ? 14 : 0)
-    + (preferences.considerCheaper && ['free', 'cheaper', 'downgrade'].includes(item.alternativeType) ? 10 : 0)
-    + (preferences.acceptAds === false && item.limitations?.some((value) => /\bads?\b/i.test(value)) ? -12 : 0);
-  const categoryFit = item.categories?.includes(subscription.category) ? 18 : 0;
-  const switchingFit = item.platforms?.length ? 3 : 0;
-  return featureMatches * 25 + preferenceFit + categoryFit + switchingFit;
-}
-
-export class LocalAlternativesProvider extends AlternativesProvider {
-  constructor(items = VERIFIED_ALTERNATIVES) {
+export class BackendAlternativesProvider extends AlternativesProvider {
+  constructor(fetchImplementation = window.fetch.bind(window)) {
     super();
-    this.items = items;
+    this.fetchImplementation = fetchImplementation;
   }
 
-  getAlternatives(subscription, preferences = {}) {
-    const required = normalizedTags(preferences.requiredFeatures);
-    const currentAnnual = annualCost(subscription.amountMinor, subscription.cycle);
-    return this.items
-      .filter(verified)
-      .filter((item) => item.categories?.includes(subscription.category))
-      .filter((item) => !preferences.country || !item.supportedCountries?.length || item.supportedCountries.includes(preferences.country))
-      .filter((item) => {
-        const tags = normalizedTags(item.featureTags);
-        return [...required].every((tag) => tags.has(tag));
-      })
-      .map((item) => {
-        const alternativeAnnual = annualAlternativeCost(item);
-        const comparable = alternativeAnnual !== null && currentAnnual !== null && item.currency === subscription.currency;
-        return {
-          ...item,
-          estimatedAnnualSavingsMinor: comparable && alternativeAnnual < currentAnnual ? currentAnnual - alternativeAnnual : null,
-          rankScore: matchScore(item, subscription, preferences),
-        };
-      })
-      .sort((left, right) => right.rankScore - left.rankScore || left.serviceName.localeCompare(right.serviceName));
+  async getAlternatives(subscription, token = '') {
+    const query = recommendationRequestFor(subscription);
+    if (!query) return { accessScope: 'public', items: [], message: 'Complete the service-specific review to find verified alternatives.' };
+    const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await this.fetchImplementation('./api/alternatives/recommendations', {
+      method: 'POST', headers, body: JSON.stringify(query), cache: 'no-store', credentials: 'same-origin',
+    });
+    if (!response.ok) throw new Error(response.status === 503 ? 'The private alternatives catalogue is not configured yet.' : 'Alternatives could not be loaded.');
+    return normalizeResponse(await response.json());
   }
 }

@@ -10,6 +10,6 @@ export function json(body, { status = 200, headers = {} } = {}) {
     headers: { ...JSON_HEADERS, ...headers },
   });
 }
-export function methodNotAllowed() {
-  return json({ error: 'Method not allowed.' }, { status: 405, headers: { Allow: 'GET' } });
+export function methodNotAllowed(allowedMethods = ['GET']) {
+  return json({ error: 'Method not allowed.' }, { status: 405, headers: { Allow: allowedMethods.join(', ') } });
 }

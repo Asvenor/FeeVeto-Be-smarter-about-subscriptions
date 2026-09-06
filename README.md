@@ -16,7 +16,8 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 - Add, edit, delete, clear, filter, and search controls
 - JSON backup export and import
 - Optional Clerk sign-up, sign-in, profile management, and sign-out controls
-- Local alternatives provider that displays only sufficiently verified entries
+- Curated alternatives for Canva, Netflix, ChatGPT, Adobe Photoshop, Claude, and Dropbox
+- Server-side product-type and requirement matching with protected free-plan records
 - Device-local storage with one-time migration from the former app formats
 - Responsive, keyboard-friendly, reduced-motion interface
 
@@ -34,13 +35,14 @@ js/storage.js                 Validation, persistence, recovery, import, and mig
 js/calculations.js            Pure cost and date calculations
 js/recommendationEngine.js    Pure deterministic decision logic
 js/alternativeProvider.js    Provider interface, verification, filtering, and ranking
+js/serviceCatalog.js         Supported-service aliases, product types, and structured requirements
 js/render.js                  Safe DOM rendering for totals, results, and alternatives
 js/validation.js              Quick-audit input validation
-data/alternatives.js          Locally maintained verified alternative records
+data/alternatives.js          Intentionally empty public catalogue placeholder
 tests/                        Calculation, decision, alternatives, storage, and page-contract tests
 vite.config.js                Multi-page production build configuration
-functions/api/                Cloudflare Pages Functions for access, premium, and admin checks
-functions/_shared/            Clerk verification, access policy, billing seam, and HTTP helpers
+functions/api/                Cloudflare Pages Functions for access and alternatives
+functions/_shared/            Clerk verification, access policy, private catalogue matching, and HTTP helpers
 ```
 
 ## How recommendations work
@@ -64,7 +66,7 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains the selected audit currency and subscriptions, including optional detailed-review answers. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
-No analytics are included. Subscription names, prices, questionnaire answers, and totals are not transmitted by the application.
+No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When the user explicitly requests alternatives, the browser sends only a supported service ID, product type, structured requirements, country, platform, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
 
 ## Authentication
 
@@ -101,48 +103,38 @@ Migration:
 
 The old keys are not deleted. The completion marker and new-state precedence prevent repeated duplication.
 
-## Alternatives provider
+## Curated alternatives
 
-`AlternativesProvider` defines the future provider contract. `LocalAlternativesProvider` is the production default and reads `data/alternatives.js`. The production dataset intentionally starts empty rather than presenting invented prices, URLs, or claims.
+The browser recognizes aliases for the six supported subscriptions, but unknown names remain unsupported until the user explicitly corrects the service and product type. The detailed review offers service-specific requirements with three priorities: not needed, must have, and nice to have. Optional free text remains a private note and is not interpreted by the matcher.
 
-An alternative must include enough verified data to be displayed:
+`BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. The Cloudflare Function reads the catalogue from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v1`, validates every record, applies deterministic matching, and returns at most three results.
 
-```js
-{
-  id: 'unique-id',
-  serviceName: 'Verified product name',
-  aliases: [],
-  categories: ['software'],
-  alternativeType: 'free', // free | cheaper | one-time | downgrade
-  description: 'A verified, neutral description.',
-  monthlyPriceMinor: 0,    // integer minor units, or null
-  yearlyPriceMinor: null,  // integer minor units, or null
-  currency: 'CHF',
-  pricingNote: '',
-  supportedCountries: ['CH'],
-  platforms: ['web'],
-  featureTags: ['documents'],
-  limitations: ['Verified limitation'],
-  url: 'https://provider.example/product',
-  isAffiliate: false,
-  lastVerified: '2026-09-05'
-}
-```
+Matching first requires the same product type. It then excludes missing must-have features, insufficient storage, known country or platform incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. Unknown availability remains clearly marked for provider verification. Nice-to-have matches, limitations, and verification uncertainty affect ordering. Affiliate status is not accepted as a scoring input.
 
-### Adding a verified alternative
+Signed-out and ordinary accounts can receive suitable paid or one-time-purchase records. Free-plan records are filtered on the backend before matching and are returned only when the server-verified Clerk entitlement has `premiumAccess: true`. Paid access remains a separate Stripe-ready resolver.
 
-1. Confirm the product URL, feature claims, limitations, country availability, and price with the provider.
-2. Express prices as integer minor units: CHF 9.99 becomes `999`.
-3. Use `null` when a price is not verified. Never estimate it.
-4. Record the actual verification date as `YYYY-MM-DD`.
-5. Add the object to `VERIFIED_ALTERNATIVES` in `data/alternatives.js`.
-6. Add or update tests, then run `npm run check`.
+### Private catalogue schema
 
-Ranking prioritizes required-feature compatibility, preferences, country eligibility, useful savings, switching fit, and limitations. Affiliate status is never part of the rank score. Free and non-affiliate options can rank first.
+Production records must never be committed. Keep the reviewed JSON outside Git, upload it to Workers KV, and preserve a private backup. Each offer contains:
 
-Affiliate URLs must not be added until approved. Set `isAffiliate: true` only for a real approved relationship. The interface then places “Paid link” beside the action and uses `rel="sponsored noopener noreferrer"`. The disclosure must remain visible near the alternative results:
+- A unique ID, product and exact plan name, relevant original services, product type, and downgrade/replacement relationship
+- `pricingModel`: `free`, `subscription`, or `one_time`
+- Plan-specific features, limitations, platforms, country availability, advertisement status, optional storage capacity, and free-plan-limit status
+- HTTPS official and pricing destinations, official source URLs, and the actual verification date
+- `affiliateUrl: null` and `affiliateStatus: "not_applied"`
 
-> We may earn a commission if you purchase through this link, at no additional cost to you. Affiliate relationships do not affect how alternatives are ranked.
+Temporary trials must use `trialOnly: true`; the validator rejects a record that is simultaneously marked as a free plan and a temporary trial. The current response never calculates savings or exposes source and affiliate fields.
+
+### Adding or updating an offer
+
+1. Verify every claim against current official product, pricing, documentation, or support pages.
+2. Update the private catalogue JSON; never add it to `data/`, `js/`, HTML, or another tracked path.
+3. Record uncertain country, platform, or advertisement compatibility as `unknown` rather than guessing.
+4. Keep different plans as different records and label same-provider lower plans as `downgrade`.
+5. Upload the complete JSON value to KV key `catalogue:v1`.
+6. Add only fictional records to tests and run `npm run check`.
+
+All current outbound actions use the verified `officialUrl` directly with `rel="noopener noreferrer"`. No tracking redirects, affiliate parameters, external alternatives API, pricing API, search API, or AI recommendation model are used.
 
 ## Run locally
 
@@ -202,11 +194,14 @@ FeeVeto is a static Vite site.
 6. Add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
 7. Add `CLERK_PUBLISHABLE_KEY` as a Pages Functions variable and `CLERK_SECRET_KEY` as an encrypted Pages Functions secret. The publishable values may be the same key; the secret key must never enter the Vite build.
 8. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated list of additional trusted frontend origins. The current request origin is always included automatically for same-origin Cloudflare deployments.
-9. Deploy and test authentication, access states, storage, module paths, and privacy links on the final domain.
+9. Create a Workers KV namespace for the private curated catalogue.
+10. Under **Settings → Bindings**, add that namespace with the exact variable name `FEEVETO_ALTERNATIVES` for Production and Preview.
+11. Add the private catalogue JSON as KV key `catalogue:v1`. The JSON root must contain `{"schemaVersion":1,"offers":[...]}`.
+12. Deploy and test authentication, all four access states, catalogue filtering, storage, module paths, and privacy links on the final domain.
 
-In Cloudflare, configure both Production and Preview under **Workers & Pages → FeeVeto project → Settings → Variables and Secrets**. Encrypt `CLERK_SECRET_KEY`. The `/functions` directory must remain at the repository root; Cloudflare builds it separately from `dist`.
+In Cloudflare, configure both Production and Preview under **Workers & Pages → FeeVeto project → Settings → Variables and Secrets**. Encrypt `CLERK_SECRET_KEY`. Configure the KV namespace under **Settings → Bindings** and redeploy after adding it. The `/functions` directory must remain at the repository root; Cloudflare builds it separately from `dist`.
 
-For local Pages Functions testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, build with `npm run build`, then run `npx wrangler pages dev dist`.
+For local Pages Functions testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, build with `npm run build`, then run `npx wrangler pages dev dist --kv=FEEVETO_ALTERNATIVES`. Put only fictional data in shared development fixtures.
 
 ### Assigning owner and beta access in Clerk
 
@@ -229,15 +224,16 @@ Do not add payment, analytics, or API credentials to frontend files.
 - Accounts authenticate identity only; audits still remain in one browser
 - No live currency conversion; mixed-currency entries are excluded from combined totals
 - No notification delivery when the page is closed
-- No production alternatives are shown until verified records are added
+- Curated matching is limited to the first six supported subscriptions
+- Real catalogue records require the private Cloudflare KV binding and are intentionally absent from Git
 - Cost-per-use is an estimate based on a frequency range
 - Recommendations depend on the accuracy and completeness of user-entered answers
 
 ## Planned provider architecture
 
-A future API-backed alternatives provider can implement the same `getAlternatives(subscription, userPreferences)` interface. It should keep API keys on a server, validate and cache provider data, include provenance and verification dates, and return the same normalized shape used by the local provider. The UI should continue to hide insufficiently verified records.
+The catalogue is deliberately curated rather than API-driven. A later administration workflow can update the same private KV schema without changing matching or rendering. Stripe can implement `getPaidPremiumAccess` separately from complimentary Clerk metadata.
 
-Payments, cloud sync, and live pricing are deliberately outside this release. Connecting audit data to an account would require a privacy review, secure backend design, recovery behavior, and updated documentation before implementation.
+Payments, cloud sync, live pricing, external search, and AI-generated recommendations remain outside this release. Connecting the full audit to an account would require a separate privacy review and secure backend design.
 
 ## License
 
