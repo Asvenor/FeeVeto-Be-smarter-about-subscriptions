@@ -1,3 +1,5 @@
+import { fetchAccessStatus, ORDINARY_ACCESS } from './access.js';
+
 const APPEARANCE = Object.freeze({
   variables: {
     colorPrimary: '#238653',
@@ -55,8 +57,18 @@ function authElements() {
     signUp: document.getElementById('sign-up-button'),
     signedIn: document.getElementById('signed-in-controls'),
     userButton: document.getElementById('user-button'),
+    accessBadge: document.getElementById('access-badge'),
     status: document.getElementById('auth-status'),
   };
+}
+
+function renderAccessBadge(element, access) {
+  element.hidden = true;
+  element.textContent = '';
+  if (access.isAdmin) element.textContent = 'Owner access';
+  else if (access.betaAccess) element.textContent = 'Beta premium';
+  else if (access.paidPremiumAccess) element.textContent = 'Premium';
+  if (element.textContent) element.hidden = false;
 }
 
 export async function initializeAuth() {
@@ -75,6 +87,14 @@ export async function initializeAuth() {
     const clerk = await loadClerk(frontendApiFromKey(publishableKey), publishableKey);
     await clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor }, appearance: APPEARANCE });
     let userButtonMounted = false;
+    let accessRequest = 0;
+
+    const refreshAccess = async () => {
+      const request = ++accessRequest;
+      const access = await fetchAccessStatus(clerk);
+      if (request !== accessRequest || !clerk.isSignedIn) return;
+      renderAccessBadge(elements.accessBadge, access);
+    };
 
     const renderAuth = () => {
       const signedIn = Boolean(clerk.isSignedIn);
@@ -86,9 +106,12 @@ export async function initializeAuth() {
       if (signedIn && !userButtonMounted) {
         clerk.mountUserButton(elements.userButton, { userProfileMode: 'modal' });
         userButtonMounted = true;
+        void refreshAccess();
       } else if (!signedIn && userButtonMounted) {
         clerk.unmountUserButton(elements.userButton);
         userButtonMounted = false;
+        accessRequest += 1;
+        renderAccessBadge(elements.accessBadge, ORDINARY_ACCESS);
       }
     };
 

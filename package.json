@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test",
-    "check": "node --check js/app.js && node --check js/auth.js && node --test && vite build"
+    "check": "node --check js/app.js && node --check js/auth.js && node --check js/access.js && node --test && vite build"
   },
   "engines": {
     "node": ">=20"
@@ -17,6 +17,7 @@
     "vite": "^8.2.2"
   },
   "dependencies": {
+    "@clerk/backend": "^3.17.1",
     "@clerk/clerk-js": "^6.31.0"
   }
 }

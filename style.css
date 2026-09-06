@@ -63,6 +63,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .auth-link { min-height: 42px; border: 0; background: transparent; color: var(--color-text-muted); padding: .55rem .35rem; font-weight: 800; }
 .auth-link:hover { color: var(--color-green-dark); }
 .signed-in-controls { min-width: 40px; justify-content: center; }
+.access-badge { border: 1px solid #b7d8c0; border-radius: 999px; background: var(--color-green-pale); color: var(--color-green-dark); padding: .28rem .55rem; font-size: .72rem; font-weight: 850; white-space: nowrap; }
 
 .button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 13px; padding: .72rem 1.05rem; font-weight: 800; text-align: center; text-decoration: none; transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
 .button:hover:not(:disabled) { transform: translateY(-1px); }

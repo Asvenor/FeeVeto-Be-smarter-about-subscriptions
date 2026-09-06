@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url);
 
 test('one-page audit contains the required sections and controls', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
-  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="detail-dialog"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"']) {
+  for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="detail-dialog"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"']) {
     assert.ok(html.includes(value), `Missing ${value}`);
   }
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
@@ -30,6 +30,7 @@ test('privacy page uses precise local storage wording', async () => {
 
 test('Clerk integration uses only a Vite publishable key in browser code', async () => {
   const auth = await readFile(new URL('js/auth.js', root), 'utf8');
+  const access = await readFile(new URL('js/access.js', root), 'utf8');
   const viteConfig = await readFile(new URL('vite.config.js', root), 'utf8');
   assert.match(viteConfig, /VITE_CLERK_PUBLISHABLE_KEY/);
   assert.match(viteConfig, /CLERK_PUBLISHABLE_KEY/);
@@ -38,7 +39,19 @@ test('Clerk integration uses only a Vite publishable key in browser code', async
   assert.match(auth, /openSignIn/);
   assert.match(auth, /openSignUp/);
   assert.doesNotMatch(auth, /CLERK_SECRET_KEY/);
+  assert.doesNotMatch(access, /CLERK_SECRET_KEY|privateMetadata|localStorage/);
   assert.doesNotMatch(viteConfig, /environment\.CLERK_SECRET_KEY/);
+});
+
+test('Cloudflare access control reads Clerk private metadata only on the backend', async () => {
+  const clerkAccess = await readFile(new URL('functions/_shared/clerk-access.js', root), 'utf8');
+  const policy = await readFile(new URL('functions/_shared/access-policy.js', root), 'utf8');
+  assert.match(clerkAccess, /authenticateRequest/);
+  assert.match(clerkAccess, /users\.getUser/);
+  assert.match(clerkAccess, /user\.privateMetadata/);
+  assert.match(clerkAccess, /acceptsToken:\s*'session_token'/);
+  assert.doesNotMatch(clerkAccess, /publicMetadata|unsafeMetadata|request\.json|localStorage/);
+  assert.doesNotMatch(policy, /request|localStorage/);
 });
 
 test('visual system is light and respects reduced motion', async () => {
