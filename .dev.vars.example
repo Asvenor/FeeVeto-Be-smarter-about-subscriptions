@@ -1,0 +1,4 @@
+# Local Cloudflare Pages Functions only. Copy to .dev.vars and use real values there.
+CLERK_SECRET_KEY=replace_with_your_clerk_secret_key
+CLERK_PUBLISHABLE_KEY=replace_with_your_clerk_publishable_key
+CLERK_AUTHORIZED_PARTIES=http://127.0.0.1:8788

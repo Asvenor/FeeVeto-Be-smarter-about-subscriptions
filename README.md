@@ -28,6 +28,7 @@ privacy.html                  Plain-language privacy overview
 style.css                     Light responsive visual system
 js/app.js                     Browser events and application state coordination
 js/auth.js                    Clerk initialization and signed-in/signed-out navigation controls
+js/access.js                  Browser client for the server-verified access summary
 js/config.js                  Brand, storage keys, options, and global configuration
 js/storage.js                 Validation, persistence, recovery, import, and migration
 js/calculations.js            Pure cost and date calculations
@@ -38,6 +39,8 @@ js/validation.js              Quick-audit input validation
 data/alternatives.js          Locally maintained verified alternative records
 tests/                        Calculation, decision, alternatives, storage, and page-contract tests
 vite.config.js                Multi-page production build configuration
+functions/api/                Cloudflare Pages Functions for access, premium, and admin checks
+functions/_shared/            Clerk verification, access policy, billing seam, and HTTP helpers
 ```
 
 ## How recommendations work
@@ -68,6 +71,20 @@ No analytics are included. Subscription names, prices, questionnaire answers, an
 Clerk provides optional account creation, sign-in, profile management, and sign-out. Authentication is deliberately separate from the subscription audit: signing in does not upload, attach, or synchronize audit entries. The browser loads ClerkJS and Clerk UI from the application’s Clerk Frontend API domain, following Clerk’s official script-tag integration. The build accepts `VITE_CLERK_PUBLISHABLE_KEY` or the Clerk CLI’s `CLERK_PUBLISHABLE_KEY` and injects only that public value; no Clerk secret is used in browser code.
 
 The repository includes `.env.example` as a safe template. Local credentials belong in `.env.local`, which is ignored by Git. The project is linked to Clerk application `app_3IxBTR7IHayTnEm7oToPCrk8yNL` through the Clerk CLI.
+
+### Server-controlled access
+
+Cloudflare Pages Functions verify each Clerk session before reading access settings. After verification, the backend fetches the Clerk Backend User and reads only `privateMetadata`:
+
+- `{ "role": "admin", "betaAccess": false }` grants admin privileges and complimentary premium access.
+- `{ "role": "user", "betaAccess": true }` grants complimentary premium access without admin privileges.
+- `{ "role": "user", "betaAccess": false }`, missing metadata, or invalid values grant ordinary unpaid access.
+
+The browser receives a small access summary, not the raw private metadata. `/api/premium/status` checks premium permission before responding, and `/api/admin/status` checks admin permission. These endpoints are guard examples for future protected features; no admin dashboard is included. The free audit remains public and does not call either protected endpoint.
+
+Paid access is deliberately isolated in `functions/_shared/billing-access.js` and currently returns `false`. A future Stripe integration can replace that server-side resolver without treating Clerk beta metadata as payment state.
+
+Never use `publicMetadata`, `unsafeMetadata`, request bodies, or local storage as an authorization source.
 
 ## Migration from the former app
 
@@ -182,7 +199,26 @@ FeeVeto is a static Vite site.
 3. Use `npm run build` as the build command.
 4. Set the output directory to `dist`.
 5. Use Node.js 20 or newer if a build environment is requested.
-6. Add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable, then deploy and test authentication, storage, module paths, and privacy links on the final domain.
+6. Add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
+7. Add `CLERK_PUBLISHABLE_KEY` as a Pages Functions variable and `CLERK_SECRET_KEY` as an encrypted Pages Functions secret. The publishable values may be the same key; the secret key must never enter the Vite build.
+8. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated list of additional trusted frontend origins. The current request origin is always included automatically for same-origin Cloudflare deployments.
+9. Deploy and test authentication, access states, storage, module paths, and privacy links on the final domain.
+
+In Cloudflare, configure both Production and Preview under **Workers & Pages → FeeVeto project → Settings → Variables and Secrets**. Encrypt `CLERK_SECRET_KEY`. The `/functions` directory must remain at the repository root; Cloudflare builds it separately from `dist`.
+
+For local Pages Functions testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, build with `npm run build`, then run `npx wrangler pages dev dist`.
+
+### Assigning owner and beta access in Clerk
+
+1. Open the Clerk Dashboard and select the FeeVeto application.
+2. Open **Users**, then select the account by its email address.
+3. Open the user’s **Metadata** section and locate **Private metadata**. Do not use Public metadata or Unsafe metadata.
+4. For the owner account, save `{ "role": "admin", "betaAccess": false }`.
+5. For a friend who is a beta tester, save `{ "role": "user", "betaAccess": true }`.
+6. For an ordinary user, save `{ "role": "user", "betaAccess": false }`, or leave the private metadata empty.
+7. Ask the user to reload FeeVeto after the change. Every protected request fetches current private metadata from Clerk, so it does not trust a browser-stored role.
+
+Use lowercase `admin` or `user` and a JSON boolean `true` or `false`, not quoted strings. An admin does not need `betaAccess: true`; the admin role already includes complimentary premium access.
 
 Do not add payment, analytics, or API credentials to frontend files.
 
