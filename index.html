@@ -38,12 +38,17 @@
           <p class="eyebrow">A calmer way to review recurring costs</p>
           <h1 id="hero-title">Know what is worth keeping.</h1>
           <p class="hero-lead">Review your subscriptions, understand their real annual cost, and find cheaper or free alternatives based on what you actually use.</p>
+          <div class="currency-preference">
+            <label for="currency-preference">Display currency</label>
+            <select id="currency-preference" aria-describedby="currency-preference-help"></select>
+            <p id="currency-preference-help">Updates examples, dashboard totals, and defaults for new entries. Existing subscriptions keep their saved billing currencies; FeeVeto does not convert prices.</p>
+          </div>
           <div class="hero-actions"><a class="button button-primary" href="#audit">Start my free audit</a><a class="button button-secondary" href="#how-it-works">See how it works</a></div>
         </div>
         <aside class="preview-card" aria-label="Example audit result. Presentation only.">
           <div class="preview-label"><span>Example audit</span><span class="preview-status">Complete</span></div>
-          <p class="preview-kicker">Annual subscription cost</p><p class="preview-total">CHF 2,184</p>
-          <div class="preview-saving"><span>Potential savings</span><strong>CHF 516 per year</strong></div>
+          <p class="preview-kicker">Annual subscription cost</p><p class="preview-total" data-example-money="annualAudit"></p>
+          <div class="preview-saving"><span>Potential savings</span><strong data-example-money="potentialSavings" data-money-suffix=" per year"></strong></div>
           <div class="preview-actions" aria-label="Example recommended actions"><div><strong>2</strong><span>review</span></div><div><strong>1</strong><span>replace</span></div><div><strong>3</strong><span>keep</span></div></div>
           <p class="preview-note">Example only—not your saved results.</p>
         </aside>
@@ -64,8 +69,8 @@
                 <div class="form-section-grid">
                   <div class="field field-wide"><label for="name">Service name</label><input id="name" name="name" type="text" maxlength="80" autocomplete="off" aria-describedby="name-error service-support" required /><p id="name-error" class="field-error"></p></div>
                   <div class="field field-wide"><label for="service-id">Recognized service <span class="optional">Optional</span></label><select id="service-id" name="serviceId"></select><small id="service-support" class="field-help">Type a service name and FeeVeto will recognize supported services when possible.</small></div>
-                  <div class="field"><label for="price">Price</label><div class="price-control"><span id="price-currency">CHF</span><input id="price" name="price" type="number" min="0" max="9999999.99" step="0.01" inputmode="decimal" aria-describedby="price-error" required /></div><p id="price-error" class="field-error"></p></div>
-                  <div class="field"><label for="currency">Currency</label><select id="currency" name="currency" required><option value="CHF">CHF</option><option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option></select></div>
+                  <div class="field"><label for="price">Price</label><div class="price-control"><span id="price-currency">USD</span><input id="price" name="price" type="number" min="0" max="9999999.99" step="0.01" inputmode="decimal" aria-describedby="price-error entry-currency-help" required /></div><p id="price-error" class="field-error"></p></div>
+                  <div class="field"><label for="currency">Billing currency</label><select id="currency" name="currency" aria-describedby="entry-currency-help" required></select><small id="entry-currency-help" class="field-help">Defaults to the display currency for a new entry. You can change this subscription without changing the global preference.</small></div>
                   <div class="field"><label for="cycle">Billing cycle</label><select id="cycle" name="cycle" required><option value="weekly">Weekly</option><option value="monthly" selected>Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div>
                   <div class="field"><label for="category">Category</label><select id="category" name="category" required><option value="streaming">Streaming and entertainment</option><option value="software">Software and productivity</option><option value="cloud">Cloud storage and backup</option><option value="fitness">Fitness and health</option><option value="gaming">Gaming</option><option value="learning">News and learning</option><option value="shopping">Shopping and memberships</option><option value="other">Other</option></select></div>
                   <div class="field"><label for="usage">Usage frequency</label><select id="usage" name="usage" required><option value="daily">Daily</option><option value="several_per_week">Several times per week</option><option value="weekly">Weekly</option><option value="several_per_month" selected>Several times per month</option><option value="monthly">Monthly</option><option value="less_than_monthly">Less than monthly</option><option value="never">Never</option></select></div>
@@ -116,14 +121,13 @@
           </section>
 
           <aside class="audit-sidebar">
-            <section class="surface currency-surface"><label for="audit-currency">Currency used for entered prices</label><select id="audit-currency"><option value="CHF">CHF</option><option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option></select><p>New entries use this currency. Existing entries keep the currency saved with them; FeeVeto does not perform exchange-rate conversion.</p></section>
             <section class="surface privacy-card"><span class="privacy-icon" aria-hidden="true">✓</span><div><h3>Private by design</h3><p>Your entries remain in this browser unless you export them yourself.</p></div></section>
           </aside>
         </div>
 
         <section id="results" class="results" aria-labelledby="results-title">
           <div class="results-heading"><div><p class="eyebrow">Your results</p><h2 id="results-title">Audit dashboard</h2></div><div class="data-actions"><button id="export-data" class="button button-secondary button-small" type="button">Export backup</button><button id="import-data" class="button button-secondary button-small" type="button">Import backup</button><input id="import-file" type="file" accept="application/json,.json" hidden /></div></div>
-          <div class="summary-grid" aria-label="Audit totals"><article><span>Monthly cost</span><strong id="total-monthly">CHF 0</strong></article><article><span>Annual cost</span><strong id="total-annual">CHF 0</strong></article><article><span>Potential annual savings</span><strong id="potential-savings">CHF 0</strong></article><article><span>Subscriptions</span><strong id="subscription-count">0</strong></article><article><span>Recommended actions</span><strong id="action-count">0</strong></article></div>
+          <div id="summary-grid" class="summary-grid" aria-label="Audit totals"><article><span id="monthly-total-label">Monthly total</span><strong id="total-monthly">—</strong></article><article><span id="annual-total-label">Annual total</span><strong id="total-annual">—</strong></article><article><span id="savings-total-label">Potential annual savings</span><strong id="potential-savings">—</strong></article><article><span>Subscriptions</span><strong id="subscription-count">0</strong></article><article><span>Recommended actions</span><strong id="action-count">0</strong></article></div>
           <p id="currency-summary" class="currency-summary"></p>
           <div class="result-tools">
             <div class="filter-tabs" role="group" aria-label="Filter audit results">
@@ -155,8 +159,8 @@
           <article class="example-result" aria-label="Presentation-only example recommendation">
             <div class="result-card-top"><div><span class="category-label">Example result</span><h3>Creative toolkit</h3></div><span class="recommendation-badge badge-amber">Consider downgrading</span></div>
             <p>You use this service frequently, but said basic features are enough and that you would consider a cheaper option.</p>
-            <dl><div><dt>Estimated annual cost</dt><dd>CHF 216</dd></div><div><dt>Estimated cost per use</dt><dd>Approximately CHF 1.38</dd></div><div><dt>Confidence</dt><dd>High</dd></div></dl>
-            <small>Presentation-only example.</small>
+            <dl><div><dt>Estimated annual cost</dt><dd data-example-money="annualCreativeToolkit"></dd></div><div><dt>Estimated cost per use</dt><dd data-example-money="creativeToolkitCostPerUse" data-money-prefix="Approximately "></dd></div><div><dt>Confidence</dt><dd>High</dd></div></dl>
+            <small>Example only—not your saved results.</small>
           </article>
         </div>
       </section>
@@ -171,7 +175,7 @@
         <div class="faq-list">
           <details><summary>Does FeeVeto find or cancel subscriptions automatically?</summary><p>No. You enter subscriptions yourself. FeeVeto does not access bank accounts, manage provider accounts, or cancel services.</p></details>
           <details><summary>How are recommendations made?</summary><p>A deterministic set of documented rules weighs usage, importance, satisfaction, household use, overlap, contracts, seasonality, and switching difficulty. Every result includes reasons and a confidence level.</p></details>
-          <details><summary>Does changing currency convert prices?</summary><p>No. Every subscription keeps its saved currency. Dashboard totals include only the selected audit currency because FeeVeto has no live exchange-rate service.</p></details>
+          <details><summary>Does changing currency convert prices?</summary><p>No. The display currency updates examples, new-entry defaults, and the matching dashboard subtotal. Every saved subscription and verified provider price keeps its original currency. FeeVeto shows separate original-currency subtotals and never combines currencies because it has no live exchange-rate service.</p></details>
           <details><summary>Where is my information stored?</summary><p>Subscription and questionnaire data are stored in this browser’s local storage. Export a backup if you plan to clear browser data or change devices.</p></details>
           <details><summary>What does creating an account do?</summary><p>Clerk provides secure sign-in and profile management for future account features. In this release, your audit remains local to this browser and is not synced to your account.</p></details>
           <details><summary>Are alternative prices always current?</summary><p>Only alternatives with a verification date and sufficient local data are displayed. You should still confirm prices, features, and availability with the provider.</p></details>

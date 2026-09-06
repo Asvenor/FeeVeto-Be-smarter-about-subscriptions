@@ -9,12 +9,19 @@ export const APP_CONFIG = Object.freeze({
   legacyStateKey: 'subkiller_state',
   legacySubscriptionsKey: 'subkiller_subscriptions',
   legacyCurrencyKey: 'subkiller_currency',
-  defaultCurrency: 'CHF',
+  defaultCurrency: 'USD',
   repositoryUrl: 'https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions',
   feedbackUrl: 'https://forms.gle/xdrcAc2wWaxzGUVR6',
 });
 
-export const CURRENCIES = Object.freeze(['CHF', 'EUR', 'USD', 'GBP']);
+export const CURRENCY_OPTIONS = Object.freeze([
+  ['USD', 'USD ($)'],
+  ['EUR', 'EUR (€)'],
+  ['GBP', 'GBP (£)'],
+  ['CHF', 'CHF'],
+]);
+
+export const CURRENCIES = Object.freeze(CURRENCY_OPTIONS.map(([currency]) => currency));
 
 export const BILLING_CYCLES = Object.freeze([
   ['weekly', 'Weekly'],

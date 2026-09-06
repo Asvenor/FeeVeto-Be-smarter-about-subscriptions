@@ -18,6 +18,27 @@ test('loads and saves the versioned FeeVeto state', () => {
   assert.deepEqual(loadState(storage).state, state);
 });
 
+test('a clean or invalid preference defaults to USD', () => {
+  assert.equal(loadState(memoryStorage()).state.auditCurrency, 'USD');
+  const invalid = { version: 2, auditCurrency: 'CAD', subscriptions: [], migration: { legacyCompleted: true } };
+  assert.equal(loadState(memoryStorage({ [APP_CONFIG.storageKey]: JSON.stringify(invalid) })).state.auditCurrency, 'USD');
+});
+
+test('changing the preference preserves saved CHF amounts and currencies', () => {
+  const storage = memoryStorage();
+  const state = {
+    version: 2,
+    auditCurrency: 'EUR',
+    subscriptions: [{ id: 'chf-plan', name: 'CHF plan', amountMinor: 2450, currency: 'CHF', cycle: 'monthly', category: 'other', usage: 'monthly', importance: 'useful', status: 'active' }],
+    migration: { legacyCompleted: true },
+  };
+  assert.equal(saveState(storage, state), true);
+  const restored = loadState(storage).state;
+  assert.equal(restored.auditCurrency, 'EUR');
+  assert.equal(restored.subscriptions[0].amountMinor, 2450);
+  assert.equal(restored.subscriptions[0].currency, 'CHF');
+});
+
 test('corrupted storage does not crash the application', () => {
   const result = loadState(memoryStorage({ [APP_CONFIG.storageKey]: '{broken' }));
   assert.equal(result.recovered, true);

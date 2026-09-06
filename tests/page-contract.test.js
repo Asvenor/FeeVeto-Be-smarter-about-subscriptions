@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { APP_CONFIG, CURRENCY_OPTIONS } from '../js/config.js';
 
 const root = new URL('../', import.meta.url);
 
@@ -80,4 +81,22 @@ test('visual system is light and respects reduced motion', async () => {
   assert.match(css, /#f5f7f2/i);
   assert.match(css, /prefers-reduced-motion/);
   assert.doesNotMatch(css, /glassmorphism/i);
+});
+
+test('one global currency preference drives structured examples and new-entry defaults', async () => {
+  const html = await readFile(new URL('index.html', root), 'utf8');
+  const privacy = await readFile(new URL('privacy.html', root), 'utf8');
+  const app = await readFile(new URL('js/app.js', root), 'utf8');
+  assert.equal(APP_CONFIG.defaultCurrency, 'USD');
+  assert.deepEqual(CURRENCY_OPTIONS.map(([currency]) => currency), ['USD', 'EUR', 'GBP', 'CHF']);
+  assert.match(html, /id="currency-preference"/);
+  assert.match(html, /data-example-money="annualAudit"/);
+  assert.match(html, /data-example-money="potentialSavings"/);
+  assert.match(html, /data-example-money="annualCreativeToolkit"/);
+  assert.match(html, /data-example-money="creativeToolkitCostPerUse"/);
+  assert.doesNotMatch(html, /CHF\s*[0-9]/);
+  assert.doesNotMatch(html, /id="audit-currency"/);
+  assert.match(app, /renderIllustrativeMoney/);
+  assert.match(privacy, /id="page-currency-preference"/);
+  assert.match(privacy, /js\/currencyPage\.js/);
 });

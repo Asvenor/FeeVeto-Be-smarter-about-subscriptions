@@ -11,13 +11,15 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <header class="site-header"><nav class="nav-shell" aria-label="Privacy navigation"><a class="brand" href="./" aria-label="FeeVeto home"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a><a class="button button-secondary button-small" href="./">Back to audit</a></nav></header>
+    <header class="site-header"><nav class="nav-shell" aria-label="Privacy navigation"><a class="brand" href="./" aria-label="FeeVeto home"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a><div class="privacy-nav-actions"><div class="page-currency-preference"><label for="page-currency-preference">Currency</label><select id="page-currency-preference" aria-describedby="page-currency-help"></select></div><a class="button button-secondary button-small" href="./">Back to audit</a></div></nav></header>
     <main class="privacy-page section-shell">
       <article class="privacy-content">
         <p class="eyebrow">Plain-language overview</p><h1>Privacy</h1>
         <p>Your subscription entries are stored locally in this browser and are not attached to your Clerk account. Clearing browser data, using private-browsing mode, or switching devices may remove or hide your saved entries.</p>
         <h2>Information stored in this browser</h2>
-        <p>Names, prices, currencies, renewal dates, categories, usage and importance choices, unified-form answers, statuses, and provider links you enter are saved using local storage. FeeVeto has no cloud database or synchronization for your audit in this release.</p>
+        <p>Names, prices, original billing currencies, the global display-currency preference, renewal dates, categories, usage and importance choices, unified-form answers, statuses, and provider links you enter are saved using local storage. FeeVeto has no cloud database or synchronization for your audit in this release.</p>
+        <p id="page-currency-help">The display currency changes illustrative examples and defaults for new entries. It does not convert or relabel saved subscription or provider prices.</p>
+        <p id="page-currency-status" class="sr-only" role="status" aria-live="polite"></p>
         <h2>Optional accounts</h2>
         <p>FeeVeto uses Clerk for optional authentication and profile management. If you sign up or sign in, Clerk processes the identity information and authentication method you provide. FeeVeto may store a server-only role and complimentary beta-access setting in Clerk private metadata. These settings control access only and are not subscription-audit data. FeeVeto does not copy your subscription audit into Clerk. Review <a href="https://clerk.com/privacy">Clerk’s Privacy Policy</a> for details about its processing.</p>
         <h2>Alternative matching</h2>
@@ -36,5 +38,6 @@
       </article>
     </main>
     <footer class="site-footer"><div class="footer-inner"><span>FeeVeto by asvenor</span><nav aria-label="Footer"><a href="./">Audit</a><a href="https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions">Source</a></nav></div></footer>
+    <script type="module" src="./js/currencyPage.js"></script>
   </body>
 </html>
