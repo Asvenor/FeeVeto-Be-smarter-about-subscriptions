@@ -56,7 +56,7 @@ export function normalizeDetailedReview(value) {
   const booleanOrNull = (input) => (typeof input === 'boolean' ? input : null);
   const rawCategory = value.categoryAnswers && typeof value.categoryAnswers === 'object' ? value.categoryAnswers : {};
   const booleanCategoryKeys = ['exclusiveContent', 'rotateServices', 'adSupportedPlan', 'basicFeaturesOnly', 'collaborationRequired', 'proprietaryFormat', 'openSourceAcceptable', 'criticalBackup', 'includedElsewhere', 'payPerVisitCheaper', 'multiplayerRequired', 'includedGamesUsed', 'pausePractical'];
-  const categoryAnswers = Object.fromEntries(booleanCategoryKeys.map((key) => [key, rawCategory[key] === true]));
+  const categoryAnswers = Object.fromEntries(booleanCategoryKeys.map((key) => [key, booleanOrNull(rawCategory[key])]));
   categoryAnswers.storageUsed = text(rawCategory.storageUsed, 40);
   categoryAnswers.timesPerMonth = rawCategory.timesPerMonth !== null && rawCategory.timesPerMonth !== '' && Number.isFinite(Number(rawCategory.timesPerMonth))
     ? Math.max(0, Math.min(100, Number(rawCategory.timesPerMonth)))
@@ -68,7 +68,10 @@ export function normalizeDetailedReview(value) {
     : [];
   const mustHaveRequirements = requirementList(value.mustHaveRequirements);
   const niceToHaveRequirements = requirementList(value.niceToHaveRequirements).filter((item) => !mustHaveRequirements.includes(item));
-  const storageRequired = Number(value.storageRequiredGb);
+  const notNeededRequirements = requirementList(value.notNeededRequirements)
+    .filter((item) => !mustHaveRequirements.includes(item) && !niceToHaveRequirements.includes(item));
+  const rawStorageRequired = value.storageRequiredGb;
+  const storageRequired = rawStorageRequired === null || rawStorageRequired === undefined || rawStorageRequired === '' ? Number.NaN : Number(rawStorageRequired);
   return {
     satisfaction: ['very_satisfied', 'satisfied', 'neutral', 'dissatisfied', 'very_dissatisfied'].includes(value.satisfaction) ? value.satisfaction : '',
     householdUse: booleanOrNull(value.householdUse),
@@ -87,6 +90,7 @@ export function normalizeDetailedReview(value) {
     storageRequiredGb: Number.isFinite(storageRequired) && storageRequired >= 0 && storageRequired <= 100_000 ? storageRequired : null,
     mustHaveRequirements,
     niceToHaveRequirements,
+    notNeededRequirements,
     neededFeatures: text(value.neededFeatures),
     categoryAnswers,
     completedAt: text(value.completedAt, 40),

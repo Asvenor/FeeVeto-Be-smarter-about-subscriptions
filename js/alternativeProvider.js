@@ -17,8 +17,10 @@ export function recommendationRequestFor(subscription) {
     niceToHave: Array.isArray(review.niceToHaveRequirements) ? review.niceToHaveRequirements : [],
     country: review.country || '',
     platform: review.platform || '',
-    acceptAds: review.acceptAds === true,
-    acceptFreeLimits: review.acceptFreeLimits === true,
+    acceptAds: review.acceptAds,
+    acceptFreeLimits: review.acceptFreeLimits,
+    includePaid: review.considerCheaper,
+    includeFree: review.considerFree,
     storageRequiredGb: Number.isFinite(review.storageRequiredGb) ? review.storageRequiredGb : null,
   };
 }
@@ -49,7 +51,7 @@ export class BackendAlternativesProvider extends AlternativesProvider {
 
   async getAlternatives(subscription, token = '') {
     const query = recommendationRequestFor(subscription);
-    if (!query) return { accessScope: 'public', items: [], message: 'Complete the service-specific review to find verified alternatives.' };
+    if (!query) return { accessScope: 'public', items: [], message: 'This service is not supported for curated alternatives yet. The basic audit is still available.' };
     const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
     const response = await this.fetchImplementation('./api/alternatives/recommendations', {

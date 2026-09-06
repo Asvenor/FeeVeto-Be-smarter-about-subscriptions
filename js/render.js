@@ -58,6 +58,7 @@ function subscriptionCard(item, result, alternativesState) {
   const alternatives = alternativesState?.items || [];
   const card = element('article', 'subscription-card');
   card.dataset.id = item.id;
+  card.tabIndex = -1;
   const top = element('div', 'result-card-top');
   const title = element('div');
   title.append(element('span', 'category-label', optionLabel(CATEGORY_OPTIONS, item.category)), element('h3', '', item.name));
@@ -90,23 +91,24 @@ function subscriptionCard(item, result, alternativesState) {
     if (alternativesState.status === 'loading') section.append(element('p', 'empty-alternatives', 'Checking the private catalogue…'));
     else if (alternatives.length) for (const alternative of alternatives) section.append(alternativeCard(alternative, service?.id));
     else section.append(element('p', 'empty-alternatives', alternativesState.message || 'No verified alternative matches these requirements yet.'));
-    if (alternativesState.status === 'ready' && alternativesState.accessScope === 'public') {
+    if (!alternativesState.requirementsComplete && service) {
+      section.append(element('p', 'verification-note', 'Some service requirements are unanswered. These are general candidates, not a confirmed match. Edit the subscription to complete the comparison.'));
+    }
+    if (service && alternativesState.status === 'ready' && alternativesState.accessScope === 'public') {
       section.append(element('p', 'access-note', 'This public view can include suitable paid alternatives. Eligible owner and beta accounts also receive verified free-plan matches.'));
     }
     card.append(section);
   }
 
   const actions = element('div', 'card-actions');
-  const detail = element('button', 'button button-primary button-small', item.detailedReview ? 'Update detailed review' : 'Review in more detail');
-  detail.type = 'button'; detail.dataset.action = 'detail'; detail.dataset.id = item.id;
-  detail.setAttribute('aria-label', `Review ${item.name} in more detail`);
   const edit = element('button', 'button button-secondary button-small', 'Edit');
   edit.type = 'button'; edit.dataset.action = 'edit'; edit.dataset.id = item.id; edit.setAttribute('aria-label', `Edit ${item.name}`);
   const remove = element('button', 'text-button danger-text', 'Delete');
   remove.type = 'button'; remove.dataset.action = 'delete'; remove.dataset.id = item.id; remove.setAttribute('aria-label', `Delete ${item.name}`);
-  actions.append(detail, edit);
+  actions.append(edit);
   if (service && item.detailedReview) {
-    const alternativesButton = element('button', 'button button-secondary button-small', alternativesState ? 'Refresh alternatives' : 'Find alternatives');
+    const retrying = alternativesState?.status === 'error';
+    const alternativesButton = element('button', 'button button-secondary button-small', retrying ? 'Retry alternatives' : 'Refresh alternatives');
     alternativesButton.type = 'button'; alternativesButton.dataset.action = 'alternatives'; alternativesButton.dataset.id = item.id;
     alternativesButton.setAttribute('aria-label', `Find curated alternatives for ${item.name}`);
     actions.append(alternativesButton);
