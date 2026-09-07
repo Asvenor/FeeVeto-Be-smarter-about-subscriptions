@@ -35,15 +35,22 @@
     <main id="top">
       <section class="hero section-shell" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">A calmer way to review recurring costs</p>
-          <h1 id="hero-title">Know what is worth keeping.</h1>
-          <p class="hero-lead">Review your subscriptions, understand their real annual cost, and find cheaper or free alternatives based on what you actually use.</p>
+          <p class="eyebrow">Keep, switch, or cancel with confidence.</p>
+          <h1 id="hero-title">Find what fits. Pay for what matters.</h1>
+          <p class="hero-lead">Tell us what you want to change. Explore checked alternatives now, then find your best fit with a few easy questions.</p>
+          <form id="intent-form" class="intent-form">
+            <label for="intent-input">What would you like to replace or improve?</label>
+            <textarea id="intent-input" name="request" rows="2" maxlength="1000" placeholder="I want to switch from Canva because it is too expensive." aria-describedby="intent-help" required></textarea>
+            <button class="button button-primary" type="submit">Find alternatives <span aria-hidden="true">→</span></button>
+            <p id="intent-help">No account or price needed. Start with the service name and what matters to you.</p>
+          </form>
+          <div class="intent-examples" aria-label="Try an example request"><button type="button" data-example-intent="Canva is too expensive">Canva costs too much</button><button type="button" data-example-intent="I want to replace Dropbox for file sharing">An alternative to Dropbox</button><button type="button" data-example-intent="I want to switch from Netflix">Something besides Netflix</button></div>
           <div class="currency-preference">
             <label for="currency-preference">Display currency</label>
             <select id="currency-preference" aria-describedby="currency-preference-help"></select>
             <p id="currency-preference-help">Updates examples, dashboard totals, defaults for new entries, and the market used for alternatives. An entered country overrides this market. Existing subscriptions keep their saved billing currencies; FeeVeto does not convert prices.</p>
           </div>
-          <div class="hero-actions"><a class="button button-primary" href="#audit">Start my free audit</a><a class="button button-secondary" href="#how-it-works">See how it works</a></div>
+          <div class="hero-actions"><a class="text-button" href="#audit">Open my subscription dashboard</a><a class="text-button" href="#how-it-works">See how it works</a></div>
         </div>
         <aside class="preview-card" aria-label="Example audit result. Presentation only.">
           <div class="preview-label"><span>Example audit</span><span class="preview-status">Complete</span></div>
@@ -55,6 +62,20 @@
       </section>
 
       <section class="trust-strip" aria-label="Privacy and access facts"><div class="section-shell trust-grid"><span>Account optional</span><span>No bank connection</span><span>Entries stored in this browser</span><span>The audit is free</span></div></section>
+
+      <section id="discover" class="discovery-section section-shell" aria-labelledby="discovery-title">
+        <div class="section-intro"><p class="eyebrow">A useful starting point</p><h2 id="discovery-title">Your options, made clearer.</h2><p>Suggestions come from checked product information. A few details can help you see which compromises are worth making.</p></div>
+        <form id="intent-correction" class="surface intent-correction" hidden>
+          <h3>Here’s what we understood</h3><p id="intent-original"></p>
+          <div class="form-section-grid"><div class="field"><label for="intent-service">Current service</label><select id="intent-service"></select></div><div class="field"><label for="intent-type">Product type</label><select id="intent-type"></select></div><div class="field"><label for="intent-motivation">What matters most?</label><select id="intent-motivation"></select></div><div class="field"><label for="intent-country">Country <span class="optional">Optional, two letters</span></label><input id="intent-country" maxlength="2" pattern="[A-Za-z]{2}" placeholder="US" autocomplete="country" aria-describedby="intent-market" /></div><div class="field"><label for="intent-platform">Device <span class="optional">Optional</span></label><select id="intent-platform"><option value="">Not specified</option><option value="web">Web browser</option><option value="macos">Mac</option><option value="windows">Windows</option><option value="linux">Linux</option><option value="ios">iPhone / iPad</option><option value="android">Android</option><option value="smart_tv">Smart TV</option><option value="game_console">Game console</option></select></div><div class="field correction-action"><button class="button button-secondary" type="submit">Update suggestions</button></div></div>
+          <p id="intent-market" class="field-help"></p>
+        </form>
+        <div id="intent-filters" class="intent-filters" aria-label="Suggestion filters" hidden><button type="button" data-intent-filter="all" aria-pressed="true">All options</button><button type="button" data-intent-filter="free" aria-pressed="false">Free plans</button><button type="button" data-intent-filter="easy" aria-pressed="false">Easier to switch</button></div>
+        <p id="intent-status" class="journey-status" role="status" tabindex="-1">Describe your need above to see your first suggestions.</p>
+        <p id="journey-storage-status" class="field-help" role="status"></p>
+        <div id="instant-results" class="instant-results"></div>
+        <div class="journey-actions"><button id="intent-retry" class="button button-secondary" type="button" hidden>Retry suggestions</button><button id="intent-more" class="button button-secondary" type="button" hidden>Explore more options</button></div>
+      </section>
 
       <section id="audit" class="audit-section section-shell" aria-labelledby="audit-title">
         <div class="section-intro"><p class="eyebrow">Your private audit</p><h2 id="audit-title">Add it once. Review it fully.</h2><p>Enter the subscription and any context you want to share in one adaptive form. One save creates the audit result and checks for suitable alternatives.</p></div>

@@ -27,3 +27,10 @@ Each phase is committed separately after its focused tests pass. Recovery is by 
 - Added a 90-day review policy, stale-data warnings, budget checks that respect currencies/annual billing, switching filters, and bounded exploration up to 12 accessible results. Existing default remains three.
 - A small server-side catalogue provider owns retrieval; authorization/ranking stays common. No external API is required or called.
 - 49 focused matching/catalogue tests passed, including legacy input, unknown prices, ratings evidence, annual budgets, currency differences, stale records, unavailable storage, and access restrictions.
+
+## Phase 2 — Instant discovery (code checkpoint passed; visual check pending)
+
+- New primary intent input with Canva/Dropbox/Netflix examples, editable service/type/motivation/country/device interpretation, guest suggestions, Free and Easier filters, more-results action, and retry.
+- Deterministic recognition supports known aliases and explicit facts. Multiple services request one clarification. Unrecognized text never fabricates a service. Original requests and draft answers use a new storage key; no protected result snapshots are saved in browser storage.
+- Shared existing alternative cards now expose checked features, compromises, billing basis, and official sources. Small catalogue coverage is stated honestly.
+- 54 focused tests and production build passed. Browser automation remains blocked by policy verification; no visual or live new-journey claim is made at this checkpoint.

@@ -1,0 +1,147 @@
+import { SUPPORTED_SERVICES, PRODUCT_TYPES, serviceById } from './serviceCatalog.js';
+import { element, alternativeCard } from './render.js';
+import { parseIntent, normalizeJourneyDraft, changeJourneyService, journeyQuery, readJourneyDraft, writeJourneyDraft, MOTIVATIONS } from './journeyModel.js';
+import { requestJourneyAlternatives } from './journeyApi.js';
+import { AlternativeRequestTracker } from './alternativeProvider.js';
+
+export function initializeJourney({ getClerk, getCurrency, storage }) {
+  const byId = id => document.getElementById(id);
+  const searchForm = byId('intent-form');
+  if (!searchForm) return null;
+  let draft = readJourneyDraft(storage) || normalizeJourneyDraft({}, getCurrency());
+  let result = null;
+  let lastCurrency = getCurrency();
+  let busy = false;
+  let filter = 'all';
+  let limit = 3;
+  let abort;
+  const requests = new AlternativeRequestTracker();
+  const correction = byId('intent-correction');
+  const results = byId('instant-results');
+  const status = byId('intent-status');
+  const serviceSelect = byId('intent-service');
+  const typeSelect = byId('intent-type');
+  const motivation = byId('intent-motivation');
+  serviceSelect.replaceChildren(new Option('Choose a service', ''));
+  for (const service of SUPPORTED_SERVICES) serviceSelect.append(new Option(service.name, service.id));
+  typeSelect.replaceChildren(new Option('Choose a product type', ''));
+  for (const [id, label] of PRODUCT_TYPES) typeSelect.append(new Option(label, id));
+  for (const [id, label] of MOTIVATIONS) motivation.append(new Option(label, id));
+  byId('intent-input').value = draft.originalRequest;
+
+  function persist() {
+    if (!writeJourneyDraft(storage, draft)) byId('journey-storage-status').textContent = 'Your answers are available in this tab, but could not be saved on this device.';
+  }
+  function showUnderstood() {
+    correction.hidden = false;
+    serviceSelect.value = draft.serviceId;
+    typeSelect.value = draft.productType;
+    motivation.value = draft.motivation;
+    byId('intent-country').value = draft.country;
+    byId('intent-platform').value = draft.platform;
+    byId('intent-original').textContent = draft.originalRequest ? `Your request: “${draft.originalRequest}”` : 'Choose the service or type you want to review.';
+    byId('intent-market').textContent = draft.country ? `Availability uses your country: ${draft.country}. Prices keep their original currency.`
+      : `No country selected. ${getCurrency()} supplies a starting market; enter your country for a more precise check.`;
+  }
+  function renderResult() {
+    results.replaceChildren();
+    results.setAttribute('aria-busy', String(busy));
+    byId('intent-retry').hidden = busy || !result?.error;
+    byId('intent-more').hidden = busy || !result?.hasMore;
+    byId('intent-filters').hidden = !draft.productType;
+    for (const button of byId('intent-filters').querySelectorAll('button')) button.setAttribute('aria-pressed', String(filter === button.dataset.intentFilter));
+    if (busy) { status.textContent = 'Checking the curated catalogue…'; return; }
+    if (!result) return;
+    if (result.error) { status.textContent = result.message; return; }
+    status.textContent = result.items.length ? `${result.items.length} ${result.items.length === 1 ? 'suggestion' : 'suggestions'} to explore. Based on limited information; confirm the trade-offs before switching.` : result.message;
+    if (result.state === 'access_restricted') {
+      const link = element('a', 'button button-secondary', 'See Premium access'); link.href = '#pricing'; results.append(link);
+      status.textContent = 'The selected filter has no results in your current access level. Free-plan comparisons require Premium; try All options to see public suggestions.';
+    }
+    for (const item of result.items) {
+      const card = alternativeCard(item, draft.serviceId);
+      card.classList.add('instant-card');
+      results.append(card);
+    }
+    if (result.items.length && result.items.length < 3 && !result.hasMore) {
+      results.append(element('p', 'coverage-note', 'This is the checked coverage available for your service, market, and access. More questions can refine it, but may not add more products.'));
+    }
+  }
+  async function runSearch({ focus = false } = {}) {
+    showUnderstood(); persist();
+    requests.invalidateAll(); abort?.abort();
+    const request = requests.begin('search');
+    if (!draft.productType) {
+      result = {items:[],state:'unsupported',message:'Choose the service or a product type above. We cannot identify a reliable match from this request yet.'};
+      busy = false; renderResult(); return;
+    }
+    busy = true; result = null; renderResult();
+    const controller = new AbortController(); abort = controller;
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const query = journeyQuery(draft, getCurrency(), {freeOnly:filter === 'free',easierOnly:filter === 'easy',limit});
+    try {
+      const clerk = await getClerk();
+      const token = await clerk?.session?.getToken?.() || '';
+      const next = await requestJourneyAlternatives(query, token, {signal:controller.signal});
+      if (!requests.isCurrent('search', request)) return;
+      result = next;
+    } catch (error) {
+      if (!requests.isCurrent('search', request)) return;
+      result = {error:true,state:error.resultState || 'request_failed',items:[],message:error.name === 'AbortError'
+        ? 'This search took too long. Your request and answers are kept; try again.'
+        : error.message || 'Suggestions could not be loaded. Your answers are kept; try again.'};
+    } finally {
+      clearTimeout(timer);
+      if (requests.isCurrent('search', request)) { busy = false; renderResult(); }
+    }
+    if (focus) { byId('discover').scrollIntoView({behavior:'smooth',block:'start'}); status.focus({preventScroll:true}); }
+  }
+  searchForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const input = byId('intent-input');
+    if (!input.value.trim()) { input.setCustomValidity('Describe what you would like to change.'); input.reportValidity(); return; }
+    input.setCustomValidity('');
+    const parsed = parseIntent(input.value, getCurrency());
+    draft = parsed.draft; limit = 3; filter = 'all';
+    if (parsed.candidates.length > 1) {
+      requests.invalidateAll(); abort?.abort(); busy = false; result = null;
+      showUnderstood(); persist(); renderResult();
+      status.textContent = `Which subscription are you replacing: ${parsed.candidates.map(x => x.name).join(' or ')}? Choose it above.`;
+      serviceSelect.focus(); return;
+    }
+    void runSearch({focus:true});
+  });
+  byId('intent-input').addEventListener('input', event => event.target.setCustomValidity(''));
+  for (const button of document.querySelectorAll('[data-example-intent]')) button.addEventListener('click', () => {
+    byId('intent-input').value = button.dataset.exampleIntent; searchForm.requestSubmit();
+  });
+  serviceSelect.addEventListener('change', () => { draft = changeJourneyService(draft, serviceSelect.value, typeSelect.value); limit = 3; void runSearch(); });
+  typeSelect.addEventListener('change', () => { draft = changeJourneyService(draft, '', typeSelect.value); limit = 3; void runSearch(); });
+  correction.addEventListener('submit', event => {
+    event.preventDefault();
+    const country = byId('intent-country');
+    country.value = country.value.trim().toUpperCase();
+    if (!country.checkValidity()) { country.reportValidity(); return; }
+    draft = normalizeJourneyDraft({...draft,motivation:motivation.value,country:country.value,platform:byId('intent-platform').value},getCurrency());
+    limit = 3; void runSearch();
+  });
+  byId('intent-filters').addEventListener('click', event => {
+    const button = event.target.closest('[data-intent-filter]'); if (!button) return;
+    filter = button.dataset.intentFilter; limit = 3; void runSearch();
+  });
+  byId('intent-retry').addEventListener('click', () => void runSearch());
+  byId('intent-more').addEventListener('click', () => { limit = 12; void runSearch(); });
+  document.addEventListener('feeveto:currency-change', () => {
+    if (lastCurrency === getCurrency()) return;
+    lastCurrency = getCurrency();
+    if (draft.amountMinor === null && !draft.currencyExplicit) draft.currency = lastCurrency;
+    if (draft.budgetMinor === null) draft.budgetCurrency = lastCurrency;
+    if (draft.originalRequest || draft.productType) void runSearch();
+  });
+  document.addEventListener('feeveto:access-change', () => {
+    requests.invalidateAll(); abort?.abort(); busy = false; result = null; results.replaceChildren();
+    if (draft.productType) void runSearch();
+  });
+  if (draft.originalRequest || draft.productType) showUnderstood();
+  return { getDraft: () => draft, setDraft(value) { draft = normalizeJourneyDraft(value,getCurrency()); byId('intent-input').value = draft.originalRequest; showUnderstood(); persist(); }, runSearch };
+}

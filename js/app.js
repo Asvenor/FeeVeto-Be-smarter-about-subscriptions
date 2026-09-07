@@ -10,6 +10,7 @@ import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
 import { fetchAccessStatus, ORDINARY_ACCESS } from './access.js';
 import { beginPremiumCheckout, CheckoutRequestError, premiumPrice } from './billing.js';
+import { initializeJourney } from './journey.js';
 
 document.title = `${APP_CONFIG.brandName} — ${APP_CONFIG.slogan}`;
 document.querySelector('meta[name="description"]')?.setAttribute('content', APP_CONFIG.description);
@@ -67,6 +68,7 @@ function render() {
   renderIllustrativeMoney(document, state.auditCurrency);
   renderPremium();
   renderDashboard({ state, elements, filter: activeFilter, query: elements.search.value, alternativeResults });
+  document.dispatchEvent(new CustomEvent('feeveto:currency-change'));
 }
 
 function renderPremium() {
@@ -605,6 +607,7 @@ const clerkPromise = initializeAuth({
       announce('Account access changed. Curated results were cleared and can be refreshed.');
     }
     accessSignature = nextSignature;
+    document.dispatchEvent(new CustomEvent('feeveto:access-change', {detail:access}));
   },
 });
 
@@ -651,6 +654,7 @@ async function handlePaymentReturn() {
 }
 
 void handlePaymentReturn();
+const journey = initializeJourney({ getClerk: () => clerkPromise, getCurrency: () => state.auditCurrency, storage: browserStorage });
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');

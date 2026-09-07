@@ -33,7 +33,7 @@ function matchesFilter(result, alternatives, filter) {
   return true;
 }
 
-function alternativeCard(item, serviceId) {
+export function alternativeCard(item, serviceId) {
   const card = element('article', 'alternative-card');
   const heading = element('div', 'alternative-heading');
   heading.append(element('h4', '', `${item.productName} — ${item.planName}`), element('span', 'alternative-type', item.pricingLabel));
@@ -61,6 +61,19 @@ function alternativeCard(item, serviceId) {
   if (price.introductoryTerms) card.append(element('p', 'alternative-detail', `Introductory terms: ${price.introductoryTerms}`));
   if (price.renewalTerms) card.append(element('p', 'alternative-detail', `Renewal terms: ${price.renewalTerms}`));
   if (item.verificationNotes?.length) card.append(element('p', 'verification-note', item.verificationNotes.join(' ')));
+  if (item.features?.length) card.append(element('p', 'alternative-detail', `Useful for: ${item.features.slice(0, 4).map(id => requirementLabel(serviceId, id)).join(', ')}.`));
+  if (item.unsupportedFeatures?.length) card.append(element('p', 'alternative-detail', `Does not include: ${item.unsupportedFeatures.slice(0, 3).map(id => requirementLabel(serviceId, id)).join(', ')}.`));
+  if (item.reviewRating) card.append(element('p', 'alternative-detail', `Customer reviews: ${item.reviewRating.value}/${item.reviewRating.scale} from ${item.reviewRating.count} reviews on ${item.reviewRating.source}. Separate from your suitability assessment.`));
+  if (item.sourceUrls?.length) {
+    const sources = element('details', 'alternative-sources');
+    sources.append(element('summary', '', `Sources · checked ${item.verifiedAt}`));
+    for (const [index, url] of item.sourceUrls.entries()) {
+      const safe = officialDestination({officialUrl:url});
+      if (!safe) continue;
+      const source = element('a', '', `Source ${index + 1}`); source.href = safe; source.target = '_blank'; source.rel = 'noopener noreferrer'; sources.append(source);
+    }
+    card.append(sources);
+  }
   const destination = officialDestination(item);
   const link = element('a', 'button button-secondary button-small', item.actionLabel || 'Visit official website');
   link.href = destination;

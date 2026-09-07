@@ -90,7 +90,7 @@ export function officialDestination(offer) {
   }
 }
 
-export function normalizeAlternativesResponse(value) {
+export function normalizeAlternativesResponse(value, maxItems = 3) {
   if (!value || typeof value !== 'object' || !Array.isArray(value.items)) throw new Error('The alternatives response was invalid.');
   return {
     accessScope: value.accessScope === 'complete' ? 'complete' : 'public',
@@ -99,7 +99,9 @@ export function normalizeAlternativesResponse(value) {
     missingDetails: Array.isArray(value.missingDetails)
       ? value.missingDetails.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4)
       : [],
-    items: value.items.filter((item) => officialDestination(item)).slice(0, 3),
+    items: value.items.filter((item) => officialDestination(item)).slice(0, Math.min(12, maxItems)),
+    hasMore: value.hasMore === true, total: Number.isInteger(value.total) ? value.total : value.items.length,
+    market: value.market || null, provider: 'curated', rankingVersion: value.rankingVersion || 'curated-v3',
   };
 }
 
