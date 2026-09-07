@@ -117,8 +117,8 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .audit-section { padding-block: clamp(4rem, 8vw, 7rem); }
 .section-intro { max-width: 700px; margin-bottom: 2rem; }
 .section-intro.centered { margin-inline: auto; text-align: center; }
-.section-intro h2, .privacy-section h2, .example-section h2, .final-cta h2 { font-size: clamp(2.3rem, 5vw, 4.2rem); }
-.section-intro > p:last-child, .privacy-copy > p, .example-layout > div > p, .final-cta > p { margin-top: 1rem; color: var(--color-text-muted); font-size: 1.05rem; }
+.section-intro h2, .privacy-section h2, .example-section h2, .pricing-section h2, .final-cta h2 { font-size: clamp(2.3rem, 5vw, 4.2rem); }
+.section-intro > p:last-child, .privacy-copy > p, .example-layout > div > p, .pricing-copy > p, .final-cta > p { margin-top: 1rem; color: var(--color-text-muted); font-size: 1.05rem; }
 .audit-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .6fr); align-items: start; gap: 1rem; }
 .surface { border: 1px solid var(--color-border); border-radius: var(--radius-medium); background: var(--color-surface); box-shadow: var(--shadow-card); padding: clamp(1rem, 2.5vw, 1.6rem); }
 .surface-heading, .results-heading, .result-card-top, .dialog-heading, .card-actions, .dialog-actions, .data-actions, .result-tools, .list-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -235,6 +235,17 @@ input[aria-invalid="true"] { border-color: var(--color-danger); }
 .faq-list summary { position: relative; padding-right: 2rem; font-size: 1.05rem; font-weight: 800; }
 .faq-list summary::marker { color: var(--color-green); }
 .faq-list p { max-width: 75ch; margin-top: .75rem; color: var(--color-text-muted); }
+.pricing-section { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, .7fr); align-items: center; gap: clamp(2rem, 8vw, 7rem); padding-bottom: clamp(4rem, 9vw, 8rem); }
+.pricing-card { display: grid; gap: 1.2rem; border: 1px solid #b7d8c0; border-radius: var(--radius-large); background: var(--color-surface); box-shadow: var(--shadow-soft); padding: clamp(1.3rem, 4vw, 2rem); }
+.pricing-card h3 { font-size: 1.65rem; }
+.pricing-amount { display: flex; align-items: baseline; gap: .65rem; }
+.pricing-amount strong { font-size: clamp(2.7rem, 6vw, 4.4rem); letter-spacing: -.07em; }
+.pricing-amount span { color: var(--color-text-muted); font-weight: 750; }
+.pricing-card ul { display: grid; gap: .55rem; margin: 0; padding-left: 1.25rem; }
+.pricing-card li::marker { color: var(--color-green); }
+.pricing-card .button { width: 100%; }
+.pricing-status, .pricing-card small { color: var(--color-text-muted); font-size: .82rem; }
+.pricing-status { min-height: 2.5em; }
 .final-cta { margin-bottom: 2rem; border-radius: var(--radius-large); background: var(--color-green-light); padding: clamp(2rem, 6vw, 5rem); text-align: center; }
 .final-cta p { margin-inline: auto; }
 .final-cta .button { margin-top: 1.4rem; }
@@ -292,7 +303,7 @@ fieldset label { min-height: 44px; }
 
 @media (max-width: 768px) {
   .nav-links { display: none; }
-  .hero, .audit-layout, .example-layout, .privacy-section { grid-template-columns: 1fr; }
+  .hero, .audit-layout, .example-layout, .privacy-section, .pricing-section { grid-template-columns: 1fr; }
   .hero { padding-block: 3.5rem; }
   .hero h1 { font-size: clamp(3.2rem, 15vw, 5rem); }
   .preview-card { max-width: 560px; }

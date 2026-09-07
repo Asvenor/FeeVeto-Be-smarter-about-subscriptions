@@ -2,6 +2,8 @@ import { handleAccessRequest } from './functions/api/access.js';
 import { handleAdminStatusRequest } from './functions/api/admin/status.js';
 import { handleRecommendationsRequest } from './functions/api/alternatives/recommendations.js';
 import { handlePremiumStatusRequest } from './functions/api/premium/status.js';
+import { handleCheckoutRequest } from './functions/api/billing/checkout.js';
+import { handleWebhookRequest } from './functions/api/billing/webhook.js';
 import { json } from './functions/_shared/http.js';
 
 const API_ROUTES = Object.freeze({
@@ -9,6 +11,8 @@ const API_ROUTES = Object.freeze({
   '/api/admin/status': handleAdminStatusRequest,
   '/api/alternatives/recommendations': handleRecommendationsRequest,
   '/api/premium/status': handlePremiumStatusRequest,
+  '/api/billing/checkout': handleCheckoutRequest,
+  '/api/billing/webhook': handleWebhookRequest,
 });
 
 export async function handleWorkerRequest(request, env, executionContext, routes = API_ROUTES) {

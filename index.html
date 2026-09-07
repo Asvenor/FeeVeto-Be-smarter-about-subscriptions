@@ -21,7 +21,7 @@
     <header class="site-header">
       <nav class="nav-shell" aria-label="Primary navigation">
         <a class="brand" href="#top" aria-label="FeeVeto home"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a>
-        <div class="nav-links"><a href="#how-it-works">How it works</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a></div>
+        <div class="nav-links"><a href="#how-it-works">How it works</a><a href="#pricing">Premium</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a></div>
         <div class="nav-actions">
           <span id="auth-loading" class="auth-loading" aria-hidden="true">Account</span>
           <div id="signed-out-controls" class="auth-controls" hidden><button id="sign-in-button" class="auth-link" type="button">Sign in</button><button id="sign-up-button" class="button button-secondary button-small" type="button">Sign up</button></div>
@@ -186,8 +186,21 @@
           <details><summary>Does changing currency convert prices?</summary><p>No. The display currency updates examples, new-entry defaults, the matching dashboard subtotal, and the default market for alternatives. An entered country overrides that market. Every saved subscription and verified provider price keeps its original currency. FeeVeto shows separate original-currency subtotals and never combines currencies because it has no live exchange-rate service.</p></details>
           <details><summary>Where is my information stored?</summary><p>Subscription and questionnaire data are stored in this browser’s local storage. Export a backup if you plan to clear browser data or change devices.</p></details>
           <details><summary>What does creating an account do?</summary><p>Clerk provides sign-in and profile management. FeeVeto checks account permissions before showing complete comparisons. An ordinary account does not automatically include premium access. Your audit stays in this browser and is not synced to your account.</p></details>
+          <details><summary>Is FeeVeto Premium a subscription?</summary><p>No. FeeVeto Premium is one lifetime purchase for the account used at checkout. Stripe handles the payment; FeeVeto stores only the server-side references needed to verify access. Owner and approved beta accounts keep complimentary premium access without payment.</p></details>
           <details><summary>Are alternative prices always current?</summary><p>Only alternatives with a verification date and sufficient local data are displayed. You should still confirm prices, features, and availability with the provider.</p></details>
         </div>
+      </section>
+
+      <section id="pricing" class="pricing-section section-shell" aria-labelledby="pricing-title">
+        <div class="pricing-copy"><p class="eyebrow">Simple access</p><h2 id="pricing-title">Audit free. Unlock the full comparison once.</h2><p>The subscription audit remains free and works without an account. Premium unlocks the complete curated alternatives experience for one account with no recurring FeeVeto charge.</p></div>
+        <article class="pricing-card" aria-labelledby="premium-plan-title">
+          <div><p class="step-label">Lifetime premium</p><h3 id="premium-plan-title">FeeVeto Premium</h3></div>
+          <p class="pricing-amount"><strong id="premium-price">$4.99</strong><span>one time</span></p>
+          <ul><li>Full curated comparison access</li><li>Free-plan and restricted alternative details</li><li>Permanent access for this signed-in account</li></ul>
+          <button id="premium-button" class="button button-primary" type="button">Sign in to unlock</button>
+          <p id="premium-status" class="pricing-status" role="status" aria-live="polite">An account is required so the lifetime purchase can be attached securely.</p>
+          <small>USD, EUR, GBP, and CHF are separately configured at the same displayed amount. Your selected currency controls checkout; this is not an exchange-rate conversion.</small>
+        </article>
       </section>
 
       <section class="final-cta section-shell"><p class="eyebrow">A ten-minute money check</p><h2>Keep what earns its place.</h2><p>Build your private audit and make the next renewal decision with better context.</p><a class="button button-primary" href="#audit">Start my free audit</a></section>

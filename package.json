@@ -10,16 +10,17 @@
     "test": "node --test",
     "catalogue:validate": "node scripts/catalogue-validate.mjs fixtures/catalogue.example.json",
     "catalogue:publish": "node scripts/catalogue-publish.mjs",
-    "check": "node --check worker.js && node --check js/app.js && node --check js/auth.js && node --check js/access.js && node --check js/currencyPreference.js && node --check js/currencyPage.js && node --check js/formModel.js && node --check js/serviceCatalog.js && node --check js/alternativeProvider.js && node --check functions/_shared/alternatives.js && node --check functions/_shared/catalogue-store.js && node --check functions/api/alternatives/recommendations.js && node --check scripts/catalogue-validate.mjs && node --check scripts/catalogue-publish.mjs && npm run catalogue:validate && node --test && vite build"
+    "check": "node --check worker.js && node --check js/app.js && node --check js/auth.js && node --check js/access.js && node --check js/billing.js && node --check js/currencyPreference.js && node --check js/currencyPage.js && node --check js/formModel.js && node --check js/serviceCatalog.js && node --check js/alternativeProvider.js && node --check functions/_shared/alternatives.js && node --check functions/_shared/billing-access.js && node --check functions/_shared/catalogue-store.js && node --check functions/_shared/stripe-client.js && node --check functions/api/alternatives/recommendations.js && node --check functions/api/billing/checkout.js && node --check functions/api/billing/webhook.js && node --check scripts/catalogue-validate.mjs && node --check scripts/catalogue-publish.mjs && npm run catalogue:validate && node --test && vite build"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "wrangler": "^4.129.1"
   },
   "dependencies": {
     "@clerk/backend": "^3.17.1",
-    "@clerk/clerk-js": "^6.31.0"
+    "stripe": "^22.6.1"
   }
 }

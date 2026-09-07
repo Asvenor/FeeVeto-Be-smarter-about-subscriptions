@@ -19,6 +19,8 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 - Add, edit, delete, clear, filter, and search controls
 - JSON backup export and import
 - Optional Clerk sign-up, sign-in, profile management, and sign-out controls
+- Stripe Checkout for one-time lifetime premium access in USD, EUR, GBP, and CHF
+- Signed Stripe webhook fulfillment backed by a Cloudflare D1 entitlement record
 - Curated matching for six launch subscriptions plus verified additional product types
 - Server-side product-type and requirement matching with protected free-plan records
 - Device-local storage with one-time migration from the former app formats
@@ -33,6 +35,7 @@ style.css                     Light responsive visual system
 js/app.js                     Browser events and application state coordination
 js/auth.js                    Clerk initialization and signed-in/signed-out navigation controls
 js/access.js                  Browser client for the server-verified access summary
+js/billing.js                 Checkout client, fixed plan display, and Stripe URL validation
 js/config.js                  Brand, storage keys, options, and global configuration
 js/currencyPreference.js      Shared currency options, safe form defaults, and illustrative amounts
 js/currencyPage.js            Currency preference synchronization on the privacy page
@@ -52,6 +55,7 @@ worker.js                     Cloudflare Worker router for protected APIs and st
 wrangler.jsonc                Versioned Worker, asset, and private KV binding configuration
 functions/api/                Reusable Cloudflare handlers for access and alternatives
 functions/_shared/            Clerk verification, access policy, private catalogue matching, and HTTP helpers
+migrations/                   Cloudflare D1 billing-entitlement schema
 ```
 
 ## How recommendations work
@@ -93,9 +97,17 @@ The Cloudflare Worker verifies each Clerk session before reading access settings
 
 The browser receives a small access summary, not the raw private metadata. `/api/premium/status` checks premium permission before responding, and `/api/admin/status` checks admin permission. These endpoints are guard examples for future protected features; no admin dashboard is included. The free audit remains public and does not call either protected endpoint.
 
-Paid access is deliberately isolated in `functions/_shared/billing-access.js` and currently returns `false`. A future Stripe integration can replace that server-side resolver without treating Clerk beta metadata as payment state.
+Paid access remains deliberately separate from Clerk beta/admin metadata. The Worker looks up an active Stripe-backed entitlement in the `FEEVETO_BILLING` D1 database. A browser flag, request body, public Clerk metadata, or an unverified redirect can never grant premium access.
 
 Never use `publicMetadata`, `unsafeMetadata`, request bodies, or local storage as an authorization source.
+
+## Payments
+
+FeeVeto Premium is a one-time lifetime purchase for a signed-in Clerk account. The page displays 4.99 in the selected USD, EUR, GBP, or CHF currency, and the backend creates a Stripe Checkout Session from one configured multi-currency Price. The browser sends only the selected supported currency and its Clerk session token; the Worker supplies the verified user ID and fixed product metadata itself.
+
+Premium activates only after `/api/billing/webhook` verifies Stripe's signature, confirms a paid Checkout Session, checks that the Clerk reference matches the server-created metadata, and verifies the exact configured Price. The D1 record stores access state and Stripe references, not card data or the local subscription audit. Duplicate webhook delivery is safe, and a full `charge.refunded` event marks the matching entitlement as refunded.
+
+Owner and beta access continues to come from Clerk private metadata and never requires payment. The checkout endpoint returns `already_premium` for admin, beta, or previously paid accounts.
 
 ## Migration from the former app
 
@@ -188,6 +200,8 @@ The command checks browser and backend modules, validates the fictional public f
 12. Test keyboard navigation, validation focus, result focus, and visible focus styles.
 13. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
 14. Test signed-out, ordinary, beta, and admin accounts and confirm the catalogue access restrictions remain server-controlled.
+15. In Stripe test mode, sign in as an ordinary account and open checkout in each currency. Complete one test payment and confirm premium activates only after the signed webhook; repeat a delivered event and confirm no duplicate entitlement appears.
+16. Confirm an owner, beta tester, and already-paid account cannot start another checkout. Test a full sandbox refund and confirm only its matching paid entitlement is revoked.
 
 Use fictional subscription information during testing.
 
@@ -208,10 +222,13 @@ FeeVeto uses a module Worker so the protected Clerk/KV endpoints and static Vite
 3. Use Node.js 20 or newer and add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
 4. Keep `worker.js` and `wrangler.jsonc` at the repository root. The Worker routes `/api/*` through the existing protected handlers and delegates all other requests to the `ASSETS` binding.
 5. The versioned `wrangler.jsonc` connects `FEEVETO_ALTERNATIVES` to the dedicated `feeveto-alternatives` KV namespace. If a separate Preview Worker is added later, give it a separate namespace instead of sharing production catalogue state.
-6. Add `CLERK_PUBLISHABLE_KEY` as a runtime variable and `CLERK_SECRET_KEY` as an encrypted runtime secret. The publishable values may be the same key; the secret key must never enter Vite or a tracked file.
-7. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated runtime variable for additional trusted frontend origins. The current request origin is always included automatically.
-8. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
-9. Deploy and test authentication, all four access states, catalogue filtering, storage, module paths, and privacy links on the final domain.
+6. The same file binds `FEEVETO_BILLING` to the dedicated `feeveto-billing` D1 database. Apply `migrations/0001_billing.sql` before enabling checkout in an environment.
+7. Add `CLERK_PUBLISHABLE_KEY` as a runtime variable and `CLERK_SECRET_KEY` as an encrypted runtime secret. The publishable values may be the same key; the secret key must never enter Vite or a tracked file.
+8. Add `STRIPE_PRICE_ID` as a runtime variable. Add `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` only as encrypted Worker secrets. Use matching Stripe test values in a test Worker first, then matching live values for production; never mix modes.
+9. In Stripe, register `https://<worker-host>/api/billing/webhook` and subscribe to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `charge.refunded`. Copy its signing secret directly into the Worker secret without putting it in a file or chat.
+10. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated runtime variable for additional trusted frontend origins. The current request origin is always included automatically.
+11. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
+12. Deploy and test authentication, all four access states, checkout, signed webhook fulfillment, refund handling, catalogue filtering, storage, module paths, and privacy links on the final domain.
 
 For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, run `npm run build`, then run `npx wrangler dev`. Put only fictional data in shared development fixtures.
 
@@ -240,12 +257,13 @@ Do not add payment, analytics, or API credentials to frontend files.
 - Real catalogue records require the private Cloudflare KV binding and are intentionally absent from Git
 - Cost-per-use is an estimate based on a frequency range
 - Recommendations depend on the accuracy and completeness of user-entered answers
+- Stripe is configured only in sandbox until the live account name, business details, tax obligations, customer support details, legal terms, and refund policy are reviewed
 
 ## Planned provider architecture
 
-The catalogue is deliberately curated rather than API-driven. A later administration workflow can update the same private KV schema without changing matching or rendering. Stripe can implement `getPaidPremiumAccess` separately from complimentary Clerk metadata.
+The catalogue is deliberately curated rather than API-driven. A later administration workflow can update the same private KV schema without changing matching or rendering. Paid Stripe entitlements remain separate from complimentary Clerk metadata.
 
-Payments, cloud sync, live pricing, external search, and AI-generated recommendations remain outside this release. Connecting the full audit to an account would require a separate privacy review and secure backend design.
+Cloud sync, live provider pricing, external search, and AI-generated recommendations remain outside this release. Connecting the full audit to an account would require a separate privacy review and secure backend design.
 
 ## License
 

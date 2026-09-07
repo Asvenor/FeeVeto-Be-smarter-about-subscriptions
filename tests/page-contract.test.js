@@ -103,6 +103,21 @@ test('Cloudflare access control reads Clerk private metadata only on the backend
   assert.doesNotMatch(policy, /request|localStorage/);
 });
 
+test('payment UI relies on signed server fulfillment rather than browser entitlement flags', async () => {
+  const html = await readFile(new URL('index.html', root), 'utf8');
+  const browserBilling = await readFile(new URL('js/billing.js', root), 'utf8');
+  const webhook = await readFile(new URL('functions/api/billing/webhook.js', root), 'utf8');
+  const billingAccess = await readFile(new URL('functions/_shared/billing-access.js', root), 'utf8');
+  assert.match(html, /id="pricing"/);
+  assert.match(html, /id="premium-button"/);
+  assert.match(html, /one time/i);
+  assert.doesNotMatch(browserBilling, /localStorage|premiumAccess\s*=/);
+  assert.match(webhook, /constructEventAsync/);
+  assert.match(webhook, /priceIds\[0\] !== expectedPriceId/);
+  assert.match(billingAccess, /FEEVETO_BILLING/);
+  assert.doesNotMatch(`${html}\n${browserBilling}`, /STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET/);
+});
+
 test('visual system is light and respects reduced motion', async () => {
   const css = await readFile(new URL('style.css', root), 'utf8');
   assert.match(css, /color-scheme:\s*light/);

@@ -1,7 +1,8 @@
 {
   "name": "feeveto",
   "main": "worker.js",
-  "compatibility_date": "2026-09-06",
+  "compatibility_date": "2026-09-07",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -11,6 +12,13 @@
     {
       "binding": "FEEVETO_ALTERNATIVES",
       "id": "cb8a5e7564cf4d3f8c3ace6cc712b69e"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "FEEVETO_BILLING",
+      "database_name": "feeveto-billing",
+      "database_id": "3d000ffe-251a-4a58-8b72-17193ba956b0"
     }
   ]
 }
