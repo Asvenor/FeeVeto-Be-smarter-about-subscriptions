@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeRecommendationQuery, selectRecommendations, validateOffer } from '../functions/_shared/alternatives.js';
+import { CatalogueConfigurationError, loadPrivateCatalogue } from '../functions/_shared/catalogue-store.js';
 import { handleRecommendationsRequest } from '../functions/api/alternatives/recommendations.js';
-import { recommendationRequestFor } from '../js/alternativeProvider.js';
+import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider, normalizeAlternativesResponse, recommendationRequestFor } from '../js/alternativeProvider.js';
 import { detectSupportedService, serviceById, SERVICE_IDS } from '../js/serviceCatalog.js';
 
 function offer(overrides = {}) {
@@ -27,7 +28,10 @@ function offer(overrides = {}) {
 }
 
 function query(serviceId, overrides = {}) {
-  return { serviceId, productType: serviceById(serviceId).productType, mustHave: [], niceToHave: [], acceptAds: true, acceptFreeLimits: true, ...overrides };
+  return {
+    serviceId, productType: serviceById(serviceId).productType, mustHave: [], niceToHave: [], notNeeded: [],
+    acceptAds: null, acceptFreeLimits: null, includePaid: null, includeFree: null, storageRequiredGb: null, ...overrides,
+  };
 }
 
 function access(premiumAccess, authenticated = premiumAccess) {
@@ -47,11 +51,26 @@ test('common aliases detect originals and expanded supported subscriptions', () 
 });
 
 test('the six original subscriptions can be matched by product type', () => {
+  const expectedMissingDetail = {
+    canva: 'Main design tasks', netflix: 'Country', chatgpt: 'Main assistant tasks',
+    photoshop: 'PSD or other file-format requirements', claude: 'Main assistant tasks', dropbox: 'Storage capacity',
+  };
   for (const serviceId of ['canva', 'netflix', 'chatgpt', 'photoshop', 'claude', 'dropbox']) {
     const service = serviceById(serviceId);
     const item = offer({ id: `fictional-${serviceId}`, productId: `fictional-${serviceId}`, relevantServices: [serviceId], productType: service.productType, features: [], unsupportedFeatures: [], unknownFeatures: [] });
-    assert.equal(selectRecommendations([item], query(serviceId), { premiumAccess: true }).items.length, 1, serviceId);
+    const result = selectRecommendations([item], query(serviceId), { premiumAccess: true });
+    assert.equal(result.items.length, 1, serviceId);
+    assert.equal(result.state, 'general_suggestions', serviceId);
+    assert.equal(result.items[0].matchLabel, 'General suggestion', serviceId);
+    assert.ok(result.missingDetails.includes(expectedMissingDetail[serviceId]), serviceId);
   }
+});
+
+test('a specific supported product type can start discovery without a recognized service', () => {
+  const result = selectRecommendations([offer()], { serviceId: '', productType: 'graphic_design' }, { premiumAccess: true });
+  assert.equal(result.state, 'general_suggestions');
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].relationship, 'replacement');
 });
 
 test('different requirements produce different deterministic results', () => {
@@ -59,6 +78,15 @@ test('different requirements produce different deterministic results', () => {
   const presentation = offer({ id: 'fictional-slides', features: ['presentations'] });
   assert.equal(selectRecommendations([social, presentation], query('canva', { mustHave: ['social_graphics'] }), { premiumAccess: true }).items[0].id, 'fictional-social');
   assert.equal(selectRecommendations([social, presentation], query('canva', { mustHave: ['presentations'] }), { premiumAccess: true }).items[0].id, 'fictional-slides');
+});
+
+test('selected needs produce tailored state and use the matched label only when verified', () => {
+  const result = selectRecommendations([offer()], query('canva', {
+    mustHave: ['templates'], country: 'US', platform: 'web', acceptAds: false,
+  }), { premiumAccess: true });
+  assert.equal(result.state, 'matched_suggestions');
+  assert.equal(result.items[0].matchStatus, 'matched');
+  assert.equal(result.items[0].matchLabel, 'Matches your selected needs');
 });
 
 test('Canva solo design and brand requirements select different fictional plans', () => {
@@ -88,7 +116,9 @@ test('a different streaming catalogue cannot satisfy a required exclusive', () =
 
 test('unsupported services keep the honest basic-audit state', () => {
   assert.equal(normalizeRecommendationQuery({ serviceId: 'unknown-service', productType: 'other' }), null);
-  assert.equal(selectRecommendations([], { serviceId: 'unknown-service' }).message, 'Choose a supported service for curated alternatives.');
+  const result = selectRecommendations([], { serviceId: 'unknown-service' });
+  assert.equal(result.state, 'unsupported');
+  assert.equal(result.message, 'Choose a supported service or a specific supported product type for curated alternatives.');
 });
 
 test('an offer explicitly missing a must-have feature is excluded', () => {
@@ -109,7 +139,7 @@ test('known incompatible country and platform are excluded while unknown compati
   const unknown = offer({ id: 'unknown', platforms: [], countryAvailability: { status: 'unknown', countries: [] }, advertisements: null });
   const result = selectRecommendations([unknown], query('canva', { country: 'CH', platform: 'macos', acceptAds: false }), { premiumAccess: true });
   assert.equal(result.items.length, 1);
-  assert.equal(result.items[0].verificationNotes.length, 4);
+  assert.equal(result.items[0].verificationNotes.length, 3);
   assert.ok(result.items[0].verificationNotes.some((note) => /country/i.test(note)));
   assert.ok(result.items[0].verificationNotes.some((note) => /platform/i.test(note)));
 });
@@ -118,6 +148,12 @@ test('free-plan limits require explicit acceptance', () => {
   const free = offer({ id: 'fictional-free', planName: 'Free', pricingModel: 'free', pricingUrl: null, freePlanLimits: true });
   assert.equal(selectRecommendations([free], query('canva', { acceptFreeLimits: false }), { premiumAccess: true }).items.length, 0);
   assert.equal(selectRecommendations([free], query('canva', { acceptFreeLimits: true }), { premiumAccess: true }).items.length, 1);
+});
+
+test('unanswered advertisement preference does not become an explicit No', () => {
+  const withAds = offer({ id: 'with-ads', advertisements: true });
+  assert.equal(selectRecommendations([withAds], query('canva', { acceptAds: null }), { premiumAccess: true }).items.length, 1);
+  assert.equal(selectRecommendations([withAds], query('canva', { acceptAds: false }), { premiumAccess: true }).items.length, 0);
 });
 
 test('capacity above a known plan limit is excluded', () => {
@@ -143,6 +179,11 @@ test('unanswered matching preferences remain distinct from No', () => {
   assert.equal(normalized.includeFree, null);
 });
 
+test('unanswered capacity remains distinct from an explicit zero requirement', () => {
+  assert.equal(normalizeRecommendationQuery(query('dropbox', { storageRequiredGb: null })).storageRequiredGb, null);
+  assert.equal(normalizeRecommendationQuery(query('dropbox', { storageRequiredGb: 0 })).storageRequiredGb, 0);
+});
+
 test('the unified save creates a minimal alternative request with preserved preferences', () => {
   const requestBody = recommendationRequestFor({
     name: 'Private entered name', amountMinor: 9999, neededNotes: 'Do not send',
@@ -160,6 +201,14 @@ test('the unified save creates a minimal alternative request with preserved pref
   assert.equal('neededFeatures' in requestBody, false);
 });
 
+test('an older recognized record without detailed review still creates a general request', () => {
+  const requestBody = recommendationRequestFor({ name: 'Dropbox', detailedReview: null });
+  assert.equal(requestBody.serviceId, 'dropbox');
+  assert.equal(requestBody.productType, 'cloud_storage');
+  assert.equal(requestBody.acceptAds, undefined);
+  assert.equal(requestBody.storageRequiredGb, null);
+});
+
 test('a temporary free trial cannot be classified as a permanent free plan', () => {
   assert.equal(validateOffer(offer({ pricingModel: 'free', trialOnly: true })), null);
 });
@@ -175,12 +224,38 @@ test('the same service is allowed only as an explicit downgrade', () => {
 test('no supported match returns the honest empty state', () => {
   const result = selectRecommendations([], query('dropbox'), { premiumAccess: true });
   assert.equal(result.items.length, 0);
-  assert.equal(result.message, 'No verified alternative matches these requirements yet.');
+  assert.equal(result.state, 'no_matches');
+  assert.match(result.message, /No accessible verified alternative/);
 });
 
 test('duplicate offers are returned once', () => {
   const duplicate = offer();
   assert.equal(selectRecommendations([duplicate, duplicate], query('canva'), { premiumAccess: true }).items.length, 1);
+});
+
+test('private catalogue loading rejects empty, invalid, and duplicate catalogues', async () => {
+  const contextFor = (catalogue) => ({ env: { FEEVETO_ALTERNATIVES: { get: async () => catalogue } } });
+  await assert.rejects(() => loadPrivateCatalogue(contextFor({ schemaVersion: 2, offers: [] })), CatalogueConfigurationError);
+  await assert.rejects(() => loadPrivateCatalogue(contextFor({ schemaVersion: 2, offers: [{}] })), CatalogueConfigurationError);
+  const duplicate = offer();
+  await assert.rejects(() => loadPrivateCatalogue(contextFor({ schemaVersion: 2, offers: [duplicate, duplicate] })), CatalogueConfigurationError);
+  await assert.rejects(() => loadPrivateCatalogue(contextFor({ schemaVersion: 2, offers: [duplicate, offer({ id: 'different-id' })] })), CatalogueConfigurationError);
+  assert.equal((await loadPrivateCatalogue(contextFor({ schemaVersion: 2, offers: [offer()] }))).length, 1);
+});
+
+test('catalogue configuration and unexpected request failures return distinct API states', async () => {
+  const unavailable = await handleRecommendationsRequest(
+    { request: request(query('canva')), env: {} },
+    { catalogueLoader: async () => { throw new CatalogueConfigurationError('missing'); }, accessResolver: async () => access(false, false) },
+  );
+  assert.equal(unavailable.status, 503);
+  assert.equal((await unavailable.json()).state, 'catalogue_unavailable');
+  const failed = await handleRecommendationsRequest(
+    { request: request(query('canva')), env: {} },
+    { catalogueLoader: async () => { throw new Error('storage failure'); }, accessResolver: async () => access(false, false) },
+  );
+  assert.equal(failed.status, 503);
+  assert.equal((await failed.json()).state, 'request_failed');
 });
 
 test('unsafe and non-HTTPS destinations are rejected', () => {
@@ -243,6 +318,20 @@ test('signed-out and ordinary users cannot retrieve restricted free records dire
   }
 });
 
+test('a free-only accessible match returns a generic access state without leaking the offer', async () => {
+  const free = offer({ id: 'private-free-id', productName: 'Private Free Name', pricingModel: 'free', pricingUrl: null });
+  const response = await handleRecommendationsRequest(
+    { request: request(query('canva')), env: {} },
+    { catalogueLoader: async () => [free], accessResolver: async () => access(false, false) },
+  );
+  const raw = await response.text();
+  const body = JSON.parse(raw);
+  assert.equal(body.state, 'access_restricted');
+  assert.deepEqual(body.items, []);
+  assert.equal(raw.includes('Private Free Name'), false);
+  assert.equal(raw.includes('private-free-id'), false);
+});
+
 test('beta and admin access receive the complete comparison including free records', async () => {
   const free = offer({ id: 'fictional-free', productName: 'Fictional Free Vault', pricingModel: 'free', pricingUrl: null });
   const catalogueLoader = async () => [offer(), free];
@@ -255,4 +344,42 @@ test('beta and admin access receive the complete comparison including free recor
     assert.equal(body.accessScope, 'complete');
     assert.equal(body.items.some((item) => item.productName === 'Fictional Free Vault'), true);
   }
+});
+
+test('response normalization preserves structured states and safe official links', () => {
+  const normalized = normalizeAlternativesResponse({
+    accessScope: 'complete', state: 'general_suggestions', missingDetails: ['Main design tasks'],
+    items: [{ officialUrl: 'https://fictional.example/offer' }],
+  });
+  assert.equal(normalized.state, 'general_suggestions');
+  assert.deepEqual(normalized.missingDetails, ['Main design tasks']);
+  assert.equal(normalized.items.length, 1);
+});
+
+test('backend provider distinguishes catalogue unavailability from retryable request failure', async () => {
+  const subscription = { name: 'Canva', detailedReview: null };
+  const unavailable = new BackendAlternativesProvider(async () => new Response(JSON.stringify({
+    state: 'catalogue_unavailable', error: 'The alternatives catalogue is unavailable.',
+  }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
+  await assert.rejects(
+    () => unavailable.getAlternatives(subscription),
+    (error) => error instanceof AlternativeRequestError && error.resultState === 'catalogue_unavailable',
+  );
+  const failed = new BackendAlternativesProvider(async () => new Response(JSON.stringify({
+    state: 'request_failed', error: 'Try again.',
+  }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
+  await assert.rejects(
+    () => failed.getAlternatives(subscription),
+    (error) => error instanceof AlternativeRequestError && error.resultState === 'request_failed',
+  );
+});
+
+test('outdated alternative requests cannot replace newer results', () => {
+  const tracker = new AlternativeRequestTracker();
+  const older = tracker.begin('subscription-1');
+  const newer = tracker.begin('subscription-1');
+  assert.equal(tracker.isCurrent('subscription-1', older), false);
+  assert.equal(tracker.isCurrent('subscription-1', newer), true);
+  tracker.invalidateAll();
+  assert.equal(tracker.isCurrent('subscription-1', newer), false);
 });

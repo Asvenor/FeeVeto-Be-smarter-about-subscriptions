@@ -30,8 +30,10 @@ export async function handleRecommendationsRequest(
     const [access, catalogue] = await Promise.all([requestAccess(context, accessResolver), catalogueLoader(context)]);
     return json(selectRecommendations(catalogue, query, { premiumAccess: access.premiumAccess }));
   } catch (error) {
-    if (error instanceof CatalogueConfigurationError) return json({ error: 'The alternatives catalogue is not configured.' }, { status: 503 });
-    return json({ error: 'Alternatives could not be loaded.' }, { status: 503 });
+    if (error instanceof CatalogueConfigurationError) {
+      return json({ state: 'catalogue_unavailable', error: 'The alternatives catalogue is not configured or is unavailable.' }, { status: 503 });
+    }
+    return json({ state: 'request_failed', error: 'Alternatives could not be loaded. Try again.' }, { status: 503 });
   }
 }
 
