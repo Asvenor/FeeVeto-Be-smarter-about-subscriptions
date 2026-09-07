@@ -63,7 +63,12 @@ export function alternativeCard(item, serviceId) {
   if (item.verificationNotes?.length) card.append(element('p', 'verification-note', item.verificationNotes.join(' ')));
   if (item.features?.length) card.append(element('p', 'alternative-detail', `Useful for: ${item.features.slice(0, 4).map(id => requirementLabel(serviceId, id)).join(', ')}.`));
   if (item.unsupportedFeatures?.length) card.append(element('p', 'alternative-detail', `Does not include: ${item.unsupportedFeatures.slice(0, 3).map(id => requirementLabel(serviceId, id)).join(', ')}.`));
-  if (item.reviewRating) card.append(element('p', 'alternative-detail', `Customer reviews: ${item.reviewRating.value}/${item.reviewRating.scale} from ${item.reviewRating.count} reviews on ${item.reviewRating.source}. Separate from your suitability assessment.`));
+  if (item.reviewRating) {
+    const rating = element('p', 'alternative-detail', `Customer reviews: ${item.reviewRating.value}/${item.reviewRating.scale} from ${item.reviewRating.count} reviews on ${item.reviewRating.source}; checked ${item.reviewRating.checkedAt}. Separate from your suitability assessment. `);
+    const sourceUrl = officialDestination({ officialUrl: item.reviewRating.sourceUrl });
+    if (sourceUrl) { const source = element('a', '', 'Review source'); source.href = sourceUrl; source.target = '_blank'; source.rel = 'noopener noreferrer'; rating.append(source); }
+    card.append(rating);
+  }
   if (item.sourceUrls?.length) {
     const sources = element('details', 'alternative-sources');
     sources.append(element('summary', '', `Sources · checked ${item.verifiedAt}`));

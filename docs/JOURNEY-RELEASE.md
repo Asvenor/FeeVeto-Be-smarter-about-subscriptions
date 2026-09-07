@@ -8,6 +8,7 @@ This branch evolves the existing FeeVeto app: instant supported-service discover
 - Worker runtime: `CLERK_SECRET_KEY` as a secret, matching `CLERK_PUBLISHABLE_KEY`, and applicable `CLERK_AUTHORIZED_PARTIES`. Never put a secret key in frontend/build variables or commits.
 - Existing private KV: `FEEVETO_ALTERNATIVES`, key `catalogue:v2`, schema 2. Creating a namespace does not populate it. Validate the existing private file; no catalogue import is required for this change if production data is healthy.
 - Existing D1: `FEEVETO_BILLING` / `feeveto-billing`. Apply additive `migrations/0002_saved_audits.sql` before releasing the account-save routes. It adds a separate history table; it does not modify billing tables or upload browser subscriptions.
+- Also apply `migrations/0003_refund_ordering.sql` for the payment safeguard found during integration testing. Refund tombstones prevent late or repeated checkout events from reviving a refunded payment. Paid access is pinned to `STRIPE_PRICE_ID`, so sandbox purchases cannot unlock a separately configured live Price. If changing the commercial Price later, explicitly preserve legitimate existing lifetime purchases through a reviewed migration/allowlist; do not simply swap the variable and abandon old entitlements. Prefer separate sandbox and production databases.
 - No optional data API, AI service, new paid integration, or new catalogue records are needed.
 
 ## Local preview
@@ -48,3 +49,12 @@ Future providers connect at `functions/_shared/catalogue-provider.js`, supplying
 Recognition uses supported names and explicit phrases, not general AI reasoning. Limited categories/markets may return fewer than three suggestions. No ratings appear without a source, review count, scale, and date. Records older than 90 days require rechecking. Unknown capability/prices remain unknown; different currencies are never converted. New natural-language discovery does not replace the original detailed form for highly specific legacy requirements.
 
 Stripe branding and sandbox webhook/secret configuration remain separate pending work. Browser policy verification currently blocks that approved dashboard operation. No live payment, production migration, merge, or deployment has been performed for this journey.
+
+## Verified outcome on September 7, 2026
+
+- Clean install (`npm ci --offline`), 180 automated tests, production build, and Worker packaging dry run passed. No production secrets or private environment files are tracked; none of the 42 private record IDs/descriptions occur in frontend bundles.
+- Local migrations 0001/0002/0003 applied successfully. The real local Worker plus the existing 42-offer private catalogue returned guest Netflix/Canva/Dropbox suggestions (2/1/3), HTTP 200 assessments, a detailed Canva switch comparison, HTTP 401 for guest history, and correct unsupported/unknown-route errors. Run `node scripts/journey-smoke.mjs http://127.0.0.1:8787/` while the local Worker is running.
+- Connected DOM tests execute real handlers and SQLite, with simulated Clerk identity and a fictional test fixture. They verify saving through sign-in, visible save failure/retry, duplicate prevention, reload recovery, back/close/reopen, stale-search protection, sign-out clearing, and dated history. They are not a visual browser or live Clerk/Stripe test.
+- Browser policy verification blocked desktop/mobile visual and real authentication checks. New APIs are not deployed: live `/api/access` remains HTTP 200; live `/api/assessment` remains HTTP 404. This branch is not cleared for launch until browser/staging authentication checks and pending Stripe setup are completed.
+
+Design references: [Cloudflare D1 prepared statements and batches](https://developers.cloudflare.com/d1/worker-api/d1-database/), [Stripe webhook ordering and duplicates](https://docs.stripe.com/webhooks). No third-party API is required for discovery.

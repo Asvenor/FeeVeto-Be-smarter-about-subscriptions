@@ -115,7 +115,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .alternative-sources a { display: inline-block; padding: .4rem .7rem .4rem 0; color: var(--color-green); }
 .coverage-note { grid-column: 1 / -1; color: var(--color-text-muted); font-size: .86rem; }
 .journey-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.3rem; }
-.guided-dialog { max-height: calc(100dvh - 1.5rem); padding-bottom: 0; }
+.dialog.guided-dialog { max-height: calc(100dvh - 1.5rem); padding-bottom: 0; }
 .guided-dialog h2 { font-size: clamp(1.75rem,4vw,2.5rem); }
 .guide-intro { color: var(--color-text-muted); margin-block: 1.2rem; }
 .guide-price { font-size: clamp(2rem,8vw,3.5rem); min-height: 88px; letter-spacing: -.05em; }
@@ -134,7 +134,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 @media (max-width: 520px) {
   .choice-grid { grid-template-columns: 1fr; }
   .guide-footer { padding-bottom: max(.8rem,env(safe-area-inset-bottom)); }
-  .guided-dialog { width: calc(100% - .75rem); max-height: calc(100dvh - .75rem); }
+  .dialog.guided-dialog { width: calc(100% - .75rem); max-height: calc(100dvh - .75rem); }
 }
 
 .preview-card { position: relative; overflow: hidden; border: 1px solid #cadecf; border-radius: var(--radius-large); background: var(--color-surface); box-shadow: var(--shadow-soft); padding: clamp(1.3rem, 3vw, 2rem); }

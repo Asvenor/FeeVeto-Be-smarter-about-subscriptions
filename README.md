@@ -1,6 +1,6 @@
 # FeeVeto
 
-See [the polish QA report](docs/POLISH-QA.md) for the current checks, browser-test instructions, Clerk avatar settings, and outstanding release blockers.
+See [the journey checkpoints](docs/JOURNEY-CHECKPOINTS.md) and [release instructions](docs/JOURNEY-RELEASE.md) for the latest implementation and validation. [The earlier polish report](docs/POLISH-QA.md) remains historical context.
 
 **Keep, switch, or cancel with confidence.**
 
@@ -8,6 +8,10 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 
 ## Current features
 
+- Instant natural-language supported-service discovery with correctable interpretation, guest results, filters, and retry
+- Optional two-stage personalised audit with explicit unknowns, feature requirements, spending, and switching preferences
+- Explainable keep/downgrade/switch/cancel assessments with same-currency estimates and dated source evidence
+- Opt-in account saves, retry-safe sign-in continuity, reopening, and append-only reevaluation history
 - One adaptive form for cost, usage, requirements, and optional switching context
 - One “Save and review” action that stores the entry, calculates the audit, and retrieves authorized alternatives
 - Transparent recommendations with reasons, confidence, and cautious wording
@@ -149,7 +153,7 @@ Production records must never be committed. Keep the reviewed JSON outside Git, 
 - HTTPS official and pricing destinations, official source URLs, and the actual verification date
 - `affiliateUrl: null` and `affiliateStatus: "not_applied"`
 
-Temporary trials are not catalogue offers: the validator rejects `trialOnly: true`. The response never calculates savings or exposes evidence and affiliate fields.
+Temporary trials are not catalogue offers: the validator rejects `trialOnly: true`. Discovery does not calculate personal savings. The separate assessment endpoint calculates estimates only from a comparable verified price and the user's bill. Permitted source URLs and verification dates are returned with authorized offers; affiliate fields are never exposed.
 
 ### Adding or updating an offer
 

@@ -37,6 +37,9 @@ export async function handleCheckoutRequest(
     const identity = await identityResolver(context);
     if (!identity) return json({ error: 'Sign in before purchasing premium access.' }, { status: 401 });
 
+    const complimentary=resolveAccess({authenticated:true,privateMetadata:identity.user?.privateMetadata});
+    if(complimentary.premiumAccess)return json({state:'already_premium'});
+
     const paidPremiumAccess = await paidAccessResolver({ userId: identity.userId, env: context.env });
     const access = resolveAccess({
       authenticated: true,

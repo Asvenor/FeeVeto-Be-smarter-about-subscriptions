@@ -17,13 +17,15 @@ function billingDatabase(env, { required = false } = {}) {
 export async function getPaidPremiumAccessStrict({ userId, env } = {}) {
   if (typeof userId !== 'string' || !userId.trim()) return false;
   const database = billingDatabase(env, { required: true });
+  const priceId=typeof env?.STRIPE_PRICE_ID==='string'?env.STRIPE_PRICE_ID.trim():'';
+  if(!priceId)throw new BillingConfigurationError('The payment price is not configured.');
 
   const row = await database.prepare(
     `SELECT 1 AS has_access
      FROM billing_entitlements
-     WHERE clerk_user_id = ? AND status = 'active'
+     WHERE clerk_user_id = ? AND status = 'active' AND price_id = ?
      LIMIT 1`,
-  ).bind(userId).first();
+  ).bind(userId,priceId).first();
   return row?.has_access === 1;
 }
 
@@ -52,13 +54,14 @@ export async function activateLifetimeAccess({ env, event, session }) {
   const database = billingDatabase(env, { required: true });
   const now = new Date(event.created * 1000).toISOString();
   await database.batch([
-    eventStatement(database, event),
     database.prepare(
       `INSERT INTO billing_entitlements (
          clerk_user_id, stripe_customer_id, stripe_payment_intent_id,
          stripe_checkout_session_id, status, product_key, price_id,
          amount_total, currency, purchased_at, updated_at
-       ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
+       ) SELECT ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM stripe_refunded_payments WHERE payment_intent_id = ?)
+         AND NOT EXISTS (SELECT 1 FROM stripe_events WHERE event_id = ?)
        ON CONFLICT(clerk_user_id) DO UPDATE SET
          stripe_customer_id = excluded.stripe_customer_id,
          stripe_payment_intent_id = excluded.stripe_payment_intent_id,
@@ -69,7 +72,8 @@ export async function activateLifetimeAccess({ env, event, session }) {
          amount_total = excluded.amount_total,
          currency = excluded.currency,
          purchased_at = excluded.purchased_at,
-         updated_at = excluded.updated_at`,
+         updated_at = excluded.updated_at
+       WHERE excluded.purchased_at > billing_entitlements.purchased_at`,
     ).bind(
       session.clerkUserId,
       session.customerId,
@@ -81,7 +85,10 @@ export async function activateLifetimeAccess({ env, event, session }) {
       session.currency,
       now,
       now,
+      session.paymentIntentId,
+      event.id,
     ),
+    eventStatement(database, event),
   ]);
 }
 
@@ -89,11 +96,12 @@ export async function revokeRefundedAccess({ env, event, paymentIntentId }) {
   const database = billingDatabase(env, { required: true });
   const now = new Date(event.created * 1000).toISOString();
   await database.batch([
-    eventStatement(database, event),
+    database.prepare('INSERT OR IGNORE INTO stripe_refunded_payments (payment_intent_id, refunded_at) VALUES (?, ?)').bind(paymentIntentId,now),
     database.prepare(
       `UPDATE billing_entitlements
        SET status = 'refunded', updated_at = ?
        WHERE stripe_payment_intent_id = ? AND status = 'active'`,
     ).bind(now, paymentIntentId),
+    eventStatement(database, event),
   ]);
 }
