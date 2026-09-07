@@ -1,4 +1,48 @@
-import { supportedServiceFor } from './serviceCatalog.js';
+import { PRODUCT_TYPE_IDS, supportedServiceFor } from './serviceCatalog.js';
+
+const RESULT_STATES = new Set([
+  'general_suggestions',
+  'matched_suggestions',
+  'unsupported',
+  'no_matches',
+  'catalogue_unavailable',
+  'request_failed',
+  'access_restricted',
+]);
+
+export class AlternativeRequestError extends Error {
+  constructor(message, resultState = 'request_failed') {
+    super(message);
+    this.name = 'AlternativeRequestError';
+    this.resultState = RESULT_STATES.has(resultState) ? resultState : 'request_failed';
+  }
+}
+
+export class AlternativeRequestTracker {
+  constructor() {
+    this.epoch = 0;
+    this.versions = new Map();
+  }
+
+  begin(id) {
+    const version = (this.versions.get(id) || 0) + 1;
+    this.versions.set(id, version);
+    return { epoch: this.epoch, version };
+  }
+
+  isCurrent(id, request) {
+    return request?.epoch === this.epoch && request.version === this.versions.get(id);
+  }
+
+  invalidate(id) {
+    this.versions.set(id, (this.versions.get(id) || 0) + 1);
+  }
+
+  invalidateAll() {
+    this.epoch += 1;
+    this.versions.clear();
+  }
+}
 
 export class AlternativesProvider {
   async getAlternatives() {
@@ -7,12 +51,14 @@ export class AlternativesProvider {
 }
 
 export function recommendationRequestFor(subscription) {
-  const review = subscription?.detailedReview;
+  const review = subscription?.detailedReview || {};
   const service = supportedServiceFor(subscription);
-  if (!review || !service) return null;
+  const productType = PRODUCT_TYPE_IDS.includes(review.productType) ? review.productType : service?.productType;
+  if (!service && !productType) return null;
+  const applicableService = service?.productType === productType ? service : null;
   return {
-    serviceId: service.id,
-    productType: review.productType || service.productType,
+    serviceId: applicableService?.id || '',
+    productType,
     mustHave: Array.isArray(review.mustHaveRequirements) ? review.mustHaveRequirements : [],
     niceToHave: Array.isArray(review.niceToHaveRequirements) ? review.niceToHaveRequirements : [],
     notNeeded: Array.isArray(review.notNeededRequirements) ? review.notNeededRequirements : [],
@@ -41,11 +87,15 @@ export function officialDestination(offer) {
   }
 }
 
-function normalizeResponse(value) {
+export function normalizeAlternativesResponse(value) {
   if (!value || typeof value !== 'object' || !Array.isArray(value.items)) throw new Error('The alternatives response was invalid.');
   return {
     accessScope: value.accessScope === 'complete' ? 'complete' : 'public',
+    state: RESULT_STATES.has(value.state) ? value.state : (value.items.length ? 'general_suggestions' : 'no_matches'),
     message: String(value.message || ''),
+    missingDetails: Array.isArray(value.missingDetails)
+      ? value.missingDetails.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4)
+      : [],
     items: value.items.filter((item) => officialDestination(item)).slice(0, 3),
   };
 }
@@ -58,13 +108,21 @@ export class BackendAlternativesProvider extends AlternativesProvider {
 
   async getAlternatives(subscription, token = '') {
     const query = recommendationRequestFor(subscription);
-    if (!query) return { accessScope: 'public', items: [], message: 'This service is not supported for curated alternatives yet. The basic audit is still available.' };
+    if (!query) return {
+      accessScope: 'public', state: 'unsupported', items: [], missingDetails: [],
+      message: 'This service or use case is not supported for curated alternatives yet. The basic audit is still available.',
+    };
     const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
     const response = await this.fetchImplementation('./api/alternatives/recommendations', {
       method: 'POST', headers, body: JSON.stringify(query), cache: 'no-store', credentials: 'same-origin',
     });
-    if (!response.ok) throw new Error(response.status === 503 ? 'The private alternatives catalogue is not configured yet.' : 'Alternatives could not be loaded.');
-    return normalizeResponse(await response.json());
+    let body = null;
+    try { body = await response.json(); } catch { /* handled below */ }
+    if (!response.ok) {
+      const fallback = response.status === 503 ? 'The alternatives catalogue is unavailable right now.' : 'Alternatives could not be loaded.';
+      throw new AlternativeRequestError(String(body?.error || fallback), body?.state);
+    }
+    return normalizeAlternativesResponse(body);
   }
 }

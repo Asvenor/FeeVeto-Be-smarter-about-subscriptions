@@ -1,8 +1,8 @@
 import { APP_CONFIG } from './config.js';
 import { fromMinorUnits } from './calculations.js';
 import { fillCurrencyOptions, renderIllustrativeMoney, shouldApplyCurrencyDefault, validCurrencyPreference } from './currencyPreference.js';
-import { BackendAlternativesProvider } from './alternativeProvider.js';
-import { buildDetailedReview, categoryForProductType, requirementsComplete, upsertSubscription } from './formModel.js';
+import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider } from './alternativeProvider.js';
+import { buildDetailedReview, categoryForProductType, upsertSubscription } from './formModel.js';
 import { renderDashboard } from './render.js';
 import { detectSupportedService, PRODUCT_TYPES, serviceById, SUPPORTED_SERVICES } from './serviceCatalog.js';
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
@@ -38,6 +38,17 @@ let renderedRequirementServiceId = '';
 const requirementDrafts = new Map();
 const alternativesProvider = new BackendAlternativesProvider();
 const alternativeResults = new Map();
+const alternativeRequests = new AlternativeRequestTracker();
+
+function invalidateAlternativeRequest(id) {
+  alternativeRequests.invalidate(id);
+  alternativeResults.delete(id);
+}
+
+function invalidateAllAlternativeRequests() {
+  alternativeRequests.invalidateAll();
+  alternativeResults.clear();
+}
 
 function persist() {
   if (!saveState(browserStorage, state)) showToast('Your changes work for now, but this browser could not save them.');
@@ -183,10 +194,11 @@ function renderRequirementsForSelection(initialReview = null) {
 function updateAdaptiveVisibility() {
   const service = serviceById(elements.form.elements.serviceId.value);
   const productType = elements.form.elements.productType.value;
-  setApplicable(byId('alternative-country-field'), Boolean(service));
-  setApplicable(byId('alternative-platform-field'), Boolean(service));
-  setApplicable(byId('free-limits-field'), Boolean(service));
-  setApplicable(byId('free-alternatives-field'), Boolean(service));
+  const supportedUseCase = Boolean(service || productType);
+  setApplicable(byId('alternative-country-field'), supportedUseCase);
+  setApplicable(byId('alternative-platform-field'), supportedUseCase);
+  setApplicable(byId('free-limits-field'), supportedUseCase);
+  setApplicable(byId('free-alternatives-field'), supportedUseCase);
   setApplicable(byId('advertisement-field'), ['streaming_video', 'ai_assistant', 'photo_editor', 'music_streaming', 'home_workouts'].includes(productType));
   setApplicable(byId('storage-requirement'), productType === 'cloud_storage');
   setApplicable(byId('required-title-field'), ['streaming_video', 'audiobooks'].includes(productType));
@@ -285,29 +297,35 @@ function deleteSubscription(id) {
   const index = state.subscriptions.findIndex((item) => item.id === id);
   if (index < 0) return;
   const [removed] = state.subscriptions.splice(index, 1);
-  alternativeResults.delete(id);
+  invalidateAlternativeRequest(id);
   persist(); render(); announce(`${removed.name} deleted.`);
   showToast(`${removed.name} deleted.`, 'Undo', () => { state.subscriptions.splice(index, 0, removed); persist(); render(); elements.toast.hidden = true; announce(`${removed.name} restored.`); });
 }
 
 async function refreshAlternatives(item, focus = false) {
-  const complete = requirementsComplete(item.detailedReview);
-  alternativeResults.set(item.id, { status: 'loading', accessScope: 'public', items: [], message: '', requirementsComplete: complete });
+  const request = alternativeRequests.begin(item.id);
+  const isCurrent = () => alternativeRequests.isCurrent(item.id, request);
+  alternativeResults.set(item.id, { status: 'loading', state: 'request_pending', accessScope: 'public', items: [], message: '', missingDetails: [] });
   render();
   if (focus) focusResult(item.id);
   try {
     const clerk = await clerkPromise;
     const token = await clerk?.session?.getToken?.() || '';
     const result = await alternativesProvider.getAlternatives(item, token);
-    if (!state.subscriptions.some((entry) => entry.id === item.id)) return;
+    if (!isCurrent() || !state.subscriptions.some((entry) => entry.id === item.id && entry.updatedAt === item.updatedAt)) return;
     if (result.accessScope === 'public') {
       for (const [resultId, cached] of alternativeResults) {
         if (cached.accessScope === 'complete') alternativeResults.delete(resultId);
       }
     }
-    alternativeResults.set(item.id, { status: 'ready', ...result, requirementsComplete: complete });
+    alternativeResults.set(item.id, { status: 'ready', ...result });
   } catch (error) {
-    alternativeResults.set(item.id, { status: 'error', accessScope: 'public', items: [], requirementsComplete: complete, message: error instanceof Error ? error.message : 'Alternatives could not be loaded.' });
+    if (!isCurrent()) return;
+    alternativeResults.set(item.id, {
+      status: 'error', state: error instanceof AlternativeRequestError ? error.resultState : 'request_failed',
+      accessScope: 'public', items: [], missingDetails: [],
+      message: error instanceof Error ? error.message : 'Alternatives could not be loaded. Try again.',
+    });
   }
   render();
   if (focus) focusResult(item.id);
@@ -330,7 +348,7 @@ elements.form.addEventListener('submit', (event) => {
   });
   if (!item) return showToast('Check the subscription details and try again.');
   state.subscriptions = upsertSubscription(state.subscriptions, item);
-  alternativeResults.delete(item.id);
+  invalidateAlternativeRequest(item.id);
   persist(); resetForm(); render();
   showToast(`${item.name} ${editingId ? 'updated' : 'saved'}.`);
   announce(`${item.name} ${editingId ? 'updated' : 'saved'} and reviewed.`);
@@ -370,6 +388,7 @@ elements.list.addEventListener('click', (event) => {
   const target = event.target.closest('[data-action]');
   if (!target) return;
   if (target.dataset.action === 'edit') beginEdit(target.dataset.id);
+  if (target.dataset.action === 'improve') beginEdit(target.dataset.id);
   if (target.dataset.action === 'alternatives') {
     const item = state.subscriptions.find((entry) => entry.id === target.dataset.id);
     if (item) void refreshAlternatives(item, true);
@@ -404,7 +423,7 @@ elements.clearAll.addEventListener('click', () => elements.clearDialog.showModal
 elements.confirmClear.addEventListener('click', () => {
   const previous = [...state.subscriptions];
   state.subscriptions = [];
-  alternativeResults.clear();
+  invalidateAllAlternativeRequests();
   persist(); resetForm(); render();
   showToast('Audit cleared.', 'Undo', () => { state.subscriptions = previous; persist(); render(); elements.toast.hidden = true; announce('Audit restored.'); });
 });
@@ -424,7 +443,7 @@ elements.importFile.addEventListener('change', async () => {
     const imported = parseImportedState(await file.text());
     if (!window.confirm(`Replace this audit with ${imported.subscriptions.length} subscriptions from the selected backup?`)) return;
     state = imported;
-    alternativeResults.clear();
+    invalidateAllAlternativeRequests();
     persist(); resetForm(); render(); showToast('Backup imported.'); announce('Backup imported successfully.');
   } catch (error) { showToast(error instanceof Error ? error.message : 'The backup could not be imported.'); }
 });
@@ -439,7 +458,7 @@ const clerkPromise = initializeAuth({
   onAccessChange(access) {
     const nextSignature = JSON.stringify({ authenticated: access.authenticated, premiumAccess: access.premiumAccess });
     if (accessSignature && accessSignature !== nextSignature) {
-      alternativeResults.clear();
+      invalidateAllAlternativeRequests();
       render();
       announce('Account access changed. Curated results were cleared and can be refreshed.');
     }

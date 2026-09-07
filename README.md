@@ -114,9 +114,11 @@ The old keys are not deleted. The completion marker and new-state precedence pre
 
 The browser recognizes aliases for the six launch subscriptions and additional supported use cases inside the unified form, but unknown names still work in the basic audit. Users can correct the detected service and product type before saving. Service-specific requirements preserve four states: unanswered, must have, nice to have, and not needed. Product-specific structured questions appear in that same form. Optional free text remains a private note and is not interpreted by the matcher.
 
-`BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. The Cloudflare Function reads schema-version 2 data from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v2`, validates every record, applies deterministic matching, and returns at most three results.
+`BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. A recognized service—including an older saved record without `detailedReview`—or a specific supported product type is enough to start discovery. Optional answers remain nullable and refine the comparison instead of blocking it. The Cloudflare Function reads schema-version 2 data from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v2`, validates the complete catalogue, applies deterministic matching, and returns at most three results.
 
-Matching first requires the same product type. It then excludes explicitly unsupported must-haves, insufficient storage, known country/platform/language/level incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. Unknown critical facts remain eligible only as candidates with provider-verification notes; incomplete answers never create a confirmed match. Nice-to-have matches, limitations, switching effort, and verification uncertainty affect deterministic ordering. Affiliate status is not accepted as a scoring input.
+Matching first requires the same product type. It then excludes explicitly unsupported must-haves, insufficient storage, known country/platform/language/level incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. Unknown critical facts remain eligible only as candidates with provider-verification notes. With only basic information, eligible records are labelled “General suggestion” and include useful product-specific details to add. When explicit selected needs are supported and no compatibility fact remains uncertain, the label becomes “Matches your selected needs.” Nice-to-have matches, limitations, switching effort, and verification uncertainty affect deterministic ordering. Affiliate status is not accepted as a scoring input.
+
+The response preserves distinct states for general suggestions, tailored suggestions, unsupported use cases, no accessible match, access restrictions, unavailable catalogue configuration, and retryable request failures. Errors never discard the saved subscription or its form answers, and request sequencing prevents an older response from replacing newer results.
 
 Signed-out and ordinary accounts can receive suitable paid or one-time-purchase records. Free-plan records are filtered on the backend before matching and are returned only when the server-verified Clerk entitlement has `premiumAccess: true`. Paid access remains a separate Stripe-ready resolver.
 
@@ -170,12 +172,12 @@ The command checks browser and backend modules, validates the fictional public f
 
 ## Manual testing
 
-1. Enter a supported service, answer its visible requirements, choose switching preferences, and select “Save and review.” Confirm one result appears with its audit and alternatives state.
+1. Enter each launch service with only the essential audit fields and select “Save and review.” Confirm general alternatives appear without completing optional questions.
 2. Add an unknown service and confirm the basic audit still works without catalogue claims.
 3. Edit an entry and confirm every saved answer is populated and the entry is updated without duplication.
 4. Change the service or product type and confirm irrelevant old requirements do not affect the new match.
 5. Leave optional questions unanswered and confirm they remain unanswered after save and edit.
-6. Simulate an unavailable alternatives endpoint and confirm the saved result remains with a Retry alternatives action.
+6. Simulate an unavailable catalogue and a separate request failure. Confirm each has accurate copy, the saved result remains, and Retry alternatives works.
 7. In a clean browser, confirm USD appears in every example and empty dashboard amount. Switch the global preference through EUR, GBP, and CHF and confirm examples, selected-currency dashboard totals, and untouched new-entry defaults update without a reload.
 8. Enter a partial price, switch the global preference, and confirm the unfinished entry keeps its current billing currency. Edit a saved CHF entry and confirm its amount and currency remain CHF unless explicitly changed.
 9. Add entries in multiple currencies and confirm FeeVeto shows separate original-currency subtotals, never a combined total, and never presents a missing selected-currency subtotal as zero.

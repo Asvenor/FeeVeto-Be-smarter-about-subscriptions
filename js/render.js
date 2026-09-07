@@ -1,6 +1,6 @@
 import { annualCost, estimatedCostPerUse, formatMoney, monthlyCost } from './calculations.js';
 import { CATEGORY_OPTIONS, CURRENCIES, IMPORTANCE_OPTIONS, optionLabel, USAGE_OPTIONS } from './config.js';
-import { officialDestination } from './alternativeProvider.js';
+import { officialDestination, recommendationRequestFor } from './alternativeProvider.js';
 import { evaluateSubscription } from './recommendationEngine.js';
 import { requirementLabel, supportedServiceFor } from './serviceCatalog.js';
 
@@ -37,10 +37,11 @@ function alternativeCard(item, serviceId) {
   const card = element('article', 'alternative-card');
   const heading = element('div', 'alternative-heading');
   heading.append(element('h4', '', `${item.productName} — ${item.planName}`), element('span', 'alternative-type', item.pricingLabel));
-  card.append(heading, element('p', `alternative-status ${item.matchStatus === 'confirmed' ? 'confirmed' : 'candidate'}`, item.matchLabel), element('p', '', item.description), element('p', 'alternative-match', item.whyMatches));
+  const statusClass = item.matchStatus === 'matched' ? 'matched' : item.matchStatus === 'general' ? 'general' : 'candidate';
+  card.append(heading, element('p', `alternative-status ${statusClass}`, item.matchLabel), element('p', '', item.description), element('p', 'alternative-match', item.whyMatches));
   const facts = element('dl', 'alternative-facts');
   const price = item.price || {};
-  let priceText = 'Unknown—check current pricing';
+  let priceText = 'Check current pricing';
   if (item.pricingModel === 'free' && price.amountMinor === 0) priceText = 'Free';
   else if (Number.isSafeInteger(price.amountMinor) && price.currency) {
     const interval = price.billingInterval === 'one_time' ? ' one-time' : price.billingInterval ? ` / ${price.billingInterval}` : '';
@@ -104,14 +105,22 @@ function subscriptionCard(item, result, alternativesState) {
   if (alternativesState) {
     const section = element('section', 'alternatives-section');
     section.append(element('h4', '', 'Curated alternatives'));
-    if (alternativesState.status === 'loading') section.append(element('p', 'empty-alternatives', 'Checking the private catalogue…'));
-    else if (alternatives.length) for (const alternative of alternatives) section.append(alternativeCard(alternative, service?.id));
-    else section.append(element('p', 'empty-alternatives', alternativesState.message || 'No verified alternative matches these requirements yet.'));
-    if (!alternativesState.requirementsComplete && service) {
-      section.append(element('p', 'verification-note', 'Some service requirements are unanswered. These are general candidates, not a confirmed match. Edit the subscription to complete the comparison.'));
-    }
-    if (service && alternativesState.status === 'ready' && alternativesState.accessScope === 'public') {
-      section.append(element('p', 'access-note', 'This public view can include suitable paid alternatives. Eligible owner and beta accounts also receive verified free-plan matches.'));
+    if (alternativesState.status === 'loading') {
+      section.append(element('p', 'empty-alternatives', 'Checking the private catalogue…'));
+    } else if (alternatives.length) {
+      if (alternativesState.state === 'general_suggestions') {
+        section.append(element('p', 'general-suggestions-note', 'These are general suggestions based on the information provided. Add your must-have features, device, and other preferences to help us find alternatives that fit you better.'));
+        if (alternativesState.missingDetails?.length) {
+          section.append(element('p', 'alternative-detail', `Most useful details to add: ${alternativesState.missingDetails.join(', ')}.`));
+        }
+        const improve = element('button', 'button button-secondary button-small', 'Improve my matches');
+        improve.type = 'button'; improve.dataset.action = 'improve'; improve.dataset.id = item.id;
+        improve.setAttribute('aria-label', `Improve alternative matches for ${item.name}`);
+        section.append(improve);
+      }
+      for (const alternative of alternatives) section.append(alternativeCard(alternative, service?.id));
+    } else {
+      section.append(element('p', alternativesState.state === 'access_restricted' ? 'access-note' : 'empty-alternatives', alternativesState.message || 'No accessible verified alternative meets the selected requirements.'));
     }
     card.append(section);
   }
@@ -122,7 +131,7 @@ function subscriptionCard(item, result, alternativesState) {
   const remove = element('button', 'text-button danger-text', 'Delete');
   remove.type = 'button'; remove.dataset.action = 'delete'; remove.dataset.id = item.id; remove.setAttribute('aria-label', `Delete ${item.name}`);
   actions.append(edit);
-  if (service && item.detailedReview) {
+  if (recommendationRequestFor(item)) {
     const retrying = alternativesState?.status === 'error';
     const alternativesButton = element('button', 'button button-secondary button-small', retrying ? 'Retry alternatives' : 'Refresh alternatives');
     alternativesButton.type = 'button'; alternativesButton.dataset.action = 'alternatives'; alternativesButton.dataset.id = item.id;

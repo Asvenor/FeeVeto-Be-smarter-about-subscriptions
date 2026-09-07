@@ -60,9 +60,17 @@ function nonOverlappingLists(features, unsupportedFeatures, unknownFeatures) {
 }
 
 export function normalizeRecommendationQuery(value) {
-  if (!value || typeof value !== 'object' || !SERVICE_IDS.includes(value.serviceId)) return null;
-  const service = serviceById(value.serviceId);
-  const requirementIds = new Set(service.requirements.map(([id]) => id));
+  if (!value || typeof value !== 'object') return null;
+  const service = SERVICE_IDS.includes(value.serviceId) ? serviceById(value.serviceId) : null;
+  const requestedProductType = PRODUCT_TYPE_IDS.includes(value.productType) ? value.productType : '';
+  const productType = service?.productType || requestedProductType;
+  if (!productType) return null;
+  const requirementIds = new Set(
+    SERVICE_IDS
+      .map(serviceById)
+      .filter((item) => item.productType === productType)
+      .flatMap((item) => item.requirements.map(([id]) => id)),
+  );
   const mustHave = stringList(value.mustHave).filter((id) => requirementIds.has(id));
   const niceToHave = stringList(value.niceToHave).filter((id) => requirementIds.has(id) && !mustHave.includes(id));
   const notNeeded = stringList(value.notNeeded).filter((id) => requirementIds.has(id) && !mustHave.includes(id) && !niceToHave.includes(id));
@@ -73,13 +81,13 @@ export function normalizeRecommendationQuery(value) {
   const rawStorage = value.storageRequiredGb;
   const storage = rawStorage === null || rawStorage === undefined || rawStorage === '' ? Number.NaN : Number(rawStorage);
   return {
-    serviceId: service.id,
-    productType: PRODUCT_TYPE_IDS.includes(value.productType) ? value.productType : service.productType,
+    serviceId: service?.id || '',
+    productType,
     mustHave,
     niceToHave,
     notNeeded,
     answeredRequirementCount: new Set([...mustHave, ...niceToHave, ...notNeeded]).size,
-    requirementCount: service.requirements.length,
+    requirementCount: requirementIds.size,
     country,
     platform,
     acceptAds: typeof value.acceptAds === 'boolean' ? value.acceptAds : null,
@@ -171,8 +179,9 @@ export function validateOffer(value) {
 }
 
 function compatibility(offer, query) {
-  if (!offer.relevantServices.includes(query.serviceId) || offer.productType !== query.productType) return null;
-  if (offer.providerServiceId === query.serviceId && offer.relationship !== 'downgrade') return null;
+  if (offer.productType !== query.productType) return null;
+  if (query.serviceId && !offer.relevantServices.includes(query.serviceId)) return null;
+  if (query.serviceId && offer.providerServiceId === query.serviceId && offer.relationship !== 'downgrade') return null;
 
   const verification = [];
   const supportedMustHave = [];
@@ -195,7 +204,7 @@ function compatibility(offer, query) {
   if (query.country) {
     if (offer.countryAvailability.status === 'limited' && !offer.countryAvailability.countries.includes(query.country)) return null;
     if (offer.countryAvailability.status === 'unknown') verification.push('Confirm availability in your country with the provider.');
-  } else if (offer.countryAvailability.status !== 'worldwide') verification.push('Add your country or confirm availability with the provider.');
+  }
 
   if (query.platform) {
     if (offer.platforms.length && !offer.platforms.includes(query.platform)) return null;
@@ -219,15 +228,22 @@ function compatibility(offer, query) {
   if (query.requiredTitle) verification.push(`Confirm that “${query.requiredTitle}” is currently available.`);
   if (query.requiredGame) verification.push(`Confirm that “${query.requiredGame}” is currently included on the required platform.`);
   if (query.specificSubject) verification.push(`Confirm a suitable ${query.specificSubject} course, level, outcomes, and assessment before switching.`);
-  if (query.answeredRequirementCount < query.requirementCount) verification.push('Some service requirements are unanswered.');
-
   const preferredMatches = query.niceToHave.filter((feature) => offer.features.includes(feature));
+  for (const feature of query.niceToHave) {
+    if (offer.unsupportedFeatures.includes(feature)) verification.push(`This option does not include the preference “${feature}”.`);
+    else if (!offer.features.includes(feature)) verification.push(`Confirm the preference “${feature}” with the provider.`);
+  }
+  if (!query.country) verification.push('Check availability in your country.');
+  if (!query.platform) verification.push('Confirm support for your device.');
+  if (query.productType === 'cloud_storage' && query.storageRequiredGb === null) {
+    verification.push('Check that this plan includes enough storage.');
+  }
   const switchingPenalty = offer.switchingDifficulty === 'complex'
     ? MATCH_WEIGHTS.SWITCHING_COMPLEX
     : offer.switchingDifficulty === 'moderate' ? MATCH_WEIGHTS.SWITCHING_MODERATE : 0;
   const rankScore = supportedMustHave.length * MATCH_WEIGHTS.MUST_HAVE
     + preferredMatches.length * MATCH_WEIGHTS.NICE_TO_HAVE
-    + (offer.providerServiceId === query.serviceId ? MATCH_WEIGHTS.SAME_SERVICE_DOWNGRADE : 0)
+    + (query.serviceId && offer.providerServiceId === query.serviceId ? MATCH_WEIGHTS.SAME_SERVICE_DOWNGRADE : 0)
     + offer.limitations.length * MATCH_WEIGHTS.LIMITATION
     + verification.length * MATCH_WEIGHTS.VERIFICATION_NEEDED
     + switchingPenalty;
@@ -235,7 +251,7 @@ function compatibility(offer, query) {
 }
 
 function relationshipFor(offer, query) {
-  return offer.providerServiceId === query.serviceId ? 'downgrade' : 'replacement';
+  return query.serviceId && offer.providerServiceId === query.serviceId ? 'downgrade' : 'replacement';
 }
 
 function pricingLabel(offer, query) {
@@ -245,14 +261,17 @@ function pricingLabel(offer, query) {
   return 'Paid alternative';
 }
 
-function resultFor(offer, query, match) {
+function resultFor(offer, query, match, tailored) {
   const supported = [...new Set([...match.supportedMustHave, ...match.preferredMatches])];
   const relationship = relationshipFor(offer, query);
   const why = supported.length
     ? `Supports ${supported.length} selected ${supported.length === 1 ? 'requirement' : 'requirements'} based on the verified plan record.`
     : relationship === 'downgrade'
       ? 'Keeps the same provider on a lower or free plan, subject to the limitations shown.'
-      : 'Addresses the same product type, but more information is needed before treating it as a confirmed fit.';
+      : tailored
+        ? 'Addresses the same product type and respects the explicit requirements provided so far.'
+        : 'Addresses the same product type as your current subscription; confirm the qualifications shown before switching.';
+  const confirmed = tailored && match.verification.length === 0;
   return {
     id: offer.id,
     productName: offer.productName,
@@ -260,8 +279,8 @@ function resultFor(offer, query, match) {
     pricingLabel: pricingLabel(offer, query),
     pricingModel: offer.pricingModel,
     relationship,
-    matchStatus: match.verification.length ? 'candidate' : 'confirmed',
-    matchLabel: match.verification.length ? 'Candidate—needs verification' : 'Confirmed against your answers',
+    matchStatus: tailored ? (confirmed ? 'matched' : 'candidate') : 'general',
+    matchLabel: tailored ? (confirmed ? 'Matches your selected needs' : 'Candidate—needs verification') : 'General suggestion',
     description: offer.description,
     whyMatches: why,
     supportedRequirements: supported,
@@ -280,30 +299,82 @@ function resultFor(offer, query, match) {
     },
     verifiedAt: offer.verifiedAt,
     officialUrl: offer.officialUrl,
-    actionLabel: offer.pricingModel === 'free' ? 'View free plan' : offer.pricingUrl ? 'Check current pricing' : 'Visit official website',
+    actionLabel: offer.pricingModel === 'free' ? 'View free plan' : offer.priceMinor === null || offer.pricingUrl ? 'Check current pricing' : 'Visit official website',
   };
+}
+
+function hasSelectedNeeds(query) {
+  return query.mustHave.length > 0
+    || query.niceToHave.length > 0
+    || Boolean(query.country || query.platform || query.requiredTitle || query.requiredGame || query.requiredServerCountry
+      || query.targetLanguage || query.learnerLevel || query.specificSubject)
+    || query.storageRequiredGb !== null
+    || [query.acceptAds, query.acceptFreeLimits, query.includePaid, query.includeFree].some((value) => typeof value === 'boolean');
+}
+
+function requirementAnswered(query, ids) {
+  const answered = new Set([...query.mustHave, ...query.niceToHave, ...query.notNeeded]);
+  return ids.some((id) => answered.has(id));
+}
+
+function missingDetailsFor(query) {
+  const details = [];
+  if (query.productType === 'cloud_storage') {
+    if (query.storageRequiredGb === null) details.push('Storage capacity');
+    if (!query.platform) details.push('Required device or platform');
+  } else if (query.productType === 'graphic_design') {
+    if (!requirementAnswered(query, ['social_graphics', 'presentations', 'templates', 'background_removal', 'one_click_resize', 'brand_assets'])) details.push('Main design tasks');
+    if (!requirementAnswered(query, ['team_collaboration'])) details.push('Collaboration needs');
+  } else if (query.productType === 'photo_editor') {
+    if (!requirementAnswered(query, ['psd_import_export'])) details.push('PSD or other file-format requirements');
+    if (!requirementAnswered(query, ['basic_adjustments', 'layers_masks', 'retouching', 'offline_desktop', 'batch_processing', 'professional_workflow'])) details.push('Editing and offline requirements');
+  } else if (query.productType === 'ai_assistant') {
+    if (!requirementAnswered(query, ['general_writing', 'coding_chat', 'document_analysis'])) details.push('Main assistant tasks');
+    if (!requirementAnswered(query, ['web_research', 'image_generation', 'ide_terminal_agent', 'high_usage_capacity'])) details.push('Required tools such as research, documents, or coding');
+  } else if (query.productType === 'streaming_video') {
+    if (!query.country) details.push('Country');
+    if (!query.requiredTitle && !requirementAnswered(query, ['films', 'series', 'specific_exclusives'])) details.push('Required shows or films');
+  } else {
+    if (!query.country) details.push('Country');
+    if (!query.platform) details.push('Required device or platform');
+    if (query.answeredRequirementCount === 0) details.push('Must-have features');
+  }
+  return details.slice(0, 3);
 }
 
 export function selectRecommendations(catalogue, rawQuery, { premiumAccess = false } = {}) {
   const query = normalizeRecommendationQuery(rawQuery);
-  if (!query) return { accessScope: premiumAccess ? 'complete' : 'public', items: [], message: 'Choose a supported service for curated alternatives.' };
+  const accessScope = premiumAccess ? 'complete' : 'public';
+  if (!query) return {
+    accessScope, state: 'unsupported', items: [], missingDetails: [],
+    message: 'Choose a supported service or a specific supported product type for curated alternatives.',
+  };
   const seen = new Set();
-  const matches = [];
+  const eligible = [];
   for (const rawOffer of Array.isArray(catalogue) ? catalogue : []) {
     const offer = validateOffer(rawOffer);
     if (!offer || seen.has(offer.id)) continue;
     seen.add(offer.id);
-    if (!premiumAccess && offer.pricingModel === 'free') continue;
     if (offer.pricingModel === 'free' && query.includeFree === false) continue;
     if (offer.pricingModel !== 'free' && query.includePaid === false) continue;
     const match = compatibility(offer, query);
-    if (match) matches.push({ offer, match });
+    if (match) eligible.push({ offer, match });
   }
+  const restrictedMatchExists = !premiumAccess && eligible.some(({ offer }) => offer.pricingModel === 'free');
+  const matches = premiumAccess ? eligible : eligible.filter(({ offer }) => offer.pricingModel !== 'free');
+  const tailored = hasSelectedNeeds(query);
   const items = matches
     .sort((left, right) => right.match.rankScore - left.match.rankScore || left.offer.productName.localeCompare(right.offer.productName))
     .slice(0, 3)
-    .map(({ offer, match }) => resultFor(offer, query, match));
-  let message = items.length ? '' : 'No verified alternative matches these requirements yet.';
-  if (!premiumAccess && !items.length) message += ' Sign in with eligible access to include free plans in the complete comparison.';
-  return { accessScope: premiumAccess ? 'complete' : 'public', items, message };
+    .map(({ offer, match }) => resultFor(offer, query, match, tailored));
+  let state = tailored ? 'matched_suggestions' : 'general_suggestions';
+  let message = '';
+  if (!items.length && restrictedMatchExists) {
+    state = 'access_restricted';
+    message = 'No alternatives are available in your current access level for these requirements.';
+  } else if (!items.length) {
+    state = 'no_matches';
+    message = 'No accessible verified alternative meets the requirements you selected. Review them to broaden the comparison if appropriate.';
+  }
+  return { accessScope, state, items, message, missingDetails: missingDetailsFor(query) };
 }
