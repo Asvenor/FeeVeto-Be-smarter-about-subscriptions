@@ -144,6 +144,9 @@ function subscriptionCard(item, result, alternativesState) {
   const remove = element('button', 'text-button danger-text', 'Delete');
   remove.type = 'button'; remove.dataset.action = 'delete'; remove.dataset.id = item.id; remove.setAttribute('aria-label', `Delete ${item.name}`);
   actions.append(edit);
+  const personalize = element('button','button button-secondary button-small','Find my best fit');
+  personalize.type='button'; personalize.dataset.action='personalize'; personalize.dataset.id=item.id;
+  personalize.setAttribute('aria-label',`Find the best fit for ${item.name}`); actions.append(personalize);
   if (recommendationRequestFor(item)) {
     const retrying = alternativesState?.status === 'error';
     const alternativesButton = element('button', 'button button-secondary button-small', retrying ? 'Retry alternatives' : 'Refresh alternatives');

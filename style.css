@@ -115,6 +115,27 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .alternative-sources a { display: inline-block; padding: .4rem .7rem .4rem 0; color: var(--color-green); }
 .coverage-note { grid-column: 1 / -1; color: var(--color-text-muted); font-size: .86rem; }
 .journey-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.3rem; }
+.guided-dialog { max-height: calc(100dvh - 1.5rem); padding-bottom: 0; }
+.guided-dialog h2 { font-size: clamp(1.75rem,4vw,2.5rem); }
+.guide-intro { color: var(--color-text-muted); margin-block: 1.2rem; }
+.guide-price { font-size: clamp(2rem,8vw,3.5rem); min-height: 88px; letter-spacing: -.05em; }
+#guide-content { display: grid; gap: 1rem; }
+.guide-question { display: grid; gap: .75rem; width: 100%; background: #fbfcfa; padding: 1rem; }
+.guide-question legend { font-size: 1rem; color: var(--color-text); }
+.choice-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .6rem; }
+.choice-card { display: flex; align-items: center; gap: .65rem; min-height: 54px; border: 1px solid var(--color-border); border-radius: 12px; padding: .8rem; background: white; cursor: pointer; }
+.choice-card:has(input:checked) { border-color: var(--color-green); background: var(--color-green-pale); color: var(--color-green-dark); }
+.prefilled-question summary { color: var(--color-green-dark); padding: .85rem; border: 1px solid var(--color-border); border-radius: 12px; font-weight: 750; }
+.prefilled-question[open] summary { margin-bottom: .8rem; }
+.guide-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .6rem; position: sticky; bottom: 0; z-index: 2; background: var(--color-surface); border-top: 1px solid var(--color-border); padding: 1rem 0 max(1rem,env(safe-area-inset-bottom)); margin-top: 1rem; }
+.guide-footer .button-primary { margin-left: auto; }
+.personal-audit { margin-top: 2.5rem; padding: clamp(1.2rem,3vw,2rem); border: 1px solid #bad8c3; border-radius: var(--radius-large); background: var(--color-green-pale); }
+.personal-audit h2 { font-size: clamp(1.8rem,4vw,3rem); }
+@media (max-width: 520px) {
+  .choice-grid { grid-template-columns: 1fr; }
+  .guide-footer { padding-bottom: max(.8rem,env(safe-area-inset-bottom)); }
+  .guided-dialog { width: calc(100% - .75rem); max-height: calc(100dvh - .75rem); }
+}
 
 .preview-card { position: relative; overflow: hidden; border: 1px solid #cadecf; border-radius: var(--radius-large); background: var(--color-surface); box-shadow: var(--shadow-soft); padding: clamp(1.3rem, 3vw, 2rem); }
 .preview-card::before { content: ""; position: absolute; width: 180px; height: 180px; top: -90px; right: -70px; border-radius: 50%; background: var(--color-green-light); opacity: .65; }

@@ -3,6 +3,7 @@ import { element, alternativeCard } from './render.js';
 import { parseIntent, normalizeJourneyDraft, changeJourneyService, journeyQuery, readJourneyDraft, writeJourneyDraft, MOTIVATIONS } from './journeyModel.js';
 import { requestJourneyAlternatives } from './journeyApi.js';
 import { AlternativeRequestTracker } from './alternativeProvider.js';
+import { initializeGuidedAudit } from './guidedAudit.js';
 
 export function initializeJourney({ getClerk, getCurrency, storage }) {
   const byId = id => document.getElementById(id);
@@ -28,6 +29,9 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   for (const [id, label] of PRODUCT_TYPES) typeSelect.append(new Option(label, id));
   for (const [id, label] of MOTIVATIONS) motivation.append(new Option(label, id));
   byId('intent-input').value = draft.originalRequest;
+  const guide = initializeGuidedAudit({getDraft:()=>draft,onChange(value){draft=value;persist();},onComplete:()=>runSearch({focus:true})});
+  byId('personalize-results').addEventListener('click',()=>guide.open());
+  byId('edit-assessment').addEventListener('click',()=>guide.open());
 
   function persist() {
     if (!writeJourneyDraft(storage, draft)) byId('journey-storage-status').textContent = 'Your answers are available in this tab, but could not be saved on this device.';
@@ -40,6 +44,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     byId('intent-country').value = draft.country;
     byId('intent-platform').value = draft.platform;
     byId('intent-original').textContent = draft.originalRequest ? `Your request: “${draft.originalRequest}”` : 'Choose the service or type you want to review.';
+    byId('personalize-results').hidden = !draft.productType;
     byId('intent-market').textContent = draft.country ? `Availability uses your country: ${draft.country}. Prices keep their original currency.`
       : `No country selected. ${getCurrency()} supplies a starting market; enter your country for a more precise check.`;
   }
@@ -143,5 +148,5 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     if (draft.productType) void runSearch();
   });
   if (draft.originalRequest || draft.productType) showUnderstood();
-  return { getDraft: () => draft, setDraft(value) { draft = normalizeJourneyDraft(value,getCurrency()); byId('intent-input').value = draft.originalRequest; showUnderstood(); persist(); }, runSearch };
+  return { getDraft: () => draft, setDraft(value) { guide.close(); draft = normalizeJourneyDraft(value,getCurrency()); byId('intent-input').value = draft.originalRequest; showUnderstood(); persist(); }, runSearch, openGuide:()=>guide.open() };
 }

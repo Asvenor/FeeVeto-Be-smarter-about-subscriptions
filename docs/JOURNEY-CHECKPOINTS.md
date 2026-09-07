@@ -34,3 +34,9 @@ Each phase is committed separately after its focused tests pass. Recovery is by 
 - Deterministic recognition supports known aliases and explicit facts. Multiple services request one clarification. Unrecognized text never fabricates a service. Original requests and draft answers use a new storage key; no protected result snapshots are saved in browser storage.
 - Shared existing alternative cards now expose checked features, compromises, billing basis, and official sources. Small catalogue coverage is stated honestly.
 - 54 focused tests and production build passed. Browser automation remains blocked by policy verification; no visual or live new-journey claim is made at this checkpoint.
+
+## Phase 3 — Optional guided audit (code checkpoint passed; browser check pending)
+
+- Added two stages: current spending (including Not sure), then six category-aware needs groups. Existing answers are prefilled and collapsed for optional correction. Back, close/reopen, unknown answers, and legacy detailed context are preserved.
+- Existing subscription cards can enter the same guided flow without changing the original saved record. The original subscription form remains available.
+- 18 focused model/form tests and production build passed. Desktop/mobile keyboard and dialog behavior still require browser verification; the policy error remains a release limitation.

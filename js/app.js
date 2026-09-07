@@ -11,6 +11,7 @@ import { initializeAuth } from './auth.js';
 import { fetchAccessStatus, ORDINARY_ACCESS } from './access.js';
 import { beginPremiumCheckout, CheckoutRequestError, premiumPrice } from './billing.js';
 import { initializeJourney } from './journey.js';
+import { journeyFromSubscription } from './journeyModel.js';
 
 document.title = `${APP_CONFIG.brandName} — ${APP_CONFIG.slogan}`;
 document.querySelector('meta[name="description"]')?.setAttribute('content', APP_CONFIG.description);
@@ -462,6 +463,10 @@ elements.list.addEventListener('click', (event) => {
   if (!target) return;
   if (target.dataset.action === 'edit') beginEdit(target.dataset.id);
   if (target.dataset.action === 'improve') beginEdit(target.dataset.id);
+  if (target.dataset.action === 'personalize') {
+    const item=state.subscriptions.find(entry=>entry.id===target.dataset.id);
+    if(item){journey?.setDraft(journeyFromSubscription(item,state.auditCurrency));journey?.openGuide();}
+  }
   if (target.dataset.action === 'alternatives') {
     const item = state.subscriptions.find((entry) => entry.id === target.dataset.id);
     if (item) void refreshAlternatives(item, true);

@@ -74,7 +74,8 @@
         <p id="intent-status" class="journey-status" role="status" tabindex="-1">Describe your need above to see your first suggestions.</p>
         <p id="journey-storage-status" class="field-help" role="status"></p>
         <div id="instant-results" class="instant-results"></div>
-        <div class="journey-actions"><button id="intent-retry" class="button button-secondary" type="button" hidden>Retry suggestions</button><button id="intent-more" class="button button-secondary" type="button" hidden>Explore more options</button></div>
+        <div class="journey-actions"><button id="personalize-results" class="button button-primary" type="button" hidden>Find my best fit</button><button id="intent-retry" class="button button-secondary" type="button" hidden>Retry suggestions</button><button id="intent-more" class="button button-secondary" type="button" hidden>Explore more options</button></div>
+        <section id="personal-audit" class="personal-audit" aria-labelledby="personal-audit-title" hidden><h2 id="personal-audit-title" tabindex="-1">Your personal audit</h2><div id="personal-audit-content"></div><p id="assessment-status" class="journey-status" role="status"></p><div class="journey-actions"><button id="retry-assessment" class="button button-secondary" type="button" hidden>Retry my audit</button><button id="edit-assessment" class="button button-secondary" type="button">Update my answers</button></div></section>
       </section>
 
       <section id="audit" class="audit-section section-shell" aria-labelledby="audit-title">
@@ -235,6 +236,7 @@
     <footer class="site-footer"><div class="section-shell footer-inner"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a><p>Keep, switch, or cancel with confidence.</p><nav aria-label="Footer"><a href="./privacy.html">Privacy</a><a href="https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions">Source</a><span>by asvenor</span></nav></div></footer>
 
     <dialog id="clear-dialog" class="dialog confirm-dialog" aria-labelledby="clear-title"><form method="dialog"><h2 id="clear-title">Clear this audit?</h2><p>This removes every subscription from this browser. Export a backup first if you may need it later.</p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Keep my audit</button><button id="confirm-clear" class="button button-danger" value="confirm">Clear audit</button></div></form></dialog>
+    <dialog id="guided-audit" class="dialog guided-dialog" aria-labelledby="guide-title" aria-describedby="guide-progress"><form id="guided-form"><div class="dialog-heading"><div><p id="guide-progress" class="eyebrow"></p><h2 id="guide-title" tabindex="-1"></h2></div><button id="guide-close" class="icon-button" type="button" aria-label="Close and keep my draft">×</button></div><div id="guide-content"></div><p id="guide-error" class="field-error" role="alert" tabindex="-1"></p><div class="guide-footer"><button id="guide-back" class="button button-secondary" type="button">Back</button><button id="guide-next" class="button button-primary" type="submit">Continue to my needs</button></div></form></dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden><span id="toast-message"></span><button id="toast-action" class="toast-action" type="button" hidden></button></div>
     <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
     <script type="module" src="./js/app.js"></script>
