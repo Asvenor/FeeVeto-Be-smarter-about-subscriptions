@@ -125,6 +125,9 @@ test('one global currency preference drives structured examples and new-entry de
   assert.doesNotMatch(html, /CHF\s*[0-9]/);
   assert.doesNotMatch(html, /id="audit-currency"/);
   assert.match(app, /renderIllustrativeMoney/);
+  assert.match(app, /getAlternatives\(item, token, state\.auditCurrency\)/);
+  assert.match(html, /market used for alternatives/);
+  assert.match(html, /entered country overrides/);
   assert.match(privacy, /id="page-currency-preference"/);
   assert.match(privacy, /js\/currencyPage\.js/);
 });

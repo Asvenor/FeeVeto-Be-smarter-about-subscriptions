@@ -1,7 +1,7 @@
 import { APP_CONFIG } from './config.js';
 import { fromMinorUnits } from './calculations.js';
 import { fillCurrencyOptions, renderIllustrativeMoney, shouldApplyCurrencyDefault, validCurrencyPreference } from './currencyPreference.js';
-import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider } from './alternativeProvider.js';
+import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider, recommendationRequestFor } from './alternativeProvider.js';
 import { buildDetailedReview, categoryForProductType, upsertSubscription } from './formModel.js';
 import { renderDashboard } from './render.js';
 import { detectSupportedService, matchingProfileFor, PRODUCT_TYPES, serviceById, supportedServiceFor, SUPPORTED_SERVICES } from './serviceCatalog.js';
@@ -332,7 +332,7 @@ async function refreshAlternatives(item, focus = false) {
   try {
     const clerk = await clerkPromise;
     const token = await clerk?.session?.getToken?.() || '';
-    const result = await alternativesProvider.getAlternatives(item, token);
+    const result = await alternativesProvider.getAlternatives(item, token, state.auditCurrency);
     if (!isCurrent() || !state.subscriptions.some((entry) => entry.id === item.id && entry.updatedAt === item.updatedAt)) return;
     if (result.accessScope === 'public') {
       for (const [resultId, cached] of alternativeResults) {
@@ -453,9 +453,14 @@ elements.currencyPreference.addEventListener('change', () => {
     elements.form.elements.currency.value = state.auditCurrency;
     elements.priceCurrency.textContent = state.auditCurrency;
   }
-  persist(); render();
+  persist();
+  invalidateAllAlternativeRequests();
+  render();
+  for (const item of state.subscriptions) {
+    if (recommendationRequestFor(item, state.auditCurrency)) void refreshAlternatives(item);
+  }
   const formNote = updatedEntryDefault ? 'The next new entry defaults to it.' : 'The currency on the current form was left unchanged.';
-  showToast(`Examples and ${state.auditCurrency} dashboard totals updated. ${formNote} Existing prices were not converted.`);
+  showToast(`Examples and ${state.auditCurrency} dashboard totals updated. Alternatives are updating for that market. ${formNote} Existing prices were not converted.`);
 });
 elements.cancelEdit.addEventListener('click', () => { resetForm(); elements.form.elements.name.focus(); });
 elements.clearAll.addEventListener('click', () => elements.clearDialog.showModal());
@@ -533,6 +538,10 @@ window.addEventListener('storage', (event) => {
     elements.form.elements.currency.value = nextCurrency;
     elements.priceCurrency.textContent = nextCurrency;
   }
+  invalidateAllAlternativeRequests();
   render();
-  announce(`Display currency changed to ${nextCurrency}. Existing billing currencies were not changed.`);
+  for (const item of state.subscriptions) {
+    if (recommendationRequestFor(item, state.auditCurrency)) void refreshAlternatives(item);
+  }
+  announce(`Display currency changed to ${nextCurrency}. Alternatives are updating for that market; existing billing currencies were not changed.`);
 });

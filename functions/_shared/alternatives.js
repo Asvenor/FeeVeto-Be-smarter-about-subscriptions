@@ -1,3 +1,4 @@
+import { CURRENCIES } from '../../js/config.js';
 import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById } from '../../js/serviceCatalog.js';
 
 const PRICING_MODELS = new Set(['free', 'subscription', 'one_time']);
@@ -8,6 +9,15 @@ const AVAILABILITY = new Set(['worldwide', 'limited', 'unknown']);
 const SWITCHING_DIFFICULTIES = new Set(['easy', 'moderate', 'complex', 'unknown']);
 const LEARNER_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
 const PLATFORMS = new Set(['web', 'windows', 'macos', 'linux', 'ios', 'android', 'smart_tv', 'game_console']);
+
+// The display currency provides a conservative market default when the user has
+// not supplied a country. An explicit country always takes precedence.
+export const MARKET_COUNTRIES_BY_CURRENCY = Object.freeze({
+  USD: Object.freeze(['US']),
+  EUR: Object.freeze(['AT', 'BE', 'BG', 'HR', 'CY', 'EE', 'FI', 'FR', 'DE', 'GR', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PT', 'SK', 'SI', 'ES']),
+  GBP: Object.freeze(['GB']),
+  CHF: Object.freeze(['CH', 'LI']),
+});
 
 export const MATCH_WEIGHTS = Object.freeze({
   MUST_HAVE: 40,
@@ -75,6 +85,7 @@ export function normalizeRecommendationQuery(value) {
   const niceToHave = stringList(value.niceToHave).filter((id) => requirementIds.has(id) && !mustHave.includes(id));
   const notNeeded = stringList(value.notNeeded).filter((id) => requirementIds.has(id) && !mustHave.includes(id) && !niceToHave.includes(id));
   const country = /^[A-Za-z]{2}$/.test(text(value.country, 2)) ? text(value.country, 2).toUpperCase() : '';
+  const marketCurrency = CURRENCIES.includes(value.marketCurrency) ? value.marketCurrency : '';
   const requiredServerCountry = /^[A-Za-z]{2}$/.test(text(value.requiredServerCountry, 2))
     ? text(value.requiredServerCountry, 2).toUpperCase() : '';
   const platform = PLATFORMS.has(value.platform) ? value.platform : '';
@@ -89,6 +100,7 @@ export function normalizeRecommendationQuery(value) {
     answeredRequirementCount: new Set([...mustHave, ...niceToHave, ...notNeeded]).size,
     requirementCount: requirementIds.size,
     country,
+    marketCurrency,
     platform,
     acceptAds: typeof value.acceptAds === 'boolean' ? value.acceptAds : null,
     acceptFreeLimits: typeof value.acceptFreeLimits === 'boolean' ? value.acceptFreeLimits : null,
@@ -201,9 +213,17 @@ function compatibility(offer, query) {
   if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits === false) return null;
   if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits === null) verification.push('Confirm that the free-plan limits are acceptable.');
 
-  if (query.country) {
-    if (offer.countryAvailability.status === 'limited' && !offer.countryAvailability.countries.includes(query.country)) return null;
-    if (offer.countryAvailability.status === 'unknown') verification.push('Confirm availability in your country with the provider.');
+  const marketCountries = query.country
+    ? [query.country]
+    : MARKET_COUNTRIES_BY_CURRENCY[query.marketCurrency] || [];
+  if (marketCountries.length) {
+    if (offer.countryAvailability.status === 'limited'
+      && !offer.countryAvailability.countries.some((country) => marketCountries.includes(country))) return null;
+    if (offer.countryAvailability.status === 'unknown') {
+      verification.push(query.country
+        ? 'Confirm availability in your country with the provider.'
+        : `Confirm availability in the market associated with ${query.marketCurrency}.`);
+    }
   }
 
   if (query.platform) {
@@ -233,7 +253,7 @@ function compatibility(offer, query) {
     if (offer.unsupportedFeatures.includes(feature)) verification.push(`This option does not include the preference “${feature}”.`);
     else if (!offer.features.includes(feature)) verification.push(`Confirm the preference “${feature}” with the provider.`);
   }
-  if (!query.country) verification.push('Check availability in your country.');
+  if (!query.country && !query.marketCurrency) verification.push('Check availability in your country.');
   if (!query.platform) verification.push('Confirm support for your device.');
   if (query.productType === 'cloud_storage' && query.storageRequiredGb === null) {
     verification.push('Check that this plan includes enough storage.');

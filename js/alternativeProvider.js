@@ -1,3 +1,4 @@
+import { CURRENCIES } from './config.js';
 import { PRODUCT_TYPE_IDS, supportedServiceFor } from './serviceCatalog.js';
 
 const RESULT_STATES = new Set([
@@ -51,7 +52,7 @@ export class AlternativesProvider {
   }
 }
 
-export function recommendationRequestFor(subscription) {
+export function recommendationRequestFor(subscription, marketCurrency = '') {
   const review = subscription?.detailedReview || {};
   const service = supportedServiceFor(subscription);
   const productType = PRODUCT_TYPE_IDS.includes(review.productType) ? review.productType : service?.productType;
@@ -60,6 +61,7 @@ export function recommendationRequestFor(subscription) {
   return {
     serviceId: applicableService?.id || '',
     productType,
+    marketCurrency: CURRENCIES.includes(marketCurrency) ? marketCurrency : '',
     mustHave: Array.isArray(review.mustHaveRequirements) ? review.mustHaveRequirements : [],
     niceToHave: Array.isArray(review.niceToHaveRequirements) ? review.niceToHaveRequirements : [],
     notNeeded: Array.isArray(review.notNeededRequirements) ? review.notNeededRequirements : [],
@@ -107,8 +109,8 @@ export class BackendAlternativesProvider extends AlternativesProvider {
     this.fetchImplementation = fetchImplementation;
   }
 
-  async getAlternatives(subscription, token = '') {
-    const query = recommendationRequestFor(subscription);
+  async getAlternatives(subscription, token = '', marketCurrency = '') {
+    const query = recommendationRequestFor(subscription, marketCurrency);
     if (!query) return {
       accessScope: 'public', state: 'unsupported', items: [], missingDetails: [],
       message: 'This service or use case is not supported for curated alternatives yet. The basic audit is still available.',

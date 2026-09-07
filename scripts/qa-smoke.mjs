@@ -19,9 +19,11 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   let failure = false;
   let requests = 0;
+  const requestMarkets = [];
   await page.route('**/api/alternatives/recommendations', async (route) => {
     requests += 1;
     const source = route.request();
+    requestMarkets.push(JSON.parse(source.postData() || '{}').marketCurrency);
     const response = await handleRecommendationsRequest({ request: new Request(source.url(), { method: 'POST', headers: source.headers(), body: source.postData() }) }, {
       catalogueLoader: async () => { if (failure) throw new CatalogueConfigurationError('Test outage'); return fixture; },
     });
@@ -39,6 +41,7 @@ try {
   assert.equal(await page.locator('[name="currency"]').inputValue(), 'USD');
   await page.locator('#submit-button').click();
   await page.locator('.general-suggestions-note').waitFor();
+  assert.equal(requestMarkets.at(-1), 'EUR');
   assert.equal((await saved()).subscriptions.length, 1);
   assert.equal((await saved()).subscriptions[0].currency, 'USD');
   assert.match(await page.locator('.alternative-card').innerText(), /Check current pricing/);
@@ -176,6 +179,7 @@ try {
   const brokenAnchors = await page.locator('a[href^="#"]').evaluateAll((links) => links.filter((link) => !document.getElementById(link.hash.slice(1))).map((link) => link.hash));
   assert.deepEqual(brokenAnchors, []);
   assert.deepEqual(errors, []);
+  assert.ok(['USD', 'EUR', 'GBP', 'CHF'].every((currency) => requestMarkets.includes(currency)), 'Each display currency should trigger a market-aware request');
   const storageContext = await browser.newContext();
   await storageContext.addInitScript(() => { Storage.prototype.setItem = () => { throw new Error('Test quota failure'); }; });
   const storagePage = await storageContext.newPage();
