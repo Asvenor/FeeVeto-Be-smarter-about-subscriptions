@@ -5,6 +5,7 @@ import { requestJourneyAlternatives,journeyRequest } from './journeyApi.js';
 import { AlternativeRequestTracker } from './alternativeProvider.js';
 import { initializeGuidedAudit } from './guidedAudit.js';
 import { renderAssessment } from './assessmentView.js';
+import { initializeSavedAudits } from './savedAudits.js';
 
 export function initializeJourney({ getClerk, getCurrency, storage }) {
   const byId = id => document.getElementById(id);
@@ -19,6 +20,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   let abort;
   let assessment = null;
   let assessmentRevision = 0;
+  let account;
   const requests = new AlternativeRequestTracker();
   const correction = byId('intent-correction');
   const results = byId('instant-results');
@@ -32,14 +34,24 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   for (const [id, label] of PRODUCT_TYPES) typeSelect.append(new Option(label, id));
   for (const [id, label] of MOTIVATIONS) motivation.append(new Option(label, id));
   byId('intent-input').value = draft.originalRequest;
-  const guide = initializeGuidedAudit({getDraft:()=>draft,onChange(value){if(JSON.stringify(value)!==JSON.stringify(draft))invalidateAssessment();draft=value;persist();},onComplete:()=>runAssessment()});
+  const guide = initializeGuidedAudit({getDraft:()=>draft,onChange(value){if(JSON.stringify(value)!==JSON.stringify(draft)){invalidateAssessment();account?.draftChanged();}draft=value;persist();},onComplete:()=>runAssessment()});
   byId('personalize-results').addEventListener('click',()=>guide.open());
   byId('edit-assessment').addEventListener('click',()=>guide.open());
   byId('retry-assessment').addEventListener('click',()=>void runAssessment());
+  let tabStorage;try{tabStorage=window.sessionStorage;}catch{}
+  account=initializeSavedAudits({getClerk,getValue:()=>({draft,assessment,marketCurrency:getCurrency()}),sessionStorage:tabStorage,onOpen(value){
+    guide.close();draft=normalizeJourneyDraft(value.draft);persist();showUnderstood();byId('intent-input').value=draft.originalRequest;
+    assessmentRevision++;assessment=value.assessment;byId('personal-audit').hidden=false;
+    if(assessment)renderAssessment(byId('personal-audit-content'),assessment);else byId('personal-audit-content').replaceChildren(element('p','',value.message));
+    byId('assessment-status').textContent='Historical assessment. Use Reevaluate to check current information and save a new dated result.';
+    account.hideSave();byId('personal-audit-title').focus();
+  }});
 
   function invalidateAssessment() {
     assessmentRevision++; assessment=null;
     byId('personal-audit').hidden=true;
+    byId('personal-audit-content').replaceChildren();
+    account?.hideSave();
   }
   async function runAssessment() {
     persist();const revision=++assessmentRevision;
@@ -52,6 +64,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       const value=await journeyRequest('assessment',{token,body:input});
       if(revision!==assessmentRevision)return;
       assessment=value.assessment;renderAssessment(byId('personal-audit-content'),assessment);
+      account.assessmentReady();
       byId('assessment-status').textContent='Your personal assessment is ready. It has not been saved to an account yet.';
       byId('retry-assessment').hidden=!['catalogue_unavailable','request_failed'].includes(assessment.alternatives.state);
     }catch(error){if(revision!==assessmentRevision)return;byId('assessment-status').textContent=error.message;byId('retry-assessment').hidden=false;}
@@ -133,7 +146,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     if (!input.value.trim()) { input.setCustomValidity('Describe what you would like to change.'); input.reportValidity(); return; }
     input.setCustomValidity('');
     const parsed = parseIntent(input.value, getCurrency());
-    draft = parsed.draft; limit = 3; filter = 'all';
+    account.draftChanged({newAudit:true});draft = parsed.draft; limit = 3; filter = 'all';
     if (parsed.candidates.length > 1) {
       requests.invalidateAll(); abort?.abort(); busy = false; result = null;
       showUnderstood(); persist(); renderResult();
@@ -146,14 +159,15 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   for (const button of document.querySelectorAll('[data-example-intent]')) button.addEventListener('click', () => {
     byId('intent-input').value = button.dataset.exampleIntent; searchForm.requestSubmit();
   });
-  serviceSelect.addEventListener('change', () => { draft = changeJourneyService(draft, serviceSelect.value, typeSelect.value); limit = 3; void runSearch(); });
-  typeSelect.addEventListener('change', () => { draft = changeJourneyService(draft, '', typeSelect.value); limit = 3; void runSearch(); });
+  serviceSelect.addEventListener('change', () => { account.draftChanged();draft = changeJourneyService(draft, serviceSelect.value, typeSelect.value); limit = 3; void runSearch(); });
+  typeSelect.addEventListener('change', () => { account.draftChanged();draft = changeJourneyService(draft, '', typeSelect.value); limit = 3; void runSearch(); });
   correction.addEventListener('submit', event => {
     event.preventDefault();
     const country = byId('intent-country');
     country.value = country.value.trim().toUpperCase();
     if (!country.checkValidity()) { country.reportValidity(); return; }
     draft = normalizeJourneyDraft({...draft,motivation:motivation.value,country:country.value,platform:byId('intent-platform').value},getCurrency());
+    account.draftChanged();
     limit = 3; void runSearch();
   });
   byId('intent-filters').addEventListener('click', event => {
@@ -174,5 +188,5 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     if (draft.productType) void runSearch();
   });
   if (draft.originalRequest || draft.productType) showUnderstood();
-  return { getDraft: () => draft, setDraft(value) { guide.close(); draft = normalizeJourneyDraft(value,getCurrency()); byId('intent-input').value = draft.originalRequest; showUnderstood(); persist(); }, runSearch, openGuide:()=>guide.open() };
+  return { getDraft: () => draft, setDraft(value) { guide.close();account.draftChanged({newAudit:true});invalidateAssessment();draft = normalizeJourneyDraft(value,getCurrency()); byId('intent-input').value = draft.originalRequest; showUnderstood(); persist(); }, runSearch, openGuide:()=>guide.open() };
 }

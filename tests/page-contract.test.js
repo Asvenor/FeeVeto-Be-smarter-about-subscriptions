@@ -45,12 +45,13 @@ test('old product name is not visible in page copy or metadata', async () => {
   assert.doesNotMatch(withoutUrls, /SubKiller/i);
 });
 
-test('privacy page uses precise local storage wording', async () => {
+test('privacy distinguishes local subscriptions from opt-in account assessments', async () => {
   const html = await readFile(new URL('privacy.html', root), 'utf8');
-  assert.match(html, /stored locally in this browser/i);
-  assert.match(html, /not attached to your Clerk account/i);
+  assert.match(html, /original subscription list stays in this browser/i);
+  assert.match(html, /Signing in alone does not upload the local list/i);
   assert.match(html, /does not send the subscription name, entered price, private notes, calculated totals, or your full subscription list/i);
-  assert.match(html, /private-browsing mode/i);
+  assert.match(html, /Choosing Save this audit stores those answers/i);
+  assert.match(html, /Protected comparison snapshots are not stored in local or session storage/i);
   assert.match(html, /Clerk for optional authentication/i);
 });
 

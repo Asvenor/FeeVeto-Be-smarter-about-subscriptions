@@ -47,3 +47,10 @@ Each phase is committed separately after its focused tests pass. Recovery is by 
 - Same-currency monthly/annual comparisons retain upfront commitment warnings. Unknown, introductory, variable, one-time, and cross-currency prices do not generate recurring savings claims. Feature evidence, missing answers, sources, versions, and assessment date are shown.
 - Catalogue failure still returns the user's basic assessment with a distinct unavailable state and retry. Request bodies are bounded while streaming, not just by a declared size.
 - 24 focused assessment/matching/legacy-engine tests and production build passed. A test-fixture relationship error was corrected before the checkpoint. Browser integration remains pending.
+
+## Phase 5 — Account-owned history (code checkpoint passed)
+
+- Added an additive D1 assessment-history table and authenticated list/open/save endpoints. The server recomputes permitted snapshots, constrains every read/write to the verified account, deduplicates retries, and appends reevaluations.
+- Added opt-in saving through existing Clerk sign-in, tab-local pending-save recovery, saved-audit listing, reopening, and dated history. Restricted history stays protected after entitlement removal. Original local storage is unchanged.
+- 26 focused checks and production build passed, including a connected DOM test using actual request handlers and SQLite: guest search, guide back/close/reopen, assessment, simulated sign-in, save failure/retry, reopening, and append-only reevaluation. Tests use a fictional fixture, never the production-facing catalogue. Real Clerk sign-in and visual/mobile browser behavior remain unverified.
+- A full-suite check identified outdated privacy-copy assertions; these were updated to require the new opt-in storage distinction, not removed. Privacy copy and release instructions now describe exactly when data leaves the browser.

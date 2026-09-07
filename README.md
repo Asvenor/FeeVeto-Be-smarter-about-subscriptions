@@ -79,11 +79,11 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains one global display-currency preference and subscriptions, including each entry's original billing currency and optional adaptive-form answers. The existing `auditCurrency` field remains the persisted preference name for backup compatibility. New visitors default to USD. Existing valid preferences, imported backups, legacy preferences, saved amounts, and saved billing currencies are preserved. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
-No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When a supported service is saved or its alternatives are retried, the browser sends only a supported service ID, product type, structured requirements, an optional country, the selected display currency as a market hint, platform, applicable title/game/server-country/language/level/subject constraints, free/paid choices, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
+No analytics are included. The original local-list matching path sends only structured requirements, not the local name, price, notes, totals, or full list. Instant discovery also sends structured requirements, optional budget, switching tolerance, and market context. Personal assessment additionally sends the original request, current spending, and guided answers for server calculation. Only an explicit account save stores an assessment in D1. No full subscription list is uploaded automatically. See [journey release notes](docs/JOURNEY-RELEASE.md) for privacy, storage, and verification boundaries.
 
 ## Authentication
 
-Clerk provides optional account creation, sign-in, profile management, and sign-out. Authentication is deliberately separate from the subscription audit: signing in does not upload, attach, or synchronize audit entries. The browser loads ClerkJS and Clerk UI from the application’s Clerk Frontend API domain, following Clerk’s official script-tag integration. The build accepts `VITE_CLERK_PUBLISHABLE_KEY` or the Clerk CLI’s `CLERK_PUBLISHABLE_KEY` and injects only that public value; no Clerk secret is used in browser code.
+Clerk provides optional account creation, sign-in, profile management, and sign-out. Signing in alone does not upload or synchronize the local subscription list. An explicit pending Save this audit resumes after sign-in; account endpoints verify Clerk ownership before reading or writing any assessment. The browser loads ClerkJS and Clerk UI from the application’s Clerk Frontend API domain. The build accepts `VITE_CLERK_PUBLISHABLE_KEY` or `CLERK_PUBLISHABLE_KEY` and injects only that public value; no Clerk secret is used in browser code.
 
 The repository includes `.env.example` as a safe template. Local credentials belong in `.env.local`, which is ignored by Git. The project is linked to Clerk application `app_3IxBTR7IHayTnEm7oToPCrk8yNL` through the Clerk CLI.
 
@@ -248,9 +248,10 @@ Do not add payment, analytics, or API credentials to frontend files.
 
 ## Current limitations
 
-- Data remains in one browser unless manually exported and imported.
-- No bank connection, automatic detection, automatic cancellation, or cloud sync
-- Accounts authenticate identity only; audits still remain in one browser
+- The original subscription list remains browser-local unless manually exported/imported. Account assessments are opt-in and separate, not automatic list synchronization.
+- No bank connection, automatic subscription detection, or automatic cancellation
+- Natural-language recognition is a deterministic supported-service parser, not a general AI model. Correct the understood service, motivation, country, and device when necessary.
+- Account history currently has no self-service deletion/export interface; local exports cover only the original subscription list.
 - No live currency conversion; real amounts retain their original currencies and mixed-currency audits use separate subtotals
 - No notification delivery when the page is closed
 - Catalogue coverage is curated and intentionally incomplete; unsupported products and unverified use cases return an honest no-match state
@@ -263,7 +264,7 @@ Do not add payment, analytics, or API credentials to frontend files.
 
 The catalogue is deliberately curated rather than API-driven. A later administration workflow can update the same private KV schema without changing matching or rendering. Paid Stripe entitlements remain separate from complimentary Clerk metadata.
 
-Cloud sync, live provider pricing, external search, and AI-generated recommendations remain outside this release. Connecting the full audit to an account would require a separate privacy review and secure backend design.
+The provider boundary is `functions/_shared/catalogue-provider.js`. A future optional provider can supply the same checked schema to the existing authorization and ranking pipeline. Live provider pricing, external search, AI-generated recommendations, and automatic full-list cloud sync remain outside this release.
 
 ## License
 

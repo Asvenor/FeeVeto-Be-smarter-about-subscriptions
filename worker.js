@@ -5,11 +5,13 @@ import { handlePremiumStatusRequest } from './functions/api/premium/status.js';
 import { handleCheckoutRequest } from './functions/api/billing/checkout.js';
 import { handleWebhookRequest } from './functions/api/billing/webhook.js';
 import { handleAssessmentRequest } from './functions/api/assessment.js';
+import { handleAuditsRequest } from './functions/api/audits.js';
 import { json } from './functions/_shared/http.js';
 
 const API_ROUTES = Object.freeze({
   '/api/access': handleAccessRequest,
   '/api/assessment': handleAssessmentRequest,
+  '/api/audits': handleAuditsRequest,
   '/api/admin/status': handleAdminStatusRequest,
   '/api/alternatives/recommendations': handleRecommendationsRequest,
   '/api/premium/status': handlePremiumStatusRequest,
