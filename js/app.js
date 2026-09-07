@@ -4,7 +4,7 @@ import { fillCurrencyOptions, renderIllustrativeMoney, shouldApplyCurrencyDefaul
 import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider } from './alternativeProvider.js';
 import { buildDetailedReview, categoryForProductType, upsertSubscription } from './formModel.js';
 import { renderDashboard } from './render.js';
-import { detectSupportedService, PRODUCT_TYPES, serviceById, SUPPORTED_SERVICES } from './serviceCatalog.js';
+import { detectSupportedService, matchingProfileFor, PRODUCT_TYPES, serviceById, supportedServiceFor, SUPPORTED_SERVICES } from './serviceCatalog.js';
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
@@ -51,7 +51,9 @@ function invalidateAllAlternativeRequests() {
 }
 
 function persist() {
-  if (!saveState(browserStorage, state)) showToast('Your changes work for now, but this browser could not save them.');
+  const saved = saveState(browserStorage, state);
+  byId('storage-warning').hidden = saved;
+  if (!saved) showToast('Your changes work for now, but this browser could not save them.');
 }
 
 function render() {
@@ -110,14 +112,14 @@ function adaptiveErrors(formData) {
   const storage = String(formData.get('storageRequiredGb') || '').trim();
   const requiredServerCountry = String(formData.get('requiredServerCountry') || '').trim();
   if (serviceId && !productType) errors.productType = 'Choose the product type for this supported service.';
-  if (serviceId && country && !/^[A-Za-z]{2}$/.test(country)) errors.country = 'Use a two-letter country code, such as CH.';
+  if (productType && country && !/^[A-Za-z]{2}$/.test(country)) errors.country = 'Use a two-letter country code, such as US.';
   if (productType === 'cloud_storage' && storage && (!Number.isFinite(Number(storage)) || Number(storage) < 0 || Number(storage) > 100_000)) errors.storageRequiredGb = 'Enter storage from 0 to 100,000 GB.';
   if (productType === 'vpn' && requiredServerCountry && !/^[A-Za-z]{2}$/.test(requiredServerCountry)) errors.requiredServerCountry = 'Use a two-letter country code, such as US.';
   return errors;
 }
 
 function setRadio(name, value) {
-  for (const input of elements.form.querySelectorAll(`[name="${name}"]`)) input.checked = typeof value === 'boolean' && input.value === String(value);
+  for (const input of elements.form.querySelectorAll(`[name="${name}"]`)) input.checked = input.value === (typeof value === 'boolean' ? String(value) : '');
 }
 
 function fillAlternativeSelectors() {
@@ -140,20 +142,31 @@ function captureRequirementDraft() {
   requirementDrafts.set(renderedRequirementServiceId, draft);
 }
 
-function renderRequirementQuestions(serviceId, initialReview = null) {
+function renderRequirementQuestions(service, initialReview = null) {
+  const serviceId = service?.id || '';
   renderedRequirementServiceId = serviceId;
   elements.requirementQuestions.replaceChildren();
-  const service = serviceById(serviceId);
   if (!service) return;
   const saved = initialReview || requirementDrafts.get(serviceId) || {};
   const mustHave = new Set(saved.mustHaveRequirements || []);
   const niceToHave = new Set(saved.niceToHaveRequirements || []);
   const notNeeded = new Set(saved.notNeededRequirements || []);
+  // Migrate the older duplicate advertisement answer into the one visible priority.
+  if (!mustHave.has('ad_free') && !niceToHave.has('ad_free') && !notNeeded.has('ad_free')) {
+    if (saved.acceptAds === false) mustHave.add('ad_free');
+    if (saved.acceptAds === true || saved.categoryAnswers?.adSupportedPlan === true) notNeeded.add('ad_free');
+  }
+  for (const [id, legacy] of [['team_collaboration', 'collaborationRequired'], ['specific_exclusives', 'exclusiveContent']]) {
+    if (!mustHave.has(id) && !niceToHave.has(id) && !notNeeded.has(id)) {
+      if (saved.categoryAnswers?.[legacy] === true) mustHave.add(id);
+      if (saved.categoryAnswers?.[legacy] === false) notNeeded.add(id);
+    }
+  }
   const heading = document.createElement('h4');
   heading.textContent = `${service.name} requirements`;
   const help = document.createElement('p');
   help.className = 'field-help';
-  help.textContent = 'Leave a requirement unanswered if you are unsure; FeeVeto will not call it a confirmed fit.';
+  help.textContent = 'Optional: choose what matters to you. Leave anything you are unsure about unanswered.';
   elements.requirementQuestions.append(heading, help);
   for (const [id, label] of service.requirements) {
     const row = document.createElement('label');
@@ -179,14 +192,18 @@ function setApplicable(node, applicable) {
 function updateCategoryQuestions() {
   const category = elements.form.elements.category.value;
   for (const section of byId('category-questions').querySelectorAll('[data-category]')) setApplicable(section, section.dataset.category === category);
+  for (const [id, name] of [['team_collaboration', 'collaborationRequired'], ['specific_exclusives', 'exclusiveContent']]) {
+    const group = elements.form.querySelector(`[name="${name}"]`)?.closest('fieldset');
+    if (group) setApplicable(group, !group.closest('section').hidden && !elements.form.elements[`requirement_${id}`]);
+  }
 }
 
 function renderRequirementsForSelection(initialReview = null) {
   const service = serviceById(elements.form.elements.serviceId.value);
   const productType = elements.form.elements.productType.value;
-  const applicableService = service?.productType === productType ? service : null;
-  renderRequirementQuestions(applicableService?.id || '', initialReview);
-  if (!service) elements.serviceSupport.textContent = 'Unknown services still work in the basic audit. Select a supported service only when it is the subscription you use.';
+  const applicableService = matchingProfileFor(service?.id, productType);
+  renderRequirementQuestions(applicableService, initialReview);
+  if (!service) elements.serviceSupport.textContent = productType ? 'We will use your chosen product type to look for alternatives. Your service name stays as entered.' : 'Unknown services still work in the basic audit. Choose a product type to look for relevant alternatives.';
   else if (!applicableService) elements.serviceSupport.textContent = `${service.name} is recognized, but the selected product type differs. Catalogue matching will remain unconfirmed until corrected.`;
   else elements.serviceSupport.textContent = `${service.name} is recognized. You can correct the service or product type before saving.`;
 }
@@ -199,7 +216,8 @@ function updateAdaptiveVisibility() {
   setApplicable(byId('alternative-platform-field'), supportedUseCase);
   setApplicable(byId('free-limits-field'), supportedUseCase);
   setApplicable(byId('free-alternatives-field'), supportedUseCase);
-  setApplicable(byId('advertisement-field'), ['streaming_video', 'ai_assistant', 'photo_editor', 'music_streaming', 'home_workouts'].includes(productType));
+  const hasAdPriority = Boolean(elements.form.elements.requirement_ad_free);
+  setApplicable(byId('advertisement-field'), !hasAdPriority && ['streaming_video', 'ai_assistant', 'photo_editor', 'music_streaming', 'home_workouts'].includes(productType));
   setApplicable(byId('storage-requirement'), productType === 'cloud_storage');
   setApplicable(byId('required-title-field'), ['streaming_video', 'audiobooks'].includes(productType));
   setApplicable(byId('required-game-field'), productType === 'game_catalogue');
@@ -256,7 +274,7 @@ function beginEdit(id) {
   if (!item) return;
   resetForm();
   const review = item.detailedReview;
-  const detectedService = serviceById(review?.serviceId) || detectSupportedService(item.name);
+  const detectedService = supportedServiceFor(item);
   for (const [name, value] of Object.entries({
     subscriptionId: item.id, name: item.name, price: fromMinorUnits(item.amountMinor).toFixed(2), currency: item.currency,
     cycle: item.cycle, category: item.category, usage: item.usage, importance: item.importance, renewalDate: item.renewalDate,
@@ -265,7 +283,8 @@ function beginEdit(id) {
   elements.priceCurrency.textContent = item.currency;
   autoServiceSelection = false;
   categoryManuallyChanged = true;
-  if (detectedService && review) requirementDrafts.set(detectedService.id, review);
+  const profile = matchingProfileFor(detectedService?.id, review?.productType || detectedService?.productType);
+  if (profile && review) requirementDrafts.set(profile.id, review);
   renderRequirementsForSelection(review);
   populateReview(review);
   updateAdaptiveVisibility();
@@ -303,9 +322,11 @@ function deleteSubscription(id) {
 }
 
 async function refreshAlternatives(item, focus = false) {
+  if (alternativeResults.get(item.id)?.status === 'loading') return;
   const request = alternativeRequests.begin(item.id);
   const isCurrent = () => alternativeRequests.isCurrent(item.id, request);
-  alternativeResults.set(item.id, { status: 'loading', state: 'request_pending', accessScope: 'public', items: [], message: '', missingDetails: [] });
+  const previousScope = alternativeResults.get(item.id)?.accessScope || 'public';
+  alternativeResults.set(item.id, { status: 'loading', state: 'request_pending', accessScope: previousScope, items: [], message: '', missingDetails: [] });
   render();
   if (focus) focusResult(item.id);
   try {
@@ -315,20 +336,23 @@ async function refreshAlternatives(item, focus = false) {
     if (!isCurrent() || !state.subscriptions.some((entry) => entry.id === item.id && entry.updatedAt === item.updatedAt)) return;
     if (result.accessScope === 'public') {
       for (const [resultId, cached] of alternativeResults) {
-        if (cached.accessScope === 'complete') alternativeResults.delete(resultId);
+        if (cached.accessScope === 'complete' && resultId !== item.id) invalidateAlternativeRequest(resultId);
       }
     }
     alternativeResults.set(item.id, { status: 'ready', ...result });
   } catch (error) {
     if (!isCurrent()) return;
+    if (error instanceof AlternativeRequestError && error.resultState === 'authentication_failed') invalidateAllAlternativeRequests();
     alternativeResults.set(item.id, {
       status: 'error', state: error instanceof AlternativeRequestError ? error.resultState : 'request_failed',
       accessScope: 'public', items: [], missingDetails: [],
-      message: error instanceof Error ? error.message : 'Alternatives could not be loaded. Try again.',
+      message: error instanceof AlternativeRequestError ? error.message : 'Alternatives could not be loaded. Your subscription is saved. Please retry.',
     });
   }
+  const resultHadFocus = document.activeElement === elements.list.querySelector(`[data-id="${CSS.escape(item.id)}"]`);
   render();
-  if (focus) focusResult(item.id);
+  if (resultHadFocus) elements.list.querySelector(`[data-id="${CSS.escape(item.id)}"]`)?.focus({ preventScroll: true });
+  announce('Alternatives updated. Your subscription is saved.');
 }
 
 elements.form.addEventListener('submit', (event) => {
@@ -349,6 +373,12 @@ elements.form.addEventListener('submit', (event) => {
   if (!item) return showToast('Check the subscription details and try again.');
   state.subscriptions = upsertSubscription(state.subscriptions, item);
   invalidateAlternativeRequest(item.id);
+  activeFilter = 'all';
+  elements.search.value = '';
+  for (const tab of document.querySelectorAll('.filter-tab')) {
+    tab.classList.toggle('active', tab.dataset.filter === 'all');
+    tab.setAttribute('aria-pressed', String(tab.dataset.filter === 'all'));
+  }
   persist(); resetForm(); render();
   showToast(`${item.name} ${editingId ? 'updated' : 'saved'}.`);
   announce(`${item.name} ${editingId ? 'updated' : 'saved'} and reviewed.`);
@@ -359,6 +389,7 @@ elements.form.elements.name.addEventListener('input', () => {
   if (!autoServiceSelection) return;
   const service = detectSupportedService(elements.form.elements.name.value);
   if ((service?.id || '') === elements.form.elements.serviceId.value) return;
+  if (!service) elements.form.elements.productType.value = '';
   applyRecognizedService(service, !categoryManuallyChanged);
 });
 
@@ -370,6 +401,11 @@ elements.form.elements.serviceId.addEventListener('change', () => {
 
 elements.form.elements.productType.addEventListener('change', () => {
   captureRequirementDraft();
+  const service = serviceById(elements.form.elements.serviceId.value);
+  if (service && service.productType !== elements.form.elements.productType.value) {
+    elements.form.elements.serviceId.value = '';
+    autoServiceSelection = false;
+  }
   if (!categoryManuallyChanged) {
     const category = categoryForProductType(elements.form.elements.productType.value);
     if (category) elements.form.elements.category.value = category;
@@ -398,7 +434,10 @@ elements.list.addEventListener('click', (event) => {
 
 for (const tab of document.querySelectorAll('.filter-tab')) tab.addEventListener('click', () => {
   activeFilter = tab.dataset.filter;
-  for (const item of document.querySelectorAll('.filter-tab')) item.classList.toggle('active', item === tab);
+  for (const item of document.querySelectorAll('.filter-tab')) {
+    item.classList.toggle('active', item === tab);
+    item.setAttribute('aria-pressed', String(item === tab));
+  }
   render();
 });
 
@@ -451,6 +490,17 @@ elements.importFile.addEventListener('change', async () => {
 fillCurrencyOptions(elements.currencyPreference, state.auditCurrency);
 fillCurrencyOptions(elements.form.elements.currency, state.auditCurrency);
 fillAlternativeSelectors();
+for (const tab of document.querySelectorAll('.filter-tab')) tab.setAttribute('aria-pressed', String(tab.dataset.filter === 'all'));
+// Every optional yes/no group can be cleared again without resetting the form.
+for (const fieldset of elements.form.querySelectorAll('fieldset')) {
+  const radio = fieldset.querySelector('input[type="radio"]');
+  if (!radio) continue;
+  const label = document.createElement('label');
+  const input = document.createElement('input');
+  input.type = 'radio'; input.name = radio.name; input.value = ''; input.defaultChecked = true;
+  label.append(input, document.createTextNode('Unanswered'));
+  fieldset.append(label);
+}
 resetForm();
 render();
 let accessSignature = '';
@@ -468,6 +518,7 @@ const clerkPromise = initializeAuth({
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');
+byId('storage-warning').hidden = loaded.storageAvailable;
 
 window.addEventListener('storage', (event) => {
   if (event.key !== APP_CONFIG.storageKey) return;

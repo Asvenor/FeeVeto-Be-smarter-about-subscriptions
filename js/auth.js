@@ -1,16 +1,5 @@
 import { fetchAccessStatus, ORDINARY_ACCESS } from './access.js';
-
-const APPEARANCE = Object.freeze({
-  variables: {
-    colorPrimary: '#238653',
-    colorForeground: '#102018',
-    colorBackground: '#ffffff',
-    colorInputBackground: '#ffffff',
-    colorInputText: '#102018',
-    borderRadius: '0.75rem',
-    fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-  },
-});
+import { avatarPresentation, CLERK_APPEARANCE as APPEARANCE } from './authAppearance.js';
 
 function frontendApiFromKey(publishableKey) {
   const encodedDomain = publishableKey.split('_')[2];
@@ -79,7 +68,7 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
   if (!publishableKey) {
     elements.loading.hidden = true;
     elements.status.hidden = false;
-    elements.status.textContent = 'Account sign-in is unavailable in this build.';
+    elements.status.textContent = 'Sign-in unavailable. The audit still works.';
     return null;
   }
 
@@ -88,6 +77,7 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
     await clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor }, appearance: APPEARANCE });
     let userButtonMounted = false;
     let accessRequest = 0;
+    let identity = '';
 
     const refreshAccess = async () => {
       const request = ++accessRequest;
@@ -99,15 +89,25 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
 
     const renderAuth = () => {
       const signedIn = Boolean(clerk.isSignedIn);
+      const nextIdentity = signedIn ? `${clerk.user?.id}:${clerk.session?.id}` : '';
+      const identityChanged = identity !== nextIdentity;
+      if (identityChanged) {
+        identity = nextIdentity;
+        accessRequest += 1;
+        renderAccessBadge(elements.accessBadge, ORDINARY_ACCESS);
+        onAccessChange(ORDINARY_ACCESS);
+      }
+      const avatar = avatarPresentation(clerk.user);
+      elements.userButton.toggleAttribute('data-generated-avatar', signedIn && avatar.generated);
+      elements.userButton.style.setProperty('--feeveto-initials', JSON.stringify(avatar.initials));
       elements.loading.hidden = true;
       elements.status.hidden = true;
       elements.signedOut.hidden = signedIn;
       elements.signedIn.hidden = !signedIn;
 
       if (signedIn && !userButtonMounted) {
-        clerk.mountUserButton(elements.userButton, { userProfileMode: 'modal' });
+        clerk.mountUserButton(elements.userButton, { userProfileMode: 'modal', appearance: APPEARANCE, userProfileProps: { appearance: APPEARANCE } });
         userButtonMounted = true;
-        void refreshAccess();
       } else if (!signedIn && userButtonMounted) {
         clerk.unmountUserButton(elements.userButton);
         userButtonMounted = false;
@@ -115,11 +115,15 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
         renderAccessBadge(elements.accessBadge, ORDINARY_ACCESS);
         onAccessChange(ORDINARY_ACCESS);
       }
+      if (signedIn && identityChanged) void refreshAccess();
     };
 
     elements.signIn.addEventListener('click', () => clerk.openSignIn());
     elements.signUp.addEventListener('click', () => clerk.openSignUp());
     clerk.addListener(renderAuth, { skipInitialEmit: true });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && clerk.isSignedIn) void refreshAccess();
+    });
     renderAuth();
     return clerk;
   } catch {

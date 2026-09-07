@@ -106,10 +106,10 @@ function subscriptionCard(item, result, alternativesState) {
     const section = element('section', 'alternatives-section');
     section.append(element('h4', '', 'Curated alternatives'));
     if (alternativesState.status === 'loading') {
-      section.append(element('p', 'empty-alternatives', 'Checking the private catalogue…'));
+      section.append(element('p', 'empty-alternatives', 'Looking for relevant alternatives…'));
     } else if (alternatives.length) {
       if (alternativesState.state === 'general_suggestions') {
-        section.append(element('p', 'general-suggestions-note', 'These are general suggestions based on the information provided. Add your must-have features, device, and other preferences to help us find alternatives that fit you better.'));
+        section.append(element('p', 'general-suggestions-note', 'These are general suggestions based on the information provided. Add your must-have features, device, and other preferences to help us narrow them down.'));
         if (alternativesState.missingDetails?.length) {
           section.append(element('p', 'alternative-detail', `Most useful details to add: ${alternativesState.missingDetails.join(', ')}.`));
         }
@@ -135,7 +135,8 @@ function subscriptionCard(item, result, alternativesState) {
     const retrying = alternativesState?.status === 'error';
     const alternativesButton = element('button', 'button button-secondary button-small', retrying ? 'Retry alternatives' : 'Refresh alternatives');
     alternativesButton.type = 'button'; alternativesButton.dataset.action = 'alternatives'; alternativesButton.dataset.id = item.id;
-    alternativesButton.setAttribute('aria-label', `Find curated alternatives for ${item.name}`);
+    alternativesButton.disabled = alternativesState?.status === 'loading';
+    alternativesButton.setAttribute('aria-label', `${retrying ? 'Retry' : 'Refresh'} alternatives for ${item.name}`);
     actions.append(alternativesButton);
   }
   if (item.cancellationUrl) {

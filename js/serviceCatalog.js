@@ -168,9 +168,23 @@ export function detectSupportedService(name) {
 }
 
 export function supportedServiceFor(subscription) {
+  if (subscription?.detailedReview?.serviceSelectionConfirmed === true) return serviceById(subscription.detailedReview.serviceId);
   return serviceById(subscription?.detailedReview?.serviceId) || detectSupportedService(subscription?.name);
 }
 
+export function requirementsForProductType(productType) {
+  return requirementsByProductType[productType] || [];
+}
+
+export function matchingProfileFor(serviceId, productType) {
+  const service = serviceById(serviceId);
+  if (service?.productType === productType) return service;
+  const label = PRODUCT_TYPES.find(([id]) => id === productType)?.[1];
+  return label ? { id: `product:${productType}`, name: label, productType, requirements: requirementsForProductType(productType) } : null;
+}
+
 export function requirementLabel(serviceId, requirementId) {
-  return serviceById(serviceId)?.requirements.find(([id]) => id === requirementId)?.[1] || requirementId;
+  return serviceById(serviceId)?.requirements.find(([id]) => id === requirementId)?.[1]
+    || Object.values(requirementsByProductType).flat().find(([id]) => id === requirementId)?.[1]
+    || requirementId.replaceAll('_', ' ');
 }

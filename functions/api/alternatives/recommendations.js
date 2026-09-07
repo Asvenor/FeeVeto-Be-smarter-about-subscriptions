@@ -6,11 +6,18 @@ import { json, methodNotAllowed } from '../../_shared/http.js';
 
 async function requestAccess(context, accessResolver) {
   if (!context.request.headers.get('authorization')) return resolveAccess();
+  let access;
   try {
-    return await accessResolver(context);
+    access = await accessResolver(context);
   } catch {
-    return resolveAccess();
+    throw new AuthenticationError(503, 'Account verification is unavailable. Your audit is saved; retry in a moment.');
   }
+  if (!access.authenticated) throw new AuthenticationError(401, 'Your session could not be verified. Sign in again, then retry.');
+  return access;
+}
+
+class AuthenticationError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
 }
 
 export async function handleRecommendationsRequest(
@@ -27,9 +34,13 @@ export async function handleRecommendationsRequest(
     return json({ error: 'A valid JSON request is required.' }, { status: 400 });
   }
   try {
-    const [access, catalogue] = await Promise.all([requestAccess(context, accessResolver), catalogueLoader(context)]);
+    const access = await requestAccess(context, accessResolver);
+    const catalogue = await catalogueLoader(context);
     return json(selectRecommendations(catalogue, query, { premiumAccess: access.premiumAccess }));
   } catch (error) {
+    if (error instanceof AuthenticationError) {
+      return json({ state: 'authentication_failed', error: error.message }, { status: error.status });
+    }
     if (error instanceof CatalogueConfigurationError) {
       return json({ state: 'catalogue_unavailable', error: 'The alternatives catalogue is not configured or is unavailable.' }, { status: 503 });
     }

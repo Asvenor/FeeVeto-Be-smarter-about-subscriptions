@@ -48,7 +48,7 @@ function validDate(value) {
 
 function nullableMinorUnits(value) {
   if (value === null || value === undefined || value === '') return null;
-  const number = Number(value);
+  const number = typeof value === 'number' ? value : Number.NaN;
   return Number.isSafeInteger(number) && number >= 0 && number <= 999_999_999 ? number : Number.NaN;
 }
 
@@ -166,7 +166,7 @@ export function validateOffer(value) {
     limitations: stringList(value.limitations, 10, 180), usageLimits: stringList(value.usageLimits, 10, 180),
     platforms, countryAvailability: { status: availabilityStatus, countries },
     advertisements: value.advertisements === true ? true : value.advertisements === false ? false : null,
-    storageGb: Number.isFinite(Number(value.storageGb)) && Number(value.storageGb) >= 0 ? Number(value.storageGb) : null,
+    storageGb: typeof value.storageGb === 'number' && Number.isFinite(value.storageGb) && value.storageGb >= 0 ? value.storageGb : null,
     freePlanLimits: value.freePlanLimits === true,
     languages, levels, serverCountries, switchingDifficulty,
     priceMinor, priceCurrency, billingInterval, upfrontCommitmentMonths,

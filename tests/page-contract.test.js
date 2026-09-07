@@ -31,7 +31,7 @@ test('partial-information alternatives have clear guidance and distinct result s
   const render = await readFile(new URL('js/render.js', root), 'utf8');
   const provider = await readFile(new URL('js/alternativeProvider.js', root), 'utf8');
   assert.match(html, /More details help us find better matches\./);
-  assert.match(html, /You can still see general alternatives with just the basics\./);
+  assert.match(html, /Start with the basics, or add your requirements and preferences for more tailored suggestions\./);
   assert.match(render, /These are general suggestions based on the information provided\./);
   assert.match(render, /Improve my matches/);
   for (const state of ['general_suggestions', 'matched_suggestions', 'unsupported', 'no_matches', 'catalogue_unavailable', 'request_failed', 'access_restricted']) {

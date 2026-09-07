@@ -1,4 +1,4 @@
-import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById } from './serviceCatalog.js';
+import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById, requirementsForProductType } from './serviceCatalog.js';
 
 const BOOLEAN_CATEGORY_FIELDS = Object.freeze({
   streaming: ['exclusiveContent', 'rotateServices'],
@@ -13,11 +13,11 @@ export function booleanChoice(formData, name) {
   return value === 'true' ? true : value === 'false' ? false : null;
 }
 
-export function requirementChoices(formData, serviceId) {
+export function requirementChoices(formData, serviceId, productType = serviceById(serviceId)?.productType) {
   const mustHaveRequirements = [];
   const niceToHaveRequirements = [];
   const notNeededRequirements = [];
-  for (const [id] of serviceById(serviceId)?.requirements || []) {
+  for (const [id] of requirementsForProductType(productType)) {
     const choice = formData.get(`requirement_${id}`);
     if (choice === 'must') mustHaveRequirements.push(id);
     if (choice === 'nice') niceToHaveRequirements.push(id);
@@ -46,6 +46,15 @@ export function buildDetailedReview(formData, completedAt = new Date().toISOStri
   const storage = Number(rawStorage);
   const country = String(formData.get('country') || '').trim().toUpperCase();
   const adsApply = ['streaming_video', 'ai_assistant', 'photo_editor', 'music_streaming', 'home_workouts'].includes(productType);
+  const hasAdPriority = requirementsForProductType(productType).some(([id]) => id === 'ad_free');
+  const adPriority = formData.get('requirement_ad_free');
+  const categoryAnswers = categoryAnswersFrom(formData, category);
+  for (const [id, name] of [['team_collaboration', 'collaborationRequired'], ['specific_exclusives', 'exclusiveContent']]) {
+    if (Object.hasOwn(categoryAnswers, name) && requirementsForProductType(productType).some(([requirement]) => requirement === id)) {
+      const choice = formData.get(`requirement_${id}`);
+      categoryAnswers[name] = choice === 'must' ? true : choice === 'not_needed' ? false : null;
+    }
+  }
   const shortText = (name, max = 80) => String(formData.get(name) || '').trim().slice(0, max);
   return {
     satisfaction: String(formData.get('satisfaction') || ''),
@@ -54,14 +63,15 @@ export function buildDetailedReview(formData, completedAt = new Date().toISOStri
     switchingDifficulty: String(formData.get('switchingDifficulty') || ''),
     considerCheaper: booleanChoice(formData, 'considerCheaper'),
     considerFree: booleanChoice(formData, 'considerFree'),
-    acceptAds: adsApply ? booleanChoice(formData, 'acceptAds') : null,
-    acceptFreeLimits: serviceId ? booleanChoice(formData, 'acceptFreeLimits') : null,
+    acceptAds: hasAdPriority ? (adPriority === 'must' ? false : adPriority === 'not_needed' ? true : null) : adsApply ? booleanChoice(formData, 'acceptAds') : null,
+    acceptFreeLimits: productType ? booleanChoice(formData, 'acceptFreeLimits') : null,
     seasonal: booleanChoice(formData, 'seasonal'),
     activeContract: booleanChoice(formData, 'activeContract'),
     serviceId,
+    serviceSelectionConfirmed: true,
     productType,
-    country: serviceId && /^[A-Z]{2}$/.test(country) ? country : '',
-    platform: serviceId ? String(formData.get('platform') || '') : '',
+    country: productType && /^[A-Z]{2}$/.test(country) ? country : '',
+    platform: productType ? String(formData.get('platform') || '') : '',
     storageRequiredGb: productType === 'cloud_storage' && rawStorage && Number.isFinite(storage) && storage >= 0 && storage <= 100_000 ? storage : null,
     requiredTitle: ['streaming_video', 'audiobooks'].includes(productType) ? shortText('requiredTitle') : '',
     requiredGame: productType === 'game_catalogue' ? shortText('requiredGame') : '',
@@ -71,9 +81,9 @@ export function buildDetailedReview(formData, completedAt = new Date().toISOStri
     learnerLevel: productType === 'language_learning' && ['beginner', 'intermediate', 'advanced'].includes(formData.get('learnerLevel'))
       ? formData.get('learnerLevel') : '',
     specificSubject: productType === 'online_courses' ? shortText('specificSubject', 80) : '',
-    ...requirementChoices(formData, serviceId),
+    ...requirementChoices(formData, serviceId, productType),
     neededFeatures: String(formData.get('neededFeatures') || '').trim().slice(0, 240),
-    categoryAnswers: categoryAnswersFrom(formData, category),
+    categoryAnswers,
     completedAt,
   };
 }
