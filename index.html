@@ -212,21 +212,30 @@
           <details><summary>Does changing currency convert prices?</summary><p>No. The display currency updates examples, new-entry defaults, the matching dashboard subtotal, and the default market for alternatives. An entered country overrides that market. Every saved subscription and verified provider price keeps its original currency. FeeVeto shows separate original-currency subtotals and never combines currencies because it has no live exchange-rate service.</p></details>
           <details><summary>Where is my information stored?</summary><p>Your original subscription list and current journey draft stay in this browser. Save and review while signed in also saves that entry’s assessment to your account on Cloudflare; guests keep a browser-only copy. Save this audit does the same for a personalised discovery result. Signing in alone does not upload your local list. Local JSON exports do not include account history.</p></details>
           <details><summary>What does creating an account do?</summary><p>Clerk provides sign-in and profile management. You can then choose to save individual personal assessments and reopen their dated history. Signing in alone does not upload your browser subscription list or grant Premium. FeeVeto checks account permissions before showing restricted comparisons.</p></details>
-          <details><summary>Is FeeVeto Premium a subscription?</summary><p>No. FeeVeto Premium is one lifetime purchase for the account used at checkout. Stripe handles the payment; FeeVeto stores only the server-side references needed to verify access. Owner and approved beta accounts keep complimentary premium access without payment.</p></details>
+          <details><summary>Is FeeVeto Premium a subscription?</summary><p>You choose: $2.99 USD per month, or $49.99 USD once for lifetime Premium. Both unlock the same features for one account. Monthly renews automatically until cancelled; use Manage billing to cancel and keep access through your paid period. Owner and approved beta accounts keep complimentary access.</p></details>
           <details><summary>Are alternative prices always current?</summary><p>Only alternatives with a verification date and sufficient local data are displayed. You should still confirm prices, features, and availability with the provider.</p></details>
         </div>
       </section>
 
       <section id="pricing" class="pricing-section section-shell" aria-labelledby="pricing-title">
-        <div class="pricing-copy"><p class="eyebrow">Simple access</p><h2 id="pricing-title">Audit free. Unlock the full comparison once.</h2><p>The subscription audit remains free and works without an account. Premium unlocks the complete curated alternatives experience for one account with no recurring FeeVeto charge.</p></div>
-        <article class="pricing-card" aria-labelledby="premium-plan-title">
-          <div><p class="step-label">Lifetime premium</p><h3 id="premium-plan-title">FeeVeto Premium</h3></div>
-          <p class="pricing-amount"><strong id="premium-price">$4.99</strong><span>one time</span></p>
-          <ul><li>Full curated comparison access</li><li>Free-plan and restricted alternative details</li><li>Permanent access for this signed-in account</li></ul>
-          <button id="premium-button" class="button button-primary" type="button">Sign in to unlock</button>
-          <p id="premium-status" class="pricing-status" role="status" aria-live="polite">An account is required so the lifetime purchase can be attached securely.</p>
-          <small>USD, EUR, GBP, and CHF are separately configured at the same displayed amount. Your selected currency controls checkout; this is not an exchange-rate conversion.</small>
+        <div class="pricing-copy"><p class="eyebrow">Your choice</p><h2 id="pricing-title">Go monthly. Or make it one and done.</h2><p>The basic subscription audit stays free, without login. Both Premium plans unlock complete curated comparisons and restricted alternative details for one account.</p><p>Premium checkout is priced in USD. Your audit currency does not change these purchase prices or convert your saved subscriptions.</p><p id="billing-mode-notice" role="status">Checkout is not enabled yet. The free audit still works.</p></div>
+        <div class="pricing-options">
+        <article class="pricing-card" aria-labelledby="monthly-plan-title">
+          <div><p class="step-label">Flexible access</p><h3 id="monthly-plan-title">Premium Monthly</h3></div>
+          <p class="pricing-amount"><strong id="premium-monthly-price">$2.99</strong><span>USD / month</span></p>
+          <ul><li>Full curated comparison access</li><li>Free-plan and restricted alternative details</li><li>Cancel anytime; access lasts through the paid period</li></ul>
+          <button id="premium-monthly-button" class="button button-secondary" type="button" disabled>Sign in for monthly</button>
+          <small>Renews automatically at $2.99 USD each month until cancelled. Manage payment details, invoices and cancellation in Stripe.</small>
         </article>
+        <article class="pricing-card" aria-labelledby="premium-plan-title">
+          <div><p class="step-label">No recurring FeeVeto charge</p><h3 id="premium-plan-title">Premium Lifetime</h3></div>
+          <p class="pricing-amount"><strong id="premium-price">$49.99</strong><span>USD / one time</span></p>
+          <ul><li>The same full Premium comparison features</li><li>One payment for this signed-in account</li><li>No monthly renewal</li></ul>
+          <button id="premium-button" class="button button-primary" type="button" disabled>Sign in for lifetime</button>
+          <small>Already monthly? After a successful lifetime upgrade, future monthly billing stops. Previous monthly payments are not automatically refunded or credited.</small>
+        </article>
+        </div>
+        <div class="billing-controls"><p id="premium-status" class="pricing-status" role="status" aria-live="polite">An account is required to connect your purchase securely.</p><button id="billing-manage" class="button button-secondary" type="button" hidden>Manage billing</button><button id="billing-refresh" class="button button-secondary" type="button" hidden>Retry billing check</button></div>
       </section>
 
       <section class="final-cta section-shell"><p class="eyebrow">A ten-minute money check</p><h2>Keep what earns its place.</h2><p>Build your private audit and make the next renewal decision with better context.</p><a class="button button-primary" href="#audit">Start my free audit</a></section>

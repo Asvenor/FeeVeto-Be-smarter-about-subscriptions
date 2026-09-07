@@ -1,11 +1,7 @@
+import { BillingConfigurationError } from './billing-config.js';
+import { getBillingStatus } from './billing-store.js';
+export { BillingConfigurationError } from './billing-config.js';
 export const PREMIUM_PRODUCT_KEY = 'feeveto_premium_lifetime';
-
-export class BillingConfigurationError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'BillingConfigurationError';
-  }
-}
 
 function billingDatabase(env, { required = false } = {}) {
   const database = env?.FEEVETO_BILLING;
@@ -16,6 +12,9 @@ function billingDatabase(env, { required = false } = {}) {
 
 export async function getPaidPremiumAccessStrict({ userId, env } = {}) {
   if (typeof userId !== 'string' || !userId.trim()) return false;
+  if (env?.STRIPE_MONTHLY_PRICE_ID || env?.STRIPE_LIFETIME_PRICE_ID) {
+    return (await getBillingStatus({ userId, env })).premiumAccess;
+  }
   const database = billingDatabase(env, { required: true });
   const priceId=typeof env?.STRIPE_PRICE_ID==='string'?env.STRIPE_PRICE_ID.trim():'';
   if(!priceId)throw new BillingConfigurationError('The payment price is not configured.');

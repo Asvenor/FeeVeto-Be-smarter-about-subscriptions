@@ -278,7 +278,12 @@ input[aria-invalid="true"] { border-color: var(--color-danger); }
 .faq-list summary { position: relative; padding-right: 2rem; font-size: 1.05rem; font-weight: 800; }
 .faq-list summary::marker { color: var(--color-green); }
 .faq-list p { max-width: 75ch; margin-top: .75rem; color: var(--color-text-muted); }
-.pricing-section { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, .7fr); align-items: center; gap: clamp(2rem, 8vw, 7rem); padding-bottom: clamp(4rem, 9vw, 8rem); }
+.pricing-section { display: grid; gap: 2rem; padding-bottom: clamp(4rem, 9vw, 8rem); }
+.pricing-copy { max-width: 800px; }
+.pricing-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.billing-controls { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+.billing-controls .pricing-status { flex: 1 1 100%; }
+@media (max-width: 700px) { .pricing-options { grid-template-columns: 1fr; } }
 .pricing-card { display: grid; gap: 1.2rem; border: 1px solid #b7d8c0; border-radius: var(--radius-large); background: var(--color-surface); box-shadow: var(--shadow-soft); padding: clamp(1.3rem, 4vw, 2rem); }
 .pricing-card h3 { font-size: 1.65rem; }
 .pricing-amount { display: flex; align-items: baseline; gap: .65rem; }

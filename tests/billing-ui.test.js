@@ -2,12 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { beginPremiumCheckout, premiumPrice, validStripeCheckoutUrl } from '../js/billing.js';
 
-test('premium price follows the selected supported currency', () => {
-  assert.equal(premiumPrice('USD'), '$4.99');
-  assert.equal(premiumPrice('EUR'), '€4.99');
-  assert.equal(premiumPrice('GBP'), '£4.99');
-  assert.match(premiumPrice('CHF'), /4\.99/);
-  assert.equal(premiumPrice('CAD'), '$4.99');
+test('approved purchase prices stay in USD independently of illustrative currency', () => {
+  assert.equal(premiumPrice('monthly'), '$2.99');
+  assert.equal(premiumPrice('lifetime'), '$49.99');
+  assert.equal(premiumPrice('EUR'), '$49.99');
 });
 
 test('checkout destinations are restricted to Stripe HTTPS', () => {
@@ -16,11 +14,11 @@ test('checkout destinations are restricted to Stripe HTTPS', () => {
   assert.equal(validStripeCheckoutUrl('javascript:alert(1)'), '');
 });
 
-test('checkout request uses a Clerk token and selected currency without sending access flags', async () => {
+test('checkout request uses a Clerk token and approved plan without sending access flags', async () => {
   let request;
   const result = await beginPremiumCheckout({
     clerk: { session: { getToken: async () => 'session_test' } },
-    currency: 'GBP',
+    plan: 'monthly',
     fetchImplementation: async (url, options) => {
       request = { url, options };
       return new Response(JSON.stringify({ checkoutUrl: 'https://checkout.stripe.com/c/pay/test' }), {
@@ -30,7 +28,7 @@ test('checkout request uses a Clerk token and selected currency without sending 
     },
   });
   assert.equal(result.state, 'checkout_ready');
-  assert.equal(request.url, './api/billing/checkout?currency=GBP');
+  assert.equal(request.url, './api/billing/checkout?plan=monthly&currency=USD');
   assert.equal(request.options.headers.Authorization, 'Bearer session_test');
   assert.equal(request.options.body, undefined);
 });

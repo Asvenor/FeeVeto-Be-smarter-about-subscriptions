@@ -8,8 +8,8 @@ import { detectSupportedService, matchingProfileFor, PRODUCT_TYPES, serviceById,
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
-import { fetchAccessStatus, ORDINARY_ACCESS } from './access.js';
-import { beginPremiumCheckout, CheckoutRequestError, premiumPrice } from './billing.js';
+import { ORDINARY_ACCESS } from './access.js';
+import { initializeBilling } from './billing.js';
 import { initializeJourney } from './journey.js';
 import { journeyFromSubscription } from './journeyModel.js';
 
@@ -41,8 +41,7 @@ let categoryManuallyChanged = false;
 let entryCurrencyExplicitlyChanged = false;
 let renderedRequirementServiceId = '';
 let currentAccess = ORDINARY_ACCESS;
-let billingBusy = false;
-let billingVerificationPending = false;
+let billingController;
 const requirementDrafts = new Map();
 const alternativesProvider = new BackendAlternativesProvider();
 const alternativeResults = new Map();
@@ -72,33 +71,7 @@ function render() {
   document.dispatchEvent(new CustomEvent('feeveto:currency-change'));
 }
 
-function renderPremium() {
-  if (!elements.premiumPrice || !elements.premiumButton || !elements.premiumStatus) return;
-  elements.premiumPrice.textContent = premiumPrice(state.auditCurrency);
-  elements.premiumButton.disabled = billingBusy || currentAccess.premiumAccess;
-  if (currentAccess.isAdmin) {
-    elements.premiumButton.textContent = 'Owner access active';
-    elements.premiumStatus.textContent = 'Premium is included with your owner account.';
-  } else if (currentAccess.betaAccess) {
-    elements.premiumButton.textContent = 'Beta access active';
-    elements.premiumStatus.textContent = 'Premium is included while your beta access is active.';
-  } else if (currentAccess.paidPremiumAccess) {
-    elements.premiumButton.textContent = 'Lifetime access active';
-    elements.premiumStatus.textContent = 'This account has permanent FeeVeto Premium access.';
-  } else if (billingBusy) {
-    elements.premiumButton.textContent = billingVerificationPending ? 'Checking access…' : 'Opening secure checkout…';
-    elements.premiumStatus.textContent = 'Please keep this page open.';
-  } else if (billingVerificationPending) {
-    elements.premiumButton.textContent = 'Check access status';
-    elements.premiumStatus.textContent = 'Stripe received the payment. FeeVeto is waiting for the verified confirmation.';
-  } else if (currentAccess.authenticated) {
-    elements.premiumButton.textContent = 'Unlock lifetime access';
-    elements.premiumStatus.textContent = 'One secure payment through Stripe. No recurring subscription.';
-  } else {
-    elements.premiumButton.textContent = 'Sign in to unlock';
-    elements.premiumStatus.textContent = 'An account is required so the lifetime purchase can be attached securely.';
-  }
-}
+function renderPremium() { billingController?.render(); }
 
 function announce(message) {
   elements.announcer.textContent = '';
@@ -509,54 +482,6 @@ elements.currencyPreference.addEventListener('change', () => {
   showToast(`Examples and ${state.auditCurrency} dashboard totals updated. Alternatives are updating for that market. ${formNote} Existing prices were not converted.`);
 });
 
-async function refreshBillingAccess(clerk) {
-  billingBusy = true;
-  renderPremium();
-  currentAccess = await fetchAccessStatus(clerk);
-  billingBusy = false;
-  billingVerificationPending = !currentAccess.premiumAccess;
-  renderPremium();
-  return currentAccess.premiumAccess;
-}
-
-elements.premiumButton?.addEventListener('click', async () => {
-  if (billingBusy || currentAccess.premiumAccess) return;
-  const clerk = await clerkPromise;
-  if (!clerk?.session) {
-    if (clerk) clerk.openSignIn();
-    else showToast('Account sign-in is unavailable right now.');
-    return;
-  }
-  if (billingVerificationPending) {
-    const active = await refreshBillingAccess(clerk);
-    showToast(active ? 'Lifetime premium access is active.' : 'Payment confirmation is still pending. Please try again shortly.');
-    return;
-  }
-
-  billingBusy = true;
-  renderPremium();
-  try {
-    const result = await beginPremiumCheckout({ clerk, currency: state.auditCurrency });
-    if (result.state === 'sign_in_required') {
-      billingBusy = false;
-      renderPremium();
-      clerk.openSignIn();
-      return;
-    }
-    if (result.state === 'already_premium') {
-      currentAccess = await fetchAccessStatus(clerk);
-      billingBusy = false;
-      renderPremium();
-      showToast('Premium access is already active for this account.');
-      return;
-    }
-    window.location.assign(result.checkoutUrl);
-  } catch (error) {
-    billingBusy = false;
-    renderPremium();
-    showToast(error instanceof CheckoutRequestError ? error.message : 'Checkout could not be started. Please try again.');
-  }
-});
 elements.cancelEdit.addEventListener('click', () => { resetForm(); elements.form.elements.name.focus(); });
 elements.clearAll.addEventListener('click', () => elements.clearDialog.showModal());
 elements.confirmClear.addEventListener('click', () => {
@@ -607,7 +532,6 @@ let accessSignature = '';
 const clerkPromise = initializeAuth({
   onAccessChange(access) {
     currentAccess = access;
-    if (access.premiumAccess) billingVerificationPending = false;
     renderPremium();
     const nextSignature = JSON.stringify({ authenticated: access.authenticated, premiumAccess: access.premiumAccess });
     if (accessSignature && accessSignature !== nextSignature) {
@@ -620,49 +544,15 @@ const clerkPromise = initializeAuth({
   },
 });
 
-function clearPaymentParameter() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete('payment');
-  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-}
+billingController = initializeBilling({
+  getClerk: () => clerkPromise, getAccess: () => currentAccess, notify: showToast,
+  onVerifiedAccess(access) {
+    currentAccess = access;
+    invalidateAllAlternativeRequests(); render();
+    document.dispatchEvent(new CustomEvent('feeveto:access-change', { detail: access }));
+  },
+});
 
-async function handlePaymentReturn() {
-  const paymentState = new URL(window.location.href).searchParams.get('payment');
-  if (paymentState === 'cancelled') {
-    clearPaymentParameter();
-    showToast('Checkout was cancelled. Nothing was charged by this checkout.');
-    return;
-  }
-  if (paymentState !== 'success') return;
-
-  billingVerificationPending = true;
-  renderPremium();
-  const clerk = await clerkPromise;
-  if (!clerk?.session) {
-    clearPaymentParameter();
-    renderPremium();
-    showToast('Sign in again to confirm your premium access.');
-    return;
-  }
-
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    if (await refreshBillingAccess(clerk)) break;
-    await new Promise((resolve) => window.setTimeout(resolve, 1_000));
-  }
-  clearPaymentParameter();
-  if (currentAccess.premiumAccess) {
-    invalidateAllAlternativeRequests();
-    render();
-    showToast('Payment confirmed. Lifetime premium access is active.');
-    announce('Lifetime premium access is active.');
-  } else {
-    billingVerificationPending = true;
-    renderPremium();
-    showToast('Stripe received the payment. FeeVeto is still waiting for its verified confirmation.');
-  }
-}
-
-void handlePaymentReturn();
 const journey = initializeJourney({ getClerk: () => clerkPromise, getCurrency: () => state.auditCurrency, storage: browserStorage });
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');

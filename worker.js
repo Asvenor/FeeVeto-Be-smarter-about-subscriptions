@@ -4,6 +4,9 @@ import { handleRecommendationsRequest } from './functions/api/alternatives/recom
 import { handlePremiumStatusRequest } from './functions/api/premium/status.js';
 import { handleCheckoutRequest } from './functions/api/billing/checkout.js';
 import { handleWebhookRequest } from './functions/api/billing/webhook.js';
+import { handleBillingPlansRequest } from './functions/api/billing/plans.js';
+import { handleBillingStatusRequest } from './functions/api/billing/status.js';
+import { handleBillingPortalRequest } from './functions/api/billing/portal.js';
 import { handleAssessmentRequest } from './functions/api/assessment.js';
 import { handleAuditsRequest } from './functions/api/audits.js';
 import { json } from './functions/_shared/http.js';
@@ -17,6 +20,9 @@ const API_ROUTES = Object.freeze({
   '/api/premium/status': handlePremiumStatusRequest,
   '/api/billing/checkout': handleCheckoutRequest,
   '/api/billing/webhook': handleWebhookRequest,
+  '/api/billing/plans': handleBillingPlansRequest,
+  '/api/billing/status': handleBillingStatusRequest,
+  '/api/billing/portal': handleBillingPortalRequest,
 });
 
 export async function handleWorkerRequest(request, env, executionContext, routes = API_ROUTES) {

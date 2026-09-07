@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { BillingConfigurationError } from './billing-access.js';
+import { BillingConfigurationError, stripeKeyMatchesMode } from './billing-config.js';
 
 function requiredEnvironmentValue(env, name) {
   const value = typeof env?.[name] === 'string' ? env[name].trim() : '';
@@ -16,7 +16,9 @@ export function stripeWebhookSecret(env) {
 }
 
 export function createStripeClient(env) {
-  return new Stripe(requiredEnvironmentValue(env, 'STRIPE_SECRET_KEY'), {
+  const key = requiredEnvironmentValue(env, 'STRIPE_SECRET_KEY');
+  if (!stripeKeyMatchesMode(key, env)) throw new BillingConfigurationError('Stripe mode mismatch.');
+  return new Stripe(key, {
     httpClient: Stripe.createFetchHttpClient(),
     maxNetworkRetries: 2,
     telemetry: false,

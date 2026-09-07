@@ -12,6 +12,10 @@ import {
   stripePriceId,
   stripeWebhookSecret,
 } from '../../_shared/stripe-client.js';
+import { assertStripeMode, objectId as stripeObjectId } from '../../_shared/billing-config.js';
+import { fulfillCheckout } from '../../_shared/billing-fulfillment.js';
+import { syncSubscription, invoiceSubscriptionId, stopMonthlyRenewals } from '../../_shared/billing-subscriptions.js';
+import { clearCheckout, customerFor } from '../../_shared/billing-store.js';
 
 const MAX_WEBHOOK_BYTES = 1_000_000;
 const COMPLETED_CHECKOUT_EVENTS = new Set(['checkout.session.completed', 'checkout.session.async_payment_succeeded']);
@@ -66,10 +70,17 @@ export async function handleWebhookRequest(
     const signature = context.request.headers.get('Stripe-Signature');
     if (!signature) return json({ error: 'Webhook signature is required.' }, { status: 400 });
 
-    const payload = await context.request.text();
-    if (new TextEncoder().encode(payload).byteLength > MAX_WEBHOOK_BYTES) {
-      return json({ error: 'Webhook payload is too large.' }, { status: 413 });
+    const reader = context.request.body?.getReader();
+    const chunks = []; let size = 0;
+    if (reader) while (true) {
+      const { done, value } = await reader.read(); if (done) break;
+      size += value.byteLength;
+      if (size > MAX_WEBHOOK_BYTES) { await reader.cancel(); return json({ error: 'Webhook payload is too large.' }, { status: 413 }); }
+      chunks.push(value);
     }
+    const bytes = new Uint8Array(size); let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const payload = new TextDecoder().decode(bytes);
 
     const stripe = stripeClientFactory(context.env);
     const event = await stripe.webhooks.constructEventAsync(
@@ -80,7 +91,29 @@ export async function handleWebhookRequest(
       cryptoProviderFactory(),
     );
 
-    if (COMPLETED_CHECKOUT_EVENTS.has(event.type)) {
+    const dualPlans = Boolean(context.env?.STRIPE_MONTHLY_PRICE_ID || context.env?.STRIPE_LIFETIME_PRICE_ID);
+    if (dualPlans) assertStripeMode(event, context.env);
+    if (dualPlans && COMPLETED_CHECKOUT_EVENTS.has(event.type)) {
+      await fulfillCheckout({ env: context.env, stripe, sessionId: event.data.object.id });
+      await eventRecorder({ env: context.env, event });
+    } else if (dualPlans && (event.type.startsWith('customer.subscription.') || ['invoice.paid', 'invoice.payment_failed', 'invoice.payment_action_required'].includes(event.type))) {
+      const id = event.type.startsWith('customer.subscription.') ? event.data.object.id : invoiceSubscriptionId(event.data.object);
+      if (id) {
+        const sub = await syncSubscription({ env: context.env, stripe, subscriptionId: id,
+          invoiceId: event.type === 'invoice.paid' ? event.data.object.id : '' });
+        if (sub) await stopMonthlyRenewals({ env: context.env, stripe, userId: sub.metadata.clerk_user_id, customerId: stripeObjectId(sub.customer) });
+      }
+      await eventRecorder({ env: context.env, event });
+    } else if (dualPlans && event.type === 'checkout.session.expired') {
+      const session = await stripe.checkout.sessions.retrieve(event.data.object.id);
+      assertStripeMode(session, context.env);
+      const userId = session.metadata?.clerk_user_id;
+      const row = userId ? await customerFor(context.env, userId) : null;
+      if (session.status === 'expired' && row?.checkout_token === session.metadata?.checkout_token && row.stripe_customer_id === stripeObjectId(session.customer)) {
+        await clearCheckout({ env: context.env, userId, token: row.checkout_token });
+      }
+      await eventRecorder({ env: context.env, event });
+    } else if (COMPLETED_CHECKOUT_EVENTS.has(event.type)) {
       const session = await paidLifetimeSession(stripe, event, priceIdResolver(context.env));
       if (session) await accessActivator({ env: context.env, event, session });
       else await eventRecorder({ env: context.env, event });

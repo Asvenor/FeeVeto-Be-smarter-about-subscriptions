@@ -11,7 +11,7 @@ export async function testDatabase({ billing = false } = {}) {
     ),
   );
   if (billing) {
-    for (const file of ["0001_billing.sql", "0003_refund_ordering.sql"])
+    for (const file of ["0001_billing.sql", "0003_refund_ordering.sql", "0004_monthly_lifetime_billing.sql"])
       sqlite.exec(
         await readFile(
           new URL(`../../migrations/${file}`, import.meta.url),

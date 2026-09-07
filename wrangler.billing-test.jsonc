@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "feeveto-billing-test",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-07",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": true },
+  "vars": { "BILLING_MODE": "test", "BILLING_ENABLED": "false" },
+  "kv_namespaces": [{ "binding": "FEEVETO_ALTERNATIVES", "id": "00000000000000000000000000000009", "remote": false }],
+  "d1_databases": [{
+    "binding": "FEEVETO_BILLING",
+    "database_name": "feeveto-billing-test",
+    "database_id": "00000000-0000-4000-8000-000000000009",
+    "migrations_dir": "./migrations",
+    "remote": false
+  }]
+}

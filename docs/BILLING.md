@@ -1,0 +1,109 @@
+# FeeVeto Monthly and Lifetime billing
+
+Implementation is test-first. No production deployment, live Stripe prices, real charges, or production migrations are authorized by this document. `wrangler.billing-test.jsonc` uses placeholder resource IDs for local simulation only; do not deploy that configuration.
+
+## Approved offers
+
+| Plan | Price | Stripe price | Checkout mode |
+| --- | --- | --- | --- |
+| Premium Monthly | $2.99 USD/month | 299 minor units; recurring month, interval_count 1, licensed | subscription |
+| Premium Lifetime | $49.99 USD once | 4999 minor units; one-time | payment |
+
+Both unlock the same existing Premium features for one Clerk account. Free audits and ordinary public alternatives remain available. Admin/beta complimentary access stays exclusively in Clerk private metadata. A payment cannot grant admin rights.
+
+Only USD purchase prices are approved. The global audit currency preference never changes payment prices, saved subscription billing amounts, country answers or verified provider prices. No automatic tax, trials, coupons, quantity selection, external payment methods, or guessed exchange rates are enabled. Confirm tax obligations and price-inclusive/exclusive policy before live activation.
+
+## Stripe setup (test environment first)
+
+1. Confirm the seller account and sandbox identity in Stripe. CLI authorization alone neither proves FeeVeto seller branding nor enables live payments. Use test credentials only. Never print or commit API keys, the CLI credential file, or webhook signing secrets.
+2. Create a FeeVeto Premium test product with the two prices above. Do not edit or archive pre-existing products, prices or subscriptions. Record the new non-secret price IDs.
+3. Create a dedicated test customer-portal configuration. Enable payment-method updates, invoice history, and subscription cancellation **at period end**. Disable subscription plan/quantity changes, subscription pause and promotions; buying lifetime happens through FeeVeto Checkout. Keep cancellation proration disabled. Store this exact configuration's `bpc_...` ID; do not change another application's default portal.
+4. For hosted testing, use a separate Worker, separate D1 database, and test Clerk instance with the correct origins. A hosted test deployment still requires approval. Locally, use the supplied isolated configuration and storage below.
+5. Configure runtime variables/secrets from the table below. `BILLING_ENABLED` stays `false` until setup is verified. Vite receives only the Clerk publishable key, never Stripe/Clerk secret keys.
+6. Register `/api/billing/webhook` for the test Worker, or forward test events locally using the official Stripe CLI. Use the signing secret for that specific endpoint/listener. Keep the endpoint API version compatible with the installed Stripe SDK; the current implementation supports invoice parent references and item-level subscription periods.
+
+Required webhook events:
+
+- `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `checkout.session.expired`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `invoice.payment_action_required`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `charge.refunded`
+
+Stripe's [subscription webhooks](https://docs.stripe.com/billing/subscriptions/webhooks), [webhook delivery guidance](https://docs.stripe.com/webhooks), and [portal configuration](https://docs.stripe.com/customer-management/configure-portal) describe the lifecycle and self-service options used here.
+
+## Runtime configuration
+
+| Setting | Purpose |
+| --- | --- |
+| `BILLING_ENABLED` | Literal `true` enables creating Checkout sessions. Missing/false disables new checkout, not existing entitlements or webhook processing. |
+| `BILLING_MODE` | `test` by default; `live` is a separately approved release. Stripe objects must match. |
+| `STRIPE_MONTHLY_PRICE_ID` | Approved $2.99 USD monthly price for this environment. |
+| `STRIPE_LIFETIME_PRICE_ID` | Approved $49.99 USD one-time price for this environment. |
+| `STRIPE_PORTAL_CONFIGURATION_ID` | Dedicated period-end cancellation portal configuration. |
+| `STRIPE_SECRET_KEY` | Secret matching the environment; server only. |
+| `STRIPE_WEBHOOK_SECRET` | Endpoint/listener signing secret; server only. |
+| `STRIPE_LEGACY_LIFETIME_PRICE_IDS` | Comma-separated verified old lifetime prices, in this same Stripe mode/account only. |
+| `STRIPE_LEGACY_MONTHLY_PRICE_IDS` | Equivalent allowlist for future monthly price migrations. |
+| `STRIPE_PRICE_ID` | Old lifetime price alias retained for existing grants; not used for new Checkout. |
+| `FEEVETO_BILLING` | D1 binding containing all four migrations. |
+| `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` | Matching runtime Clerk credentials, as before. |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Matching browser build key; not a secret. |
+
+`.dev.vars.example` contains placeholders only. Use ignored `.dev.vars` or a private environment file locally, and encrypted Worker secrets remotely. `.private/stripe-billing-cli.toml` must stay ignored and accessible only to the current OS user. The current CLI uses its own developer authorization; that is not a server API key for the Worker. Both same-mode `sk_` and `rk_` server keys are supported, while `pk_` browser keys are rejected. Prefer a restricted key granting only Checkout Sessions, Customers, Subscriptions and Customer Portal write access, plus Prices, Invoices and Invoice Payments read access. Verify permission coverage with sandbox checks before release. See [Stripe key guidance](https://docs.stripe.com/keys).
+
+The optional administrative script `node scripts/billing-sandbox-setup.mjs <sandbox-account-id>` uses the already authorized official Stripe CLI. It requires an explicit expected account, checks test mode before each request, creates/reuses only resources marked for FeeVeto's monthly/lifetime setup, and validates the resulting prices and portal. Its ignored `.private/billing-sandbox/setup.json` report contains no secrets. It does not retrieve server keys, change branding, enable checkout or deploy anything.
+
+## Local verification
+
+Commands below affect local simulated storage only:
+
+```sh
+npm ci
+npm run check
+npx wrangler d1 migrations apply feeveto-billing-test --local --config wrangler.billing-test.jsonc --persist-to .private/billing-local-state
+npx wrangler deploy --dry-run --config wrangler.billing-test.jsonc --outdir .private/billing-worker-build
+npx wrangler dev --local --config wrangler.billing-test.jsonc --persist-to .private/billing-local-state --port 8790
+```
+
+Provide matching test secrets privately before expecting sign-in or Checkout. An empty local alternatives KV must be populated separately with approved private catalogue data when exercising discovery; it is not evidence of a matching failure. Never use `--remote` or the production catalogue/database to test billing.
+
+In a sandbox, complete a real hosted test Checkout for each plan and verify the signed event reaches this Worker and updates D1. A generated unrelated `stripe trigger` fixture is not sufficient to prove the account/product-linked flow. Use Stripe test clocks for renewal and failed-payment lifecycle checks where supported. Test the customer portal's cancellation and payment-method update. Test an ordinary account, not an admin/beta account, because complimentary accounts intentionally cannot buy.
+
+## Entitlements and lifecycle
+
+- Clerk verifies every account request; the server retrieves the mapped Stripe customer. Request bodies cannot select a customer, user ID, price, role or entitlement.
+- One persistent checkout reservation per account, Stripe idempotency keys, and current-session recovery guard retries and parallel clicks. A timed-out request must be retried, not replaced with an untracked purchase.
+- Checkout completion is re-fetched from Stripe. Product, exact price, payment status, account/customer identity and live/test mode must agree. Redirect parameters only start confirmation polling.
+- Monthly access comes from a verified paid invoice/payment ledger and current subscription state, not `active` alone. `past_due` retains only a previously paid, unexpired period. There is no unpaid grace period or free trial. Cancellation at period end preserves that paid period; terminal cancellation or expiry removes monthly access without removing lifetime/complimentary access.
+- Events can arrive twice, out of order or concurrently. The Worker retrieves current subscription state and uses D1 revisions to reject stale overwrites. The invoice ledger keeps the longest legitimate paid period instead of trusting event order.
+- Lifetime upgrades grant a separate purchase, then cancel FeeVeto monthly subscriptions for that same customer without proration or an extra invoice. Cancellation errors return a retryable failure. The interface warns when cancellation is still pending; lifetime access itself is not lost.
+- A full refund records a payment-specific tombstone. Refunded invoices/purchases cannot be revived by a delayed completion event. Partial refunds do not revoke access. A later legitimate payment can grant access again. Refunding lifetime does not automatically restart a cancelled monthly subscription.
+- No catalogue records, audit answers, saved-audit history, or Clerk metadata are migrated by billing migration 0004.
+
+## Migration and recovery
+
+Migration 0004 is additive: customer mappings, lifetime purchases, subscriptions, paid invoices and invoice payment links. Existing `billing_entitlements` and refund tombstones remain intact. Before any production migration, export/back up the intended database, inventory existing Stripe prices and in-flight sessions, and verify the legacy allowlist. Legacy rows have no mode column, so never copy test grants or test price IDs into live storage/allowlists.
+
+Previously completed old-price lifetime grants are preserved through the explicit allowlist. **Do not change from old to new price configuration while old-format Checkout sessions are still open or unprocessed:** finish/reconcile those with the prior handler first. Old-format sessions did not contain the new plan/mode metadata and are not accepted by the new fulfillment path. Existing old customers may acquire a new dedicated customer mapping on a future purchase; do not assume historical purchases will all appear in the new portal without a reviewed customer migration.
+
+On a failed webhook, inspect the event in Stripe and retry it after repairing configuration or storage. Do not set a browser premium flag or manually edit Clerk complimentary metadata to hide a billing failure. For a failed lifetime-upgrade cancellation, confirm the paid lifetime grant and the exact owned monthly subscription, then retry the original event; if necessary cancel that monthly subscription in Stripe without proration. Alert on unresolved webhook failures and reconcile before Stripe's retry window ends. Permanent background reconciliation/operations alerting is not implemented in this version.
+
+An abandoned open Checkout expires after one hour. The same plan resumes the same session; a different plan is blocked until expiry, preventing simultaneous charges. There is not yet an in-app “discard checkout” action. Changing price/origin configuration mid-checkout can cause safe retry failures; reconcile open sessions before changing it.
+
+## Before real payments
+
+Production remains gated on approval of seller branding and statement descriptor, support contact, refund/consumer-cancellation policy, precise lifetime-access promise, tax handling and receipts. Dispute/chargeback automation is not implemented; handle those through a reviewed policy before launch. Verify real sandbox payments, renewals, SCA/failed payment, full/partial refunds, upgrade cancellation retries, mobile layout and keyboard navigation first. Unit/DOM tests with simulated Stripe responses are not proof of a successful hosted payment. Do not enable `BILLING_MODE=live`, create live products, apply production migrations or deploy without a separate approval.
+
+## Verification checkpoint — 2026-09-08
+
+- Clean dependency installation completed; `npm run check` passed 216 tests and the production Vite build. Billing unit/DOM tests use simulated Stripe responses, real SQLite storage and a real Stripe signature-verification test.
+- All four migrations applied successfully to isolated local Cloudflare storage. The local Worker bundle dry run and generated runtime types passed; no remote database or deployment was changed.
+- Official Stripe CLI authorization verified a test-only sandbox. The two actual sandbox prices and dedicated portal were created and validated through Stripe's API; IDs are recorded in the ignored setup report. No Checkout payment, real charge or existing customer was created by setup.
+- Hosted sandbox payment completion, real renewal/refund events, browser/mobile checkout and full Clerk-to-Worker purchase verification remain outstanding. The Worker still needs its sandbox server key and listener signing secret. Browser control of Stripe's settings was blocked by an admin-policy verification failure; no alternate browser-access workaround was used.
+- Checkout remains disabled. A source/private-file scan found no secret keys in the 31 changed non-ignored files. Secret/private paths were verified ignored by Git.

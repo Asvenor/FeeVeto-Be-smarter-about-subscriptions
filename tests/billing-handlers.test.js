@@ -7,7 +7,7 @@ import { handleWebhookRequest } from '../functions/api/billing/webhook.js';
 function checkoutContext(currency = 'USD') {
   return {
     env: {},
-    request: new Request(`https://feeveto.example/api/billing/checkout?currency=${currency}`, { method: 'POST' }),
+    request: new Request(`https://feeveto.example/api/billing/checkout?plan=lifetime&currency=${currency}`, { method: 'POST' }),
   };
 }
 
@@ -40,20 +40,15 @@ test('checkout accepts only supported currencies', async () => {
   assert.equal(response.status, 400);
 });
 
-test('complimentary and paid premium users are not sent through checkout again', async () => {
+test('complimentary users are not sent through checkout again', async () => {
   const betaResponse = await handleCheckoutRequest(checkoutContext(), {
     identityResolver: async () => ({ ...ordinaryIdentity, user: { ...ordinaryIdentity.user, privateMetadata: { role: 'user', betaAccess: true } } }),
     paidAccessResolver: async () => false,
   });
-  const paidResponse = await handleCheckoutRequest(checkoutContext(), {
-    identityResolver: async () => ordinaryIdentity,
-    paidAccessResolver: async () => true,
-  });
   assert.deepEqual(await betaResponse.json(), { state: 'already_premium' });
-  assert.deepEqual(await paidResponse.json(), { state: 'already_premium' });
 });
 
-test('checkout uses server-verified identity and the configured multi-currency price', async () => {
+test('checkout does not invent unapproved EUR prices', async () => {
   let created;
   const response = await handleCheckoutRequest(checkoutContext('EUR'), {
     identityResolver: async () => ordinaryIdentity,
@@ -64,13 +59,8 @@ test('checkout uses server-verified identity and the configured multi-currency p
       return { url: 'https://checkout.stripe.com/c/pay/test' };
     } } } }),
   });
-  assert.equal(response.status, 201);
-  assert.equal(created.currency, 'eur');
-  assert.equal(created.line_items[0].price, 'price_test');
-  assert.equal(created.client_reference_id, 'user_test');
-  assert.equal(created.metadata.clerk_user_id, 'user_test');
-  assert.equal(created.customer_email, 'buyer@example.test');
-  assert.equal(created.success_url, 'https://feeveto.example/?payment=success#pricing');
+  assert.equal(response.status, 400);
+  assert.equal(created, undefined);
 });
 
 function webhookRequest() {

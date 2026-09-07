@@ -1,7 +1,14 @@
-# Local Cloudflare Pages Functions only. Copy to .dev.vars and use real values there.
+# Local Worker only. Copy to ignored .dev.vars and use TEST credentials there.
 CLERK_SECRET_KEY=replace_with_your_clerk_secret_key
 CLERK_PUBLISHABLE_KEY=replace_with_your_clerk_publishable_key
-CLERK_AUTHORIZED_PARTIES=http://127.0.0.1:8788
+CLERK_AUTHORIZED_PARTIES=http://127.0.0.1:8790
+BILLING_ENABLED=false
+BILLING_MODE=test
 STRIPE_SECRET_KEY=sk_test_replace_with_your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=whsec_replace_with_your_local_webhook_secret
-STRIPE_PRICE_ID=price_replace_with_your_multicurrency_price_id
+STRIPE_MONTHLY_PRICE_ID=price_replace_with_usd_299_monthly_test_price
+STRIPE_LIFETIME_PRICE_ID=price_replace_with_usd_4999_one_time_test_price
+STRIPE_PORTAL_CONFIGURATION_ID=bpc_replace_with_test_portal_configuration
+# Explicit same-mode old prices only, to preserve existing purchases.
+STRIPE_LEGACY_LIFETIME_PRICE_IDS=
+STRIPE_LEGACY_MONTHLY_PRICE_IDS=
