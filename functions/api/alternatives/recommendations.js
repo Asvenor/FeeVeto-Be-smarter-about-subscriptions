@@ -1,6 +1,6 @@
 import { resolveAccess } from '../../_shared/access-policy.js';
 import { getVerifiedAccess } from '../../_shared/clerk-access.js';
-import { selectRecommendations } from '../../_shared/alternatives.js';
+import { curatedRecommendations } from '../../_shared/catalogue-provider.js';
 import { CatalogueConfigurationError, loadPrivateCatalogue } from '../../_shared/catalogue-store.js';
 import { json, methodNotAllowed } from '../../_shared/http.js';
 
@@ -35,8 +35,7 @@ export async function handleRecommendationsRequest(
   }
   try {
     const access = await requestAccess(context, accessResolver);
-    const catalogue = await catalogueLoader(context);
-    return json(selectRecommendations(catalogue, query, { premiumAccess: access.premiumAccess }));
+    return json(await curatedRecommendations(context, query, access, { load: catalogueLoader }));
   } catch (error) {
     if (error instanceof AuthenticationError) {
       return json({ state: 'authentication_failed', error: error.message }, { status: error.status });

@@ -53,7 +53,20 @@ function httpsUrl(value) {
 }
 
 function validDate(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+}
+
+export function checkedRating(value) {
+  if (!value || !Number.isFinite(value.value) || !Number.isFinite(value.scale) || value.scale <= 0
+    || value.value < 0 || value.value > value.scale || !Number.isInteger(value.count) || value.count < 1
+    || !httpsUrl(value.sourceUrl) || !text(value.source, 80) || !validDate(value.checkedAt)) return null;
+  return { value: value.value, scale: value.scale, count: value.count, source: text(value.source, 80), sourceUrl: httpsUrl(value.sourceUrl), checkedAt: value.checkedAt };
+}
+
+export function freshnessFor(verifiedAt, now = new Date()) {
+  const days = validDate(verifiedAt) ? Math.floor((now.getTime() - Date.parse(verifiedAt)) / 86_400_000) : null;
+  return { policyDays: 90, needsRecheck: days === null || days < 0 || days > 90 };
 }
 
 function nullableMinorUnits(value) {
@@ -113,6 +126,11 @@ export function normalizeRecommendationQuery(value) {
     targetLanguage: text(value.targetLanguage, 40),
     learnerLevel: LEARNER_LEVELS.has(value.learnerLevel) ? value.learnerLevel : '',
     specificSubject: text(value.specificSubject, 80),
+    budgetMinor: Number.isSafeInteger(value.budgetMinor) && value.budgetMinor >= 0 ? value.budgetMinor : null,
+    budgetCurrency: CURRENCIES.includes(value.budgetCurrency) ? value.budgetCurrency : '',
+    switchingTolerance: ['easy', 'moderate', 'any'].includes(value.switchingTolerance) ? value.switchingTolerance : '',
+    easierOnly: value.easierOnly === true,
+    limit: Number.isInteger(value.limit) ? Math.max(1, Math.min(12, value.limit)) : 3,
   };
 }
 
@@ -186,7 +204,8 @@ export function validateOffer(value) {
     renewalTerms: nullableText(value.renewalTerms, 180),
     priceVerifiedAt: priceMinor === null ? null : value.priceVerifiedAt,
     officialUrl, pricingUrl: pricingUrl || null, sourceUrls,
-    verifiedAt: value.verifiedAt, affiliateUrl: null, affiliateStatus: 'not_applied', trialOnly: false,
+    verifiedAt: value.verifiedAt, reviewRating: checkedRating(value.reviewRating),
+    affiliateUrl: null, affiliateStatus: 'not_applied', trialOnly: false,
   };
 }
 
@@ -194,8 +213,20 @@ function compatibility(offer, query) {
   if (offer.productType !== query.productType) return null;
   if (query.serviceId && !offer.relevantServices.includes(query.serviceId)) return null;
   if (query.serviceId && offer.providerServiceId === query.serviceId && offer.relationship !== 'downgrade') return null;
+  if (query.easierOnly && offer.switchingDifficulty !== 'easy') return null;
+  if (query.switchingTolerance === 'easy' && ['moderate', 'complex'].includes(offer.switchingDifficulty)) return null;
+  if (query.switchingTolerance === 'moderate' && offer.switchingDifficulty === 'complex') return null;
 
   const verification = [];
+  if (query.switchingTolerance && offer.switchingDifficulty === 'unknown') verification.push('Confirm how much effort this switch would take.');
+  if (freshnessFor(offer.verifiedAt).needsRecheck) verification.push('This record is due for a new check. Confirm its features and availability.');
+  if (query.budgetMinor !== null) {
+    const monthly = offer.pricingModel === 'free' ? 0 : offer.priceCurrency === query.budgetCurrency
+      && offer.priceMinor !== null && !offer.introductoryTerms
+      ? offer.billingInterval === 'monthly' ? offer.priceMinor : offer.billingInterval === 'yearly' ? offer.priceMinor / 12 : null : null;
+    if (monthly !== null && monthly > query.budgetMinor) return null;
+    if (monthly === null) verification.push('Price or billing currency prevents confirming this option fits your monthly budget.');
+  }
   const supportedMustHave = [];
   for (const feature of query.mustHave) {
     if (offer.unsupportedFeatures.includes(feature)) return null;
@@ -304,6 +335,14 @@ function resultFor(offer, query, match, tailored) {
     description: offer.description,
     whyMatches: why,
     supportedRequirements: supported,
+    features: offer.features,
+    unsupportedFeatures: offer.unsupportedFeatures,
+    unknownFeatures: offer.unknownFeatures,
+    sourceUrls: offer.sourceUrls,
+    reviewRating: offer.reviewRating,
+    freshness: freshnessFor(offer.verifiedAt),
+    countryAvailability: offer.countryAvailability,
+    productType: offer.productType,
     limitations: offer.limitations.slice(0, 3),
     usageLimits: offer.usageLimits.slice(0, 3),
     verificationNotes: match.verification,
@@ -385,7 +424,7 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
   const tailored = hasSelectedNeeds(query);
   const items = matches
     .sort((left, right) => right.match.rankScore - left.match.rankScore || left.offer.productName.localeCompare(right.offer.productName))
-    .slice(0, 3)
+    .slice(0, query.limit)
     .map(({ offer, match }) => resultFor(offer, query, match, tailored));
   let state = tailored ? 'matched_suggestions' : 'general_suggestions';
   let message = '';
@@ -396,5 +435,7 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
     state = 'no_matches';
     message = 'No accessible verified alternative meets the requirements you selected. Review them to broaden the comparison if appropriate.';
   }
-  return { accessScope, state, items, message, missingDetails: missingDetailsFor(query) };
+  return { accessScope, state, items, message, missingDetails: missingDetailsFor(query),
+    hasMore: matches.length > items.length, total: matches.length, provider: 'curated', rankingVersion: 'curated-v3',
+    market: { country: query.country, currency: query.marketCurrency, source: query.country ? 'explicit_country' : query.marketCurrency ? 'currency_hint' : 'unknown' } };
 }
