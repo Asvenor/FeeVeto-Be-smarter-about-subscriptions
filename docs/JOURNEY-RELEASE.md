@@ -2,6 +2,16 @@
 
 This branch evolves the existing FeeVeto app: instant supported-service discovery, optional two-stage questions, explainable server assessments, and account-owned append-only history. The old local subscription list and export format remain unchanged.
 
+## Current release status — September 7, 2026
+
+Published to [the live FeeVeto site](https://feeveto.edward-nyarko.workers.dev/) after explicit user approval of the saved-audit and refund-safeguard database additions. Source commit: `5e68d0a20c936faf2f6e16ec03f8153eeabcb88b`; active Worker version: `ebfe0537-bba6-4408-a4f9-823b2293f718`. Both migrations succeeded, existing Clerk secrets/KV were preserved, and D1 is now bound. No main-branch merge or payment activation was performed.
+
+All 185 automated tests and the build passed. Live HTML, privacy, and main JavaScript match the tested build; public Netflix/Canva/Dropbox discovery and assessments passed, while guest history and forged-permission saves were denied. Real signed-in browser save/reopen and mobile/keyboard visual checks remain unverified; the existing Clerk development instance remains in use. Stripe setup and account-history deletion/export remain separate unfinished work.
+
+The private pre-migration backup remains at `.private/feeveto-billing-before-account-save-20260907.sql` (ignored, owner-only). Previous Worker version: `01438779-02c2-4dbd-a667-fa6207dbc119`. Any rollback must be deliberate: retain the additive database tables and account records, and do not automatically restore an old SQL backup over new saves. The preview's localhost data is separate from live storage; transfer browser subscriptions only by explicit export/import, then save each desired entry while signed in.
+
+The earlier checkpoint outcomes below document verification boundaries at the time; this approved publication supersedes their pending-deployment status, not their unresolved browser/payment limitations.
+
 ## Required configuration
 
 - Build: matching Clerk publishable key as `VITE_CLERK_PUBLISHABLE_KEY` (public).

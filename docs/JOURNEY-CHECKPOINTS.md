@@ -82,4 +82,15 @@ Each phase is committed separately after its focused tests pass. Recovery is by 
 - Created an owner-readable, ignored backup at `.private/feeveto-billing-before-account-save-20260907.sql`. No secret values or database contents are committed.
 - Production application of migrations `0002_saved_audits.sql` and `0003_refund_ordering.sql` was denied by the execution safety check pending exact user approval. Neither migration was executed and no deployment was attempted. They only create a saved-assessment table/index and a separate refund-event safeguard table; existing data is not replaced. Deployment must wait for approval, preserve current secrets/KV, and must not enable Stripe payments or merge main automatically.
 
-See `JOURNEY-RELEASE.md` for preview steps, configuration, additive migration instructions, future-provider boundary, and remaining limitations. Local implementation and automated checks are ready for review; the production release is not yet cleared.
+## Approved live publication — September 7, 2026
+
+- The user explicitly approved both database additions and publishing this version after the safety-check pause. Reverified the existing release and owner-readable backup before making changes.
+- Applied `0002_saved_audits.sql` and `0003_refund_ordering.sql` successfully to the existing `feeveto-billing` database. No migrations remain pending. Neither migration deletes or replaces existing records.
+- Re-ran all 185 tests and the production build successfully; verified the Clerk secret is absent from frontend output.
+- Published source commit `5e68d0a20c936faf2f6e16ec03f8153eeabcb88b` from `feature/intent-audit-experience` directly to the existing `feeveto` Worker using preserved variables and strict conflict checks. Active version: `ebfe0537-bba6-4408-a4f9-823b2293f718`, tagged `save-flow-5e68d0a`.
+- Existing Clerk secrets and private KV were retained; the existing D1 database was bound to the Worker. No catalogue import, Stripe credentials, payment activation, or merge of main was performed. The private pre-change SQL backup is retained.
+- **Verified live:** page, privacy page, and main script exactly match the tested build. Netflix/Canva/Dropbox returned HTTP 200 and 2/1/3 guest alternatives; assessments returned HTTP 200. Detailed Canva returned a switch assessment. Guest account history and an unauthenticated save containing forged admin/premium flags both returned HTTP 401. Unsupported assessment input returned 400; unknown API route returned 404.
+- **Still not verified:** real signed-in browser save/reopen, mobile visual and keyboard interaction. Browser automation remains unavailable; DOM tests simulate Clerk identity. Clerk is still using its existing development instance. These limitations are not a claim that all launch QA is complete.
+- The local preview and live site have separate browser storage and databases. Localhost records are not automatically transferred to production. To carry browser subscriptions over deliberately, export/import a local backup on the live site, then edit/save individual entries while signed in.
+
+See `JOURNEY-RELEASE.md` for configuration, recovery, and remaining limitations. Earlier pending-release entries above are historical checkpoints superseded by this explicit approval and live publication.
