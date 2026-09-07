@@ -44,6 +44,39 @@ async function setup() {
   }
   return { request, database };
 }
+test('browser entry identity is server-scoped to its owner, edits do not create separate audits', async () => {
+  const { request, database } = await setup();
+  try {
+    const payload = { draft, sourceSubscriptionId: 'local-123', requestKey: key() };
+    const first = (await (await request('alice', { method: 'POST', body: payload })).json()).saved;
+    const repeated = await (await request('alice', { method: 'POST', body: payload })).json();
+    assert.equal(repeated.saved.version, first.version);
+    const edited = (await (await request('alice', { method: 'POST', body: { ...payload, draft: { ...draft, amountMinor: 2200 }, requestKey: key() } })).json()).saved;
+    assert.equal(edited.auditId, first.auditId);
+    const bob = (await (await request('bob', { method: 'POST', body: payload })).json()).saved;
+    assert.notEqual(bob.auditId, first.auditId);
+    assert.equal((await request('bob', { path: `?id=${first.auditId}` })).status, 404);
+    const list = await (await request('alice')).json();
+    assert.equal(list.audits.length, 1);
+    assert.equal(list.audits[0].versions, 2);
+    assert.equal((await request('alice', { method: 'POST', body: { ...payload, auditId: first.auditId } })).status, 400);
+    assert.equal((await request('alice', { method: 'POST', body: { ...payload, sourceSubscriptionId: { forged: true } } })).status, 400);
+  } finally { database.close(); }
+});
+
+test('unknown subscriptions can save a basic account audit without claiming matching alternatives', async () => {
+  const { request, database } = await setup();
+  try {
+    const response = await request('alice', { method: 'POST', body: { requestKey: key(), sourceSubscriptionId: 'unknown-123',
+      draft: { serviceName: 'My local club', amountMinor: 3000, currency: 'CHF', usage: 'weekly' } } });
+    assert.equal(response.status, 200);
+    const { saved } = await response.json();
+    assert.equal(saved.title, 'My local club');
+    assert.equal(saved.assessment.alternatives.state, 'unsupported_service');
+    assert.deepEqual(saved.assessment.alternatives.items, []);
+    assert.equal(saved.draft.amountMinor, 3000);
+  } finally { database.close(); }
+});
 test("server requires identity and ignores forged owner, premium and result snapshots", async () => {
   const { request, database } = await setup();
   assert.equal((await request("")).status, 401);

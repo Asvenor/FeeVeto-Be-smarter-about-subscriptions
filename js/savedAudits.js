@@ -233,6 +233,7 @@ export function initializeSavedAudits({
       ? "Your saved audits are ready to open."
       : "Sign in to open account audits. Your local audit still works without an account.";
     if (pending && user) void finishSave();
+    if (user) void loadList();
   }
   saveButton.addEventListener("click", () => void startSave());
   byId("reevaluate-assessment").addEventListener("click", () => {

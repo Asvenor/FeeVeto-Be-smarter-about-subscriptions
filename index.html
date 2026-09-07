@@ -147,12 +147,15 @@
                 </div>
               </section>
 
-              <div class="form-actions field-wide"><button id="submit-button" class="button button-primary" type="submit">Save and review</button><button id="cancel-edit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
+              <p id="subscription-save-help" class="field-help field-wide">Save and review keeps this entry in your browser. When signed in, it also saves a dated assessment to your account’s Saved audits. Only this entry’s spending and structured answers are sent; private notes stay here. Signing in alone does not upload earlier entries.</p>
+              <div class="form-actions field-wide"><button id="submit-button" class="button button-primary" type="submit" aria-describedby="subscription-save-help">Save and review</button><button id="cancel-edit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
             </form>
+            <p id="subscription-save-status" class="journey-status" role="status"></p>
+            <div class="journey-actions"><button id="retry-subscription-save" class="button button-secondary" type="button" hidden>Retry account save</button><a id="subscription-saved-link" class="button button-secondary" href="#saved-audits" hidden>Open Saved audits</a></div>
           </section>
 
           <aside class="audit-sidebar">
-            <section class="surface privacy-card"><span class="privacy-icon" aria-hidden="true">✓</span><div><h3>Your choice to personalise</h3><p>This local audit sends structured matching choices, not private notes. Find my best fit also sends the selected entry’s spending and answers for assessment. Account saving is a separate choice.</p></div></section>
+            <section class="surface privacy-card"><span class="privacy-icon" aria-hidden="true">✓</span><div><h3>Your choice to save</h3><p>Guest saves stay in this browser. Save and review while signed in also saves this entry’s assessment to your account. Private notes remain in the browser; earlier entries are not uploaded automatically.</p></div></section>
           </aside>
         </div>
 
@@ -197,7 +200,7 @@
       </section>
 
       <section id="privacy" class="privacy-section section-shell" aria-labelledby="privacy-title">
-        <div class="privacy-copy"><p class="eyebrow">Your choice to save</p><h2 id="privacy-title">Your audit stays under your control.</h2><p>Existing subscription entries remain in this browser. Searching sends structured matching requirements to FeeVeto; personalising sends your request, current spending, and answers for assessment. Only choosing Save this audit stores that assessment in your account. An entered country overrides the currency's starting market.</p><a href="./privacy.html">Read the privacy overview</a></div>
+        <div class="privacy-copy"><p class="eyebrow">Your choice to save</p><h2 id="privacy-title">Your audit stays under your control.</h2><p>Existing subscription entries remain in this browser. Searching sends structured matching requirements to FeeVeto; personalising sends your request, current spending, and answers for assessment. Save this audit, or Save and review while signed in, stores a dated assessment in your account. An entered country overrides the currency's starting market.</p><a href="./privacy.html">Read the privacy overview</a></div>
         <div class="privacy-points"><article><h3>Optional account</h3><p>Clerk handles sign-in. Save individual assessments deliberately; signing in alone does not upload your local subscription list.</p></article><article><h3>No financial connection</h3><p>FeeVeto does not connect to banks or automatically detect subscriptions.</p></article><article><h3>Portable local backup</h3><p>Export a JSON backup of browser-saved subscriptions before clearing browser data or changing devices. Account assessments have separate dated history.</p></article></div>
       </section>
 
@@ -207,7 +210,7 @@
           <details><summary>Does FeeVeto find or cancel subscriptions automatically?</summary><p>No. You enter subscriptions yourself. FeeVeto does not access bank accounts, manage provider accounts, or cancel services.</p></details>
           <details><summary>How are recommendations made?</summary><p>A deterministic set of documented rules weighs usage, importance, satisfaction, household use, overlap, contracts, seasonality, and switching difficulty. Every result includes reasons and a confidence level.</p></details>
           <details><summary>Does changing currency convert prices?</summary><p>No. The display currency updates examples, new-entry defaults, the matching dashboard subtotal, and the default market for alternatives. An entered country overrides that market. Every saved subscription and verified provider price keeps its original currency. FeeVeto shows separate original-currency subtotals and never combines currencies because it has no live exchange-rate service.</p></details>
-          <details><summary>Where is my information stored?</summary><p>Your original subscription list and current journey draft stay in this browser. A personal assessment is calculated on FeeVeto’s backend. If you choose Save this audit, its request, answers, comparison, and dated history are stored in your account on Cloudflare. Signing in alone does not upload your local list. Local JSON exports do not include account history.</p></details>
+          <details><summary>Where is my information stored?</summary><p>Your original subscription list and current journey draft stay in this browser. Save and review while signed in also saves that entry’s assessment to your account on Cloudflare; guests keep a browser-only copy. Save this audit does the same for a personalised discovery result. Signing in alone does not upload your local list. Local JSON exports do not include account history.</p></details>
           <details><summary>What does creating an account do?</summary><p>Clerk provides sign-in and profile management. You can then choose to save individual personal assessments and reopen their dated history. Signing in alone does not upload your browser subscription list or grant Premium. FeeVeto checks account permissions before showing restricted comparisons.</p></details>
           <details><summary>Is FeeVeto Premium a subscription?</summary><p>No. FeeVeto Premium is one lifetime purchase for the account used at checkout. Stripe handles the payment; FeeVeto stores only the server-side references needed to verify access. Owner and approved beta accounts keep complimentary premium access without payment.</p></details>
           <details><summary>Are alternative prices always current?</summary><p>Only alternatives with a verification date and sufficient local data are displayed. You should still confirm prices, features, and availability with the provider.</p></details>

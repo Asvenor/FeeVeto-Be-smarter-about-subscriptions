@@ -393,8 +393,9 @@ async function refreshAlternatives(item, focus = false) {
   announce('Alternatives updated. Your subscription is saved.');
 }
 
-elements.form.addEventListener('submit', (event) => {
+elements.form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (elements.submitButton.disabled) return;
   const formData = new FormData(elements.form);
   const validation = validateSubscriptionInput(formData);
   const errors = { ...validation.errors, ...adaptiveErrors(formData) };
@@ -418,9 +419,12 @@ elements.form.addEventListener('submit', (event) => {
     tab.setAttribute('aria-pressed', String(tab.dataset.filter === 'all'));
   }
   persist(); resetForm(); render();
-  showToast(`${item.name} ${editingId ? 'updated' : 'saved'}.`);
-  announce(`${item.name} ${editingId ? 'updated' : 'saved'} and reviewed.`);
+  showToast(`${item.name} ${editingId ? 'updated' : 'saved'} in this browser. Checking account save…`);
+  announce(`${item.name} ${editingId ? 'updated' : 'saved'} in this browser and reviewed.`);
   void refreshAlternatives(item, true);
+  elements.submitButton.disabled = true;
+  try { await journey.saveSubscription(item); }
+  finally { elements.submitButton.disabled = false; }
 });
 
 elements.form.elements.name.addEventListener('input', () => {

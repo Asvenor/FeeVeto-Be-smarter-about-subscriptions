@@ -24,6 +24,10 @@ test('subscription inputs use one adaptive form without a detailed-review dialog
   assert.doesNotMatch(html, /name="adSupportedPlan"/);
   assert.match(render, /Retry alternatives/);
   assert.match(app, /upsertSubscription/);
+  assert.match(app, /await journey\.saveSubscription\(item\)/);
+  assert.match(html, /aria-describedby="subscription-save-help"/);
+  assert.match(html, /id="subscription-save-status"[^>]*role="status"/);
+  assert.match(html, /Retry account save/);
 });
 
 test('partial-information alternatives have clear guidance and distinct result states', async () => {
@@ -51,6 +55,7 @@ test('privacy distinguishes local subscriptions from opt-in account assessments'
   assert.match(html, /Signing in alone does not upload the local list/i);
   assert.match(html, /does not send the subscription name, entered price, private notes, calculated totals, or your full subscription list/i);
   assert.match(html, /Choosing Save this audit stores those answers/i);
+  assert.match(html, /Choosing Save and review in the subscription form while signed in also saves/i);
   assert.match(html, /Protected comparison snapshots are not stored in local or session storage/i);
   assert.match(html, /Clerk for optional authentication/i);
 });

@@ -89,10 +89,10 @@ export async function createJourneyAssessment(
   context,
   body,
   access,
-  { provider = curatedRecommendations, now = new Date() } = {},
+  { provider = curatedRecommendations, now = new Date(), allowBasic = false } = {},
 ) {
   const draft = journeySubmission(body.draft || {});
-  if (!draft.productType)
+  if (!draft.productType && !(allowBasic && draft.serviceName))
     throw new JourneyError(
       400,
       "Choose a supported product type before creating this assessment.",
@@ -102,7 +102,10 @@ export async function createJourneyAssessment(
     : draft.currency;
   let alternatives;
   try {
-    alternatives = await provider(
+    alternatives = !draft.productType ? {
+      state: 'unsupported_service', items: [],
+      message: 'Your basic audit is saved. Choose a supported product type to check alternatives.',
+    } : await provider(
       context,
       journeyQuery(draft, marketCurrency, { limit: 12 }),
       access,

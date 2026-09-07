@@ -22,6 +22,7 @@ import { AlternativeRequestTracker } from "./alternativeProvider.js";
 import { initializeGuidedAudit } from "./guidedAudit.js";
 import { renderAssessment } from "./assessmentView.js";
 import { initializeSavedAudits } from "./savedAudits.js";
+import { initializeSubscriptionAccountSave } from "./subscriptionAccountSave.js";
 
 export function initializeJourney({ getClerk, getCurrency, storage }) {
   const byId = (id) => document.getElementById(id);
@@ -105,6 +106,10 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       account.hideSave();
       byId("personal-audit-title").focus();
     },
+  });
+
+  const subscriptionAccount = initializeSubscriptionAccountSave({
+    getClerk, getCurrency, storage: tabStorage, onSaved: () => account.loadList(),
   });
 
   function invalidateAssessment() {
@@ -381,6 +386,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   });
   if (draft.originalRequest || draft.productType) showUnderstood();
   return {
+    saveSubscription: (item) => subscriptionAccount.save(item),
     getDraft: () => draft,
     setDraft(value) {
       guide.close();

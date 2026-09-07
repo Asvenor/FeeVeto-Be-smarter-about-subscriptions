@@ -9,6 +9,7 @@ import { handleAuditsRequest } from "../functions/api/audits.js";
 import { curatedRecommendations } from "../functions/_shared/catalogue-provider.js";
 import { testDatabase } from "./helpers/sqlite-d1.js";
 import { PENDING_SAVE_KEY } from "../js/savedAudits.js";
+import { SUBSCRIPTION_SAVE_KEY } from "../js/subscriptionAccountSave.js";
 
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const fixture = JSON.parse(
@@ -23,7 +24,7 @@ const waitFor = async (predicate) => {
   }
   assert.fail("Timed out waiting for DOM state");
 };
-async function setup({ pending = null, user = null } = {}) {
+async function setup({ pending = null, user = null, subscriptionPending = null } = {}) {
   const dom = new JSDOM(html, { url: "https://app.test/" }),
     database = await testDatabase(),
     original = {};
@@ -118,6 +119,7 @@ async function setup({ pending = null, user = null } = {}) {
       PENDING_SAVE_KEY,
       JSON.stringify(pending),
     );
+  if (subscriptionPending) dom.window.sessionStorage.setItem(SUBSCRIPTION_SAVE_KEY, JSON.stringify(subscriptionPending));
   const journey = initializeJourney({
     getClerk: async () => clerk,
     getCurrency: () => "USD",
@@ -152,6 +154,93 @@ async function setup({ pending = null, user = null } = {}) {
     },
   };
 }
+
+const browserEntry = () => ({
+  id: 'browser-canva-12345678', name: 'Canva', amountMinor: 1700,
+  currency: 'CHF', cycle: 'monthly', usage: 'weekly', importance: 'useful',
+  detailedReview: { serviceId: 'canva', productType: 'graphic_design',
+    country: 'CH', mustHaveRequirements: ['templates'], acceptAds: false,
+    acceptFreeLimits: null, activeContract: true, neededFeatures: 'PRIVATE NOTE STAYS LOCAL' },
+});
+
+test('subscription save enters account list immediately; edits append to one audit and reload lists it', async () => {
+  const env = await setup({ user: 'alice' });
+  try {
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    const item = browserEntry();
+    await env.journey.saveSubscription(item);
+    assert.match(env.byId('subscription-save-status').textContent, /Saved to your account and this browser/);
+    assert.equal(env.byId('saved-audit-list').children.length, 1);
+    const first = env.calls.find((call) => call.path === '/api/audits' && call.body);
+    assert.equal(first.body.sourceSubscriptionId, item.id);
+    assert.equal(first.body.draft.currency, 'CHF');
+    assert.equal(first.body.draft.country, 'CH');
+    assert.equal(first.body.draft.acceptAds, false);
+    assert.equal(first.body.draft.acceptFreeLimits, null);
+    assert.equal(first.body.draft.context.neededFeatures, '');
+    assert.equal(item.detailedReview.neededFeatures, 'PRIVATE NOTE STAYS LOCAL');
+    await env.journey.saveSubscription({ ...item, amountMinor: 1900 });
+    assert.equal(env.byId('saved-audit-list').children.length, 1);
+    assert.match(env.byId('saved-audit-list').textContent, /2 dated assessments/);
+    document.dispatchEvent(new CustomEvent('feeveto:access-change'));
+    await waitFor(() => env.byId('saved-audit-list').children.length === 1);
+    env.byId('saved-audit-list').querySelector('button').click();
+    await waitFor(() => env.byId('saved-audit-history').children.length === 2);
+    assert.equal(env.journey.getDraft().amountMinor, 1900);
+    assert.deepEqual(env.journey.getDraft().mustHave, ['templates']);
+    assert.equal(env.dom.window.localStorage.getItem('feeveto_state_v2'), 'legacy-data-do-not-touch');
+    assert.equal(env.dom.window.sessionStorage.getItem(SUBSCRIPTION_SAVE_KEY), null);
+    assert.deepEqual(env.errors, []);
+  } finally { await env.cleanup(); }
+});
+
+test('guest form save stays local; signing in never bulk uploads old entries', async () => {
+  const env = await setup();
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await env.journey.saveSubscription(browserEntry());
+    assert.match(env.byId('subscription-save-status').textContent, /this browser only/);
+    assert.equal(env.calls.filter((call) => call.path === '/api/audits' && call.body).length, 0);
+    assert.equal(env.clerk.signIns, undefined);
+    env.clerk.user = { id: 'alice' };
+    env.clerk.session = { getToken: async () => 'verified-test-session' };
+    document.dispatchEvent(new CustomEvent('feeveto:access-change'));
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    assert.equal(env.calls.filter((call) => call.path === '/api/audits' && call.body).length, 0);
+  } finally { await env.cleanup(); }
+});
+
+test('failed subscription save survives refresh and retries once without leaking into another account', async () => {
+  let env = await setup({ user: 'alice' });
+  let pending;
+  try {
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    env.setFailSave(true);
+    await env.journey.saveSubscription(browserEntry());
+    assert.match(env.byId('subscription-save-status').textContent, /account save did not finish/);
+    assert.equal(env.byId('retry-subscription-save').hidden, false);
+    pending = JSON.parse(env.dom.window.sessionStorage.getItem(SUBSCRIPTION_SAVE_KEY));
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0].draft.context.neededFeatures, '');
+  } finally { await env.cleanup(); }
+  env = await setup({ user: 'bob', subscriptionPending: pending });
+  try {
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    assert.equal(env.byId('retry-subscription-save').hidden, true);
+    assert.equal(env.calls.filter((call) => call.body).length, 0);
+    env.clerk.user = { id: 'alice' };
+    document.dispatchEvent(new CustomEvent('feeveto:access-change'));
+    await waitFor(() => !env.byId('retry-subscription-save').hidden);
+    env.byId('retry-subscription-save').click();
+    env.byId('retry-subscription-save').click();
+    await waitFor(() => env.byId('subscription-save-status').textContent.includes('Saved to your account'));
+    await waitFor(() => env.byId('saved-audit-list').children.length === 1);
+    const calls = env.calls.filter((call) => call.path === '/api/audits' && call.body);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body.requestKey, pending[0].requestKey);
+    assert.match(env.byId('saved-audit-list').textContent, /1 dated assessment/);
+  } finally { await env.cleanup(); }
+});
 
 test("connected DOM journey: guest discovery, guide, sign-in continuity, retry, reopen, append-only reevaluation", async () => {
   const env = await setup();

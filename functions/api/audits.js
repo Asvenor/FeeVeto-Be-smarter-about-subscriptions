@@ -102,7 +102,16 @@ export async function handleAuditsRequest(context, options = {}) {
         400,
         "A valid save request identifier is required.",
       );
-    const auditId = body.auditId || "";
+    const sourceSubscriptionId = body.sourceSubscriptionId || "";
+    if (sourceSubscriptionId && (typeof sourceSubscriptionId !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,100}$/.test(sourceSubscriptionId)))
+      throw new JourneyError(400, 'A valid subscription identifier is required.');
+    if (sourceSubscriptionId && body.auditId)
+      throw new JourneyError(400, 'Choose one audit source.');
+    // Stable per-entry identity includes the VERIFIED owner. Browser IDs never confer access.
+    const auditId = sourceSubscriptionId
+      ? await hash(['browser-subscription', owner, sourceSubscriptionId])
+      : body.auditId || "";
     if (auditId && !uuid(auditId))
       throw new JourneyError(404, "Audit not found.");
     const draft = journeySubmission(body.draft || {});
@@ -125,7 +134,7 @@ export async function handleAuditsRequest(context, options = {}) {
       return json({ saved: visibleVersion(existing, access), duplicate: true });
     }
     if (
-      auditId &&
+      auditId && !sourceSubscriptionId &&
       !(await database
         .prepare(
           "SELECT 1 FROM saved_audit_versions WHERE owner_id = ? AND audit_id = ? LIMIT 1",
@@ -139,7 +148,7 @@ export async function handleAuditsRequest(context, options = {}) {
       context,
       { draft, marketCurrency },
       access,
-      options,
+      { ...options, allowBasic: true },
     );
     await database
       .prepare(

@@ -13,7 +13,7 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 - Explainable keep/downgrade/switch/cancel assessments with same-currency estimates and dated source evidence
 - Opt-in account saves, retry-safe sign-in continuity, reopening, and append-only reevaluation history
 - One adaptive form for cost, usage, requirements, and optional switching context
-- One “Save and review” action that stores the entry, calculates the audit, and retrieves authorized alternatives
+- One “Save and review” action that keeps the browser entry, calculates the audit, retrieves authorized alternatives, and (when signed in) saves its account assessment with retry recovery
 - Transparent recommendations with reasons, confidence, and cautious wording
 - Weekly, monthly, quarterly, and yearly cost normalization
 - One persisted global display-currency preference, defaulting to USD, for examples, dashboard subtotals, new-entry defaults, and the default alternatives market
@@ -83,7 +83,7 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains one global display-currency preference and subscriptions, including each entry's original billing currency and optional adaptive-form answers. The existing `auditCurrency` field remains the persisted preference name for backup compatibility. New visitors default to USD. Existing valid preferences, imported backups, legacy preferences, saved amounts, and saved billing currencies are preserved. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
-No analytics are included. The original local-list matching path sends only structured requirements, not the local name, price, notes, totals, or full list. Instant discovery also sends structured requirements, optional budget, switching tolerance, and market context. Personal assessment additionally sends the original request, current spending, and guided answers for server calculation. Only an explicit account save stores an assessment in D1. No full subscription list is uploaded automatically. See [journey release notes](docs/JOURNEY-RELEASE.md) for privacy, storage, and verification boundaries.
+No analytics are included. Alternative-matching requests send structured requirements, not the local name, price, notes, totals, or full list. Instant discovery also sends optional budget, switching tolerance, and market context. Personal assessment additionally sends the original request, current spending, and guided answers for server calculation. Save this audit, or Save and review while signed in, explicitly stores the selected entry's assessment in D1. Private notes stay local. Guest saves remain browser-only; sign-in alone never uploads earlier entries. See [journey release notes](docs/JOURNEY-RELEASE.md) for privacy, storage, and verification boundaries.
 
 ## Authentication
 

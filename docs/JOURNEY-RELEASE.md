@@ -21,10 +21,12 @@ Vite alone (`npm run dev`) previews the interface, not the Worker APIs. For a fu
 npm run build
 npx wrangler d1 migrations apply feeveto-billing --local
 npx wrangler kv key put catalogue:v2 --binding FEEVETO_ALTERNATIVES --path .private/verified-alternatives.json --local
-npx wrangler dev --ip 127.0.0.1 --port 8787
+npx wrangler dev --local --ip 127.0.0.1 --port 8787 --env-file .env.local
 ```
 
-Use only the existing validated private catalogue for realistic local verification. `.private/`, `.dev.vars*`, and `.wrangler/` are ignored. Development Clerk credentials belong in ignored `.dev.vars`; a matching public key must be present at build time. Without credentials, guest discovery/assessment works but account-save testing requires controlled test doubles and is not a real Clerk integration test.
+Use only the existing validated private catalogue for realistic local verification. `.private/`, `.env*`, `.dev.vars*`, and `.wrangler/` are ignored (except safe example files). Before building, use the linked FeeVeto application's development instance with `clerk env pull --instance dev --file .env.local`. This securely writes `CLERK_SECRET_KEY` and `VITE_CLERK_PUBLISHABLE_KEY` locally. Vite injects only the publishable key; the Worker accepts that same public-key variable alongside its server-only secret. Never print or commit the file. Do not mix this setup with `.dev.vars`: [Cloudflare's local environment rules](https://developers.cloudflare.com/workers/local-development/environment-variables/) give `.dev.vars` precedence over `.env` files.
+
+The Clerk developer CLI login and website sign-in are separate. Refresh `http://127.0.0.1:8787/`, sign in through FeeVeto, personalise a result, and choose **Save this audit**. Refresh again and choose **Open my saved audits** to verify account persistence. CLI authorization, guest API checks, and mocked tests alone do not verify that flow. Without credentials, guest discovery/assessment works but account-save testing requires controlled test doubles and is not a real Clerk integration test.
 
 ## Explicit release actions (not run automatically)
 
@@ -37,6 +39,14 @@ Use only the existing validated private catalogue for realistic local verificati
 Recovery: previous code can run with the additive table left in place. Keep existing commits and database history; do not delete the history table as an automatic rollback.
 
 ## Storage and access
+
+### Unified subscription saving
+
+`Save and review` now saves the submitted entry's account assessment when signed in, in addition to its existing browser copy. Guests keep the browser-only flow. The explanatory text appears beside the submit button; private notes are stripped from the account request. Existing entries are not bulk-uploaded on login: edit and save an individual entry to add it to the account.
+
+The account endpoint derives a stable audit ID from the verified owner plus the submitted browser-entry ID. Edits append versions under that audit; request-key retries do not create duplicates. Unknown services can save a basic assessment without claiming a catalogue match. Current admin/beta/paid checks remain on the server.
+
+Failed explicit form saves remain in `feeveto_subscription_account_outbox_v1` in tab session storage with the initiating account ID and structured input only. Retry uses the same request key. Another account cannot receive that pending save automatically. The UI reports browser-only, pending, successful account save, or retryable failure, and account lists reload after saves and sign-in. Clearing browser entries still does not delete account history.
 
 `feeveto_state_v2` remains local subscriptions. `feeveto_journey_draft_v1` stores only the current request/answers, not protected comparisons. A tab-scoped pending-save request preserves explicit save intent through sign-in/retry. Each authenticated save is normalized and recomputed on the server, never taken from a browser-provided result or role.
 
@@ -55,6 +65,13 @@ Stripe branding and sandbox webhook/secret configuration remain separate pending
 - Clean install (`npm ci --offline`), 180 automated tests, production build, and Worker packaging dry run passed. No production secrets or private environment files are tracked; none of the 42 private record IDs/descriptions occur in frontend bundles.
 - Local migrations 0001/0002/0003 applied successfully. The real local Worker plus the existing 42-offer private catalogue returned guest Netflix/Canva/Dropbox suggestions (2/1/3), HTTP 200 assessments, a detailed Canva switch comparison, HTTP 401 for guest history, and correct unsupported/unknown-route errors. Run `node scripts/journey-smoke.mjs http://127.0.0.1:8787/` while the local Worker is running.
 - Connected DOM tests execute real handlers and SQLite, with simulated Clerk identity and a fictional test fixture. They verify saving through sign-in, visible save failure/retry, duplicate prevention, reload recovery, back/close/reopen, stale-search protection, sign-out clearing, and dated history. They are not a visual browser or live Clerk/Stripe test.
-- Browser policy verification blocked desktop/mobile visual and real authentication checks. New APIs are not deployed: live `/api/access` remains HTTP 200; live `/api/assessment` remains HTTP 404. This branch is not cleared for launch until browser/staging authentication checks and pending Stripe setup are completed.
+- Browser policy verification blocked desktop/mobile visual and real authentication checks. New APIs are not deployed: last checked live `/api/access` was HTTP 200 and live `/api/assessment` was HTTP 404. This branch is not cleared for launch until browser/staging authentication checks and pending Stripe setup are completed.
+
+### Local authentication setup follow-up
+
+- Refreshed the official Clerk developer login, verified the existing FeeVeto app/development instance, and securely pulled matching development keys into ignored `.env.local` with owner-only file permissions. No production instance was configured or changed.
+- Re-ran all 180 automated tests and the production build successfully with the public key present. An exact-value scan confirmed the secret key is absent from every frontend build file.
+- Restarted the local Worker with local-only storage and explicit `.env.local`. Guest Netflix/Canva/Dropbox requests and assessments passed using the existing private catalogue. Local `/api/access` returned HTTP 200 with ordinary unpaid permissions; `/api/audits` returned HTTP 401 without a session.
+- Real website sign-in/save/reopen remains pending the user's browser test; developer login does not establish a website session. Stripe configuration remains pending. Nothing was deployed, merged, or enabled for live payments.
 
 Design references: [Cloudflare D1 prepared statements and batches](https://developers.cloudflare.com/d1/worker-api/d1-database/), [Stripe webhook ordering and duplicates](https://docs.stripe.com/webhooks). No third-party API is required for discovery.
