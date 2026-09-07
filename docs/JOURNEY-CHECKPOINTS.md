@@ -40,3 +40,10 @@ Each phase is committed separately after its focused tests pass. Recovery is by 
 - Added two stages: current spending (including Not sure), then six category-aware needs groups. Existing answers are prefilled and collapsed for optional correction. Back, close/reopen, unknown answers, and legacy detailed context are preserved.
 - Existing subscription cards can enter the same guided flow without changing the original saved record. The original subscription form remains available.
 - 18 focused model/form tests and production build passed. Desktop/mobile keyboard and dialog behavior still require browser verification; the policy error remains a release limitation.
+
+## Phase 4 — Explainable assessment (code checkpoint passed)
+
+- Added a guest-safe server assessment using existing catalogue eligibility and audit safeguards. Keep, downgrade, switch, cancel, and provisional-review outcomes are based on supplied answers, with backup/contract safeguards and no forced switch.
+- Same-currency monthly/annual comparisons retain upfront commitment warnings. Unknown, introductory, variable, one-time, and cross-currency prices do not generate recurring savings claims. Feature evidence, missing answers, sources, versions, and assessment date are shown.
+- Catalogue failure still returns the user's basic assessment with a distinct unavailable state and retry. Request bodies are bounded while streaming, not just by a declared size.
+- 24 focused assessment/matching/legacy-engine tests and production build passed. A test-fixture relationship error was corrected before the checkpoint. Browser integration remains pending.

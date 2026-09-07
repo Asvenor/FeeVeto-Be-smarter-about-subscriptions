@@ -1,9 +1,10 @@
 import { SUPPORTED_SERVICES, PRODUCT_TYPES, serviceById } from './serviceCatalog.js';
 import { element, alternativeCard } from './render.js';
 import { parseIntent, normalizeJourneyDraft, changeJourneyService, journeyQuery, readJourneyDraft, writeJourneyDraft, MOTIVATIONS } from './journeyModel.js';
-import { requestJourneyAlternatives } from './journeyApi.js';
+import { requestJourneyAlternatives,journeyRequest } from './journeyApi.js';
 import { AlternativeRequestTracker } from './alternativeProvider.js';
 import { initializeGuidedAudit } from './guidedAudit.js';
+import { renderAssessment } from './assessmentView.js';
 
 export function initializeJourney({ getClerk, getCurrency, storage }) {
   const byId = id => document.getElementById(id);
@@ -16,6 +17,8 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   let filter = 'all';
   let limit = 3;
   let abort;
+  let assessment = null;
+  let assessmentRevision = 0;
   const requests = new AlternativeRequestTracker();
   const correction = byId('intent-correction');
   const results = byId('instant-results');
@@ -29,9 +32,31 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   for (const [id, label] of PRODUCT_TYPES) typeSelect.append(new Option(label, id));
   for (const [id, label] of MOTIVATIONS) motivation.append(new Option(label, id));
   byId('intent-input').value = draft.originalRequest;
-  const guide = initializeGuidedAudit({getDraft:()=>draft,onChange(value){draft=value;persist();},onComplete:()=>runSearch({focus:true})});
+  const guide = initializeGuidedAudit({getDraft:()=>draft,onChange(value){if(JSON.stringify(value)!==JSON.stringify(draft))invalidateAssessment();draft=value;persist();},onComplete:()=>runAssessment()});
   byId('personalize-results').addEventListener('click',()=>guide.open());
   byId('edit-assessment').addEventListener('click',()=>guide.open());
+  byId('retry-assessment').addEventListener('click',()=>void runAssessment());
+
+  function invalidateAssessment() {
+    assessmentRevision++; assessment=null;
+    byId('personal-audit').hidden=true;
+  }
+  async function runAssessment() {
+    persist();const revision=++assessmentRevision;
+    const input={draft:normalizeJourneyDraft(draft),marketCurrency:getCurrency()};
+    byId('personal-audit').hidden=false;
+    byId('personal-audit-content').replaceChildren();byId('assessment-status').textContent='Reviewing your answers and checked options…';
+    byId('retry-assessment').hidden=true;
+    try {
+      const clerk=await getClerk();const token=await clerk?.session?.getToken?.() || '';
+      const value=await journeyRequest('assessment',{token,body:input});
+      if(revision!==assessmentRevision)return;
+      assessment=value.assessment;renderAssessment(byId('personal-audit-content'),assessment);
+      byId('assessment-status').textContent='Your personal assessment is ready. It has not been saved to an account yet.';
+      byId('retry-assessment').hidden=!['catalogue_unavailable','request_failed'].includes(assessment.alternatives.state);
+    }catch(error){if(revision!==assessmentRevision)return;byId('assessment-status').textContent=error.message;byId('retry-assessment').hidden=false;}
+    if(revision===assessmentRevision){byId('personal-audit').scrollIntoView({behavior:'smooth',block:'start'});byId('personal-audit-title').focus({preventScroll:true});}
+  }
 
   function persist() {
     if (!writeJourneyDraft(storage, draft)) byId('journey-storage-status').textContent = 'Your answers are available in this tab, but could not be saved on this device.';
@@ -73,6 +98,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     }
   }
   async function runSearch({ focus = false } = {}) {
+    invalidateAssessment();
     showUnderstood(); persist();
     requests.invalidateAll(); abort?.abort();
     const request = requests.begin('search');
