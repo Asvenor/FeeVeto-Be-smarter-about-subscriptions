@@ -150,7 +150,9 @@ export function validateOffer(value) {
   const pricingModel = PRICING_MODELS.has(value.pricingModel) ? value.pricingModel : '';
   const relationship = RELATIONSHIPS.has(value.relationship) ? value.relationship : '';
   const availabilityStatus = AVAILABILITY.has(value.countryAvailability?.status) ? value.countryAvailability.status : '';
-  const countries = stringList(value.countryAvailability?.countries).filter((country) => /^[A-Z]{2}$/.test(country));
+  // Country lists can cover all ISO territories; the generic 24-item feature
+  // limit silently discarded legitimate markets from larger catalogues.
+  const countries = stringList(value.countryAvailability?.countries, 249).filter((country) => /^[A-Z]{2}$/.test(country));
   const platforms = stringList(value.platforms).filter((platform) => PLATFORMS.has(platform));
   const features = stringList(value.features);
   const unsupportedFeatures = stringList(value.unsupportedFeatures);
@@ -163,7 +165,7 @@ export function validateOffer(value) {
   const switchingDifficulty = SWITCHING_DIFFICULTIES.has(value.switchingDifficulty) ? value.switchingDifficulty : '';
   const languages = stringList(value.languages, 40, 40);
   const levels = stringList(value.levels).filter((level) => LEARNER_LEVELS.has(level));
-  const serverCountries = stringList(value.serverCountries).filter((country) => /^[A-Z]{2}$/.test(country));
+  const serverCountries = stringList(value.serverCountries, 249).filter((country) => /^[A-Z]{2}$/.test(country));
 
   const requiredText = id && productId && offerId && text(value.productName, 80) && text(value.planName, 80) && text(value.description);
   const requiredEnums = productType && pricingModel && relationship && availabilityStatus && switchingDifficulty;

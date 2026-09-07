@@ -157,12 +157,14 @@ Temporary trials are not catalogue offers: the validator rejects `trialOnly: tru
 
 ### Adding or updating an offer
 
+For larger additions, use the [private catalogue expansion and maintenance workflow](docs/CATALOGUE-MAINTENANCE.md). It preserves the baseline, counts distinct services instead of pricing tiers, validates category coverage, and creates a new private review bundle without uploading it.
+
 1. Verify every claim against current official product, pricing, documentation, or support pages.
-2. Update `.private/verified-alternatives.json`; the entire directory is ignored and must never be added to Git, `data/`, `js/`, HTML, or another tracked path.
+2. Preserve a private baseline backup and edit a new review copy under `.private/`; the entire directory is ignored and must never be added to Git, `data/`, `js/`, HTML, or another tracked path.
 3. Record uncertain country, platform, or advertisement compatibility as `unknown` rather than guessing.
 4. Keep different plans as different records and label same-provider lower plans as `downgrade`.
 5. Run `node scripts/catalogue-validate.mjs .private/verified-alternatives.json`.
-6. Test with development storage, then explicitly upload the complete JSON to KV key `catalogue:v2` using `npm run catalogue:publish -- --file .private/verified-alternatives.json --namespace-id <KV_NAMESPACE_ID> --remote`.
+6. Test with development storage. After approval of the exact file and destination, back up the current live value and explicitly upload the reviewed JSON to KV key `catalogue:v2` using `npm run catalogue:publish -- --file <PRIVATE_REVIEWED_FILE> --namespace-id <KV_NAMESPACE_ID> --remote`. Stop if the live baseline changed during review.
 7. Add only fictional records to tracked tests and fixtures, then run `npm run check`.
 
 All current outbound actions use the verified `officialUrl` directly with `rel="noopener noreferrer"`. No tracking redirects, affiliate parameters, external alternatives API, pricing API, search API, or AI recommendation model are used.
