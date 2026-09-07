@@ -7,7 +7,7 @@ import {
   STATUS_OPTIONS,
   USAGE_OPTIONS,
 } from './config.js';
-import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById } from './serviceCatalog.js';
+import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById, requirementsForProductType } from './serviceCatalog.js';
 
 const validValues = (options) => new Set(options.map(([value]) => value));
 const CYCLES = validValues(BILLING_CYCLES);
@@ -62,7 +62,7 @@ export function normalizeDetailedReview(value) {
     ? Math.max(0, Math.min(100, Number(rawCategory.timesPerMonth)))
     : null;
   const serviceId = SERVICE_IDS.includes(value.serviceId) ? value.serviceId : '';
-  const allowedRequirements = new Set(serviceById(serviceId)?.requirements.map(([id]) => id) || []);
+  const allowedRequirements = new Set(requirementsForProductType(value.productType || serviceById(serviceId)?.productType).map(([id]) => id));
   const requirementList = (input) => Array.isArray(input)
     ? [...new Set(input.map((item) => text(item, 80)).filter((item) => allowedRequirements.has(item)))].slice(0, 12)
     : [];
@@ -84,6 +84,7 @@ export function normalizeDetailedReview(value) {
     seasonal: booleanOrNull(value.seasonal),
     activeContract: booleanOrNull(value.activeContract),
     serviceId,
+    serviceSelectionConfirmed: value.serviceSelectionConfirmed === true,
     productType: PRODUCT_TYPE_IDS.includes(value.productType) ? value.productType : '',
     country: /^[A-Za-z]{2}$/.test(text(value.country, 2)) ? text(value.country, 2).toUpperCase() : '',
     platform: ['web', 'windows', 'macos', 'linux', 'ios', 'android', 'smart_tv', 'game_console'].includes(value.platform) ? value.platform : '',
@@ -105,6 +106,7 @@ export function normalizeDetailedReview(value) {
 
 export function normalizeSubscription(item) {
   if (!item || typeof item !== 'object') return null;
+  if (item.amountMinor === null || item.amountMinor === undefined || item.amountMinor === '' || typeof item.amountMinor === 'boolean') return null;
   const name = String(item.name || '').trim().slice(0, 80);
   const amountMinor = Number(item.amountMinor);
   if (!name || !Number.isSafeInteger(amountMinor) || amountMinor < 0 || amountMinor > MAX_AMOUNT_MINOR) return null;
@@ -198,5 +200,9 @@ export function parseImportedState(text) {
   if (!parsed) throw new Error('That file is not valid JSON.');
   const state = normalizeState(parsed);
   if (!state) throw new Error('That file is not a valid FeeVeto backup.');
+  if (parsed.subscriptions.some((item) => !CURRENCIES.includes(item?.currency) || !CYCLES.has(item?.cycle))) {
+    throw new Error('The backup contains an unknown billing currency or cycle. Your current audit has not been replaced.');
+  }
+  if (state.subscriptions.length !== parsed.subscriptions.length) throw new Error('Some entries in this backup are invalid. Your current audit has not been replaced.');
   return state;
 }

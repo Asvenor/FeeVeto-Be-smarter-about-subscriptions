@@ -12,13 +12,18 @@ const API_ROUTES = Object.freeze({
 });
 
 export async function handleWorkerRequest(request, env, executionContext, routes = API_ROUTES) {
-  const handler = routes[new URL(request.url).pathname];
+  const pathname = new URL(request.url).pathname;
+  const handler = Object.hasOwn(routes, pathname) ? routes[pathname] : null;
   if (handler) {
     return handler({
       request,
       env,
       waitUntil: executionContext?.waitUntil?.bind(executionContext),
     });
+  }
+
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
+    return json({ error: 'API endpoint not found.' }, { status: 404 });
   }
 
   if (!env?.ASSETS || typeof env.ASSETS.fetch !== 'function') {

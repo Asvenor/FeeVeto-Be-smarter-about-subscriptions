@@ -1,5 +1,7 @@
 # FeeVeto
 
+See [the polish QA report](docs/POLISH-QA.md) for the current checks, browser-test instructions, Clerk avatar settings, and outstanding release blockers.
+
 **Keep, switch, or cancel with confidence.**
 
 FeeVeto is a private subscription audit. It helps people understand recurring costs, decide whether services are worth keeping, and review verified cheaper or free alternatives that fit their needs. It does not connect to banks, detect subscriptions automatically, or cancel services.
@@ -120,7 +122,7 @@ Matching first requires the same product type. It then excludes explicitly unsup
 
 The response preserves distinct states for general suggestions, tailored suggestions, unsupported use cases, no accessible match, access restrictions, unavailable catalogue configuration, and retryable request failures. Errors never discard the saved subscription or its form answers, and request sequencing prevents an older response from replacing newer results.
 
-Signed-out and ordinary accounts can receive suitable paid or one-time-purchase records. Free-plan records are filtered on the backend before matching and are returned only when the server-verified Clerk entitlement has `premiumAccess: true`. Paid access remains a separate Stripe-ready resolver.
+Signed-out and ordinary accounts can receive suitable paid or one-time-purchase records. Free-plan records are filtered on the backend before any response and are returned only when the server-verified Clerk entitlement has `premiumAccess: true`. Paid access remains a separate Stripe-ready resolver. A supplied session that cannot be verified produces a distinct authentication error rather than silently downgrading the request. Signed-out public discovery still needs no session.
 
 The alternatives response identifies the pricing model and returns a verified numerical provider price only when the private record has reliable plan, region, currency, interval, and verification evidence. Missing prices remain unknown rather than appearing as zero. Source currencies are retained, annual commitments stay annual, introductory and renewal terms stay separate, and no cross-currency savings are calculated.
 

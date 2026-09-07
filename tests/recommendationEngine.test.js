@@ -30,7 +30,7 @@ test('rarely opened essential backup is not automatically cancelled', () => {
 });
 
 test('frequently used basic service can be a downgrade candidate', () => {
-  assert.equal(evaluateSubscription(subscription({ usage: 'daily', detailedReview: review({ considerCheaper: true, neededFeatures: 'Basic features only' }) })).recommendation, 'downgrade');
+  assert.equal(evaluateSubscription(subscription({ usage: 'daily', detailedReview: review({ considerCheaper: true, categoryAnswers: { basicFeaturesOnly: true } }) })).recommendation, 'downgrade');
 });
 
 test('seasonal streaming service becomes a pause or rotate candidate', () => {

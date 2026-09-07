@@ -7,6 +7,7 @@ const RESULT_STATES = new Set([
   'no_matches',
   'catalogue_unavailable',
   'request_failed',
+  'authentication_failed',
   'access_restricted',
 ]);
 
@@ -116,6 +117,7 @@ export class BackendAlternativesProvider extends AlternativesProvider {
     if (token) headers.Authorization = `Bearer ${token}`;
     const response = await this.fetchImplementation('./api/alternatives/recommendations', {
       method: 'POST', headers, body: JSON.stringify(query), cache: 'no-store', credentials: 'same-origin',
+      signal: AbortSignal.timeout(15_000),
     });
     let body = null;
     try { body = await response.json(); } catch { /* handled below */ }

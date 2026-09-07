@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://asvenor.github.io/FeeVeto-Be-smarter-about-subscriptions/sitemap.xml
+Sitemap: https://feeveto.edward-nyarko.workers.dev/sitemap.xml

@@ -28,10 +28,9 @@ export function normalizeServerAccess(value) {
 }
 
 export async function fetchAccessStatus(clerk, fetchImplementation = window.fetch.bind(window)) {
-  const token = await clerk?.session?.getToken();
-  if (!token) return ORDINARY_ACCESS;
-
   try {
+    const token = await clerk?.session?.getToken();
+    if (!token) return ORDINARY_ACCESS;
     const response = await fetchImplementation('./api/access', {
       method: 'GET',
       headers: {
@@ -40,6 +39,7 @@ export async function fetchAccessStatus(clerk, fetchImplementation = window.fetc
       },
       cache: 'no-store',
       credentials: 'same-origin',
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) return ORDINARY_ACCESS;
     return normalizeServerAccess(await response.json());

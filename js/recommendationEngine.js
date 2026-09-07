@@ -143,7 +143,7 @@ export function evaluateSubscription(item) {
     ], { score: Math.max(score, 55), confidence, shouldShowAlternatives: false });
   }
 
-  const basicOnly = /\bbasic\b/i.test(review?.neededFeatures || '') || review?.categoryAnswers?.basicFeaturesOnly === true;
+  const basicOnly = review?.categoryAnswers?.basicFeaturesOnly === true;
   const frequent = ['daily', 'several_per_week', 'weekly'].includes(item.usage);
   if (review && frequent && basicOnly && (review.considerCheaper || review.considerFree)) {
     return result('downgrade', 'You use the service often, but the features you need may fit a simpler plan.', [
