@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
@@ -7,6 +8,14 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: './',
+    plugins: [{
+      name: 'feeveto-public-metadata',
+      generateBundle() {
+        for (const fileName of ['robots.txt', 'sitemap.xml']) {
+          this.emitFile({ type: 'asset', fileName, source: readFileSync(resolve(import.meta.dirname, fileName), 'utf8') });
+        }
+      },
+    }],
     define: {
       __FEEVETO_CLERK_PUBLISHABLE_KEY__: JSON.stringify(publishableKey),
     },

@@ -16,6 +16,14 @@ const form = (values) => { const data = new FormData(); for (const [key, value] 
 const entry = { id: 'test', name: 'Canva', amountMinor: 1000, currency: 'CHF', cycle: 'monthly', category: 'software', usage: 'daily', importance: 'useful' };
 const fixture = JSON.parse(await readFile(new URL('../fixtures/catalogue.example.json', import.meta.url))).offers[0];
 
+test('public canonical and crawler metadata point at the verified Worker site', async () => {
+  for (const name of ['index.html', 'privacy.html', 'robots.txt', 'sitemap.xml']) {
+    const source = await readFile(new URL(`../${name}`, import.meta.url), 'utf8');
+    assert.match(source, /https:\/\/feeveto\.edward-nyarko\.workers\.dev\//);
+    assert.doesNotMatch(source, /asvenor\.github\.io/);
+  }
+});
+
 test('custom service correction persists and never redetects a rejected name', () => {
   const detailedReview = buildDetailedReview(form({ serviceId: '', productType: 'cloud_storage', country: 'ch', platform: 'web', requirement_file_sharing: 'must', acceptFreeLimits: 'false' }));
   const saved = normalizeSubscription({ ...entry, detailedReview });
