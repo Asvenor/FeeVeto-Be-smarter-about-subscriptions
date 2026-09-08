@@ -37,3 +37,14 @@ test('signed-out visitors are sent to sign-in instead of checkout', async () => 
   const result = await beginPremiumCheckout({ clerk: null, currency: 'USD', fetchImplementation: async () => { throw new Error('must not fetch'); } });
   assert.equal(result.state, 'sign_in_required');
 });
+
+test('discount codes are sent only in the authenticated body, never as prices, entitlement flags, or URLs', async () => {
+  let request;
+  await beginPremiumCheckout({ clerk: { session: { getToken: async () => 'session_test' } }, plan: 'lifetime', discountCode: ' welcome25 ',
+    fetchImplementation: async (url, options) => { request = { url, options }; return Response.json({ checkoutUrl: 'https://checkout.stripe.com/c/pay/test' }); } });
+  assert.equal(request.url.includes('WELCOME25'), false);
+  assert.deepEqual(JSON.parse(request.options.body), { discountCode: 'WELCOME25' });
+  assert.equal(request.options.headers['Content-Type'], 'application/json');
+  await assert.rejects(() => beginPremiumCheckout({ clerk: { session: { getToken: async () => 'session_test' } }, discountCode: '<script>',
+    fetchImplementation: async () => { throw new Error('must not fetch'); } }), /valid discount code/);
+});

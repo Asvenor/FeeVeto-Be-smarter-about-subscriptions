@@ -25,11 +25,13 @@ export function validStripeCheckoutUrl(value) {
   }
 }
 
-export async function beginPremiumCheckout({ clerk, plan = 'lifetime', fetchImplementation = window.fetch.bind(window) }) {
+export async function beginPremiumCheckout({ clerk, plan = 'lifetime', discountCode = '', fetchImplementation = window.fetch.bind(window) }) {
   let token;
   try { token = await clerk?.session?.getToken?.(); } catch { throw new CheckoutRequestError('Sign-in could not be verified. Please retry.'); }
   if (!token) return { state: 'sign_in_required' };
   if (!Object.hasOwn(BILLING_PLANS, plan)) throw new CheckoutRequestError('Choose a billing plan.');
+  const code = String(discountCode || '').trim().toUpperCase();
+  if (code && !/^[A-Z0-9]{8,32}$/.test(code)) throw new CheckoutRequestError('Enter a valid discount code.');
   let response;
   try {
     response = await fetchImplementation(`./api/billing/checkout?plan=${plan}&currency=USD`, {
@@ -37,7 +39,9 @@ export async function beginPremiumCheckout({ clerk, plan = 'lifetime', fetchImpl
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
+        ...(code ? { 'Content-Type': 'application/json' } : {}),
       },
+      ...(code ? { body: JSON.stringify({ discountCode: code }) } : {}),
       cache: 'no-store',
       credentials: 'same-origin',
       signal: AbortSignal.timeout(15_000),
@@ -62,6 +66,8 @@ export function initializeBilling({ root = document, getClerk, getAccess, onVeri
   const statusElement = root.getElementById('premium-status');
   const manage = root.getElementById('billing-manage'), retry = root.getElementById('billing-refresh');
   const modeNotice = root.getElementById('billing-mode-notice');
+  const discountInput = root.getElementById('premium-discount-code');
+  const holdNote = root.getElementById('payment-hold-note');
   let configuration = { available: false, mode: 'test' }, status = null, busy = false, refreshing = false, revision = 0, error = '', owner = '';
   const returnUrl = new URL(root.defaultView.location.href);
   let pendingPlan = returnUrl.searchParams.get('payment') === 'success' ? (returnUrl.searchParams.get('plan') === 'monthly' ? 'monthly' : 'lifetime') : '';
@@ -71,14 +77,19 @@ export function initializeBilling({ root = document, getClerk, getAccess, onVeri
     root.getElementById('premium-monthly-price').textContent = premiumPrice('monthly');
     const access = getAccess(), complimentary = access.isAdmin || access.betaAccess;
     for (const [plan, button] of Object.entries(buttons)) {
-      button.disabled = busy || !configuration.available || complimentary || Boolean(status?.lifetimeAccess);
+      const planAvailable = configuration.available && configuration.plans?.find(item => item.id === plan)?.available !== false;
+      const managesMonthly = plan === 'monthly' && status?.subscription && !['canceled', 'incomplete_expired'].includes(status.subscription.status);
+      button.disabled = busy || (!planAvailable && !managesMonthly) || complimentary || Boolean(status?.lifetimeAccess);
       button.textContent = complimentary ? (access.isAdmin ? 'Owner access active' : 'Beta access active')
         : status?.lifetimeAccess ? 'Lifetime access active'
-        : plan === 'monthly' && status?.subscription && !['canceled', 'incomplete_expired'].includes(status.subscription.status) ? 'Manage monthly plan'
+        : managesMonthly ? 'Manage monthly plan'
+        : !planAvailable ? 'New purchases paused'
         : !access.authenticated ? (plan === 'monthly' ? 'Sign in for monthly' : 'Sign in for lifetime')
         : plan === 'monthly' ? 'Subscribe — $2.99/month' : status?.subscriptionAccess ? 'Upgrade — $49.99 once' : 'Buy lifetime — $49.99';
     }
     manage.hidden = !status?.canManageBilling; manage.disabled = busy;
+    if (holdNote) holdNote.hidden = configuration.available;
+    if (discountInput) discountInput.disabled = busy || !configuration.available || complimentary || Boolean(status?.lifetimeAccess);
     retry.hidden = !error && !pendingPlan && !status?.renewalCancellationPending; retry.disabled = busy;
     modeNotice.textContent = !configuration.available ? 'Checkout is not enabled yet. The free audit still works.'
       : configuration.mode === 'test' ? 'Test checkout only — use Stripe test cards. No real payments.' : 'Secure checkout through Stripe.';
@@ -134,7 +145,7 @@ export function initializeBilling({ root = document, getClerk, getAccess, onVeri
     if (!clerk?.session) { if (clerk) clerk.openSignIn(); else throw new CheckoutRequestError('Sign-in is unavailable.'); return; }
     const key = identity(clerk);
     if (plan === 'monthly' && status?.subscription && !['canceled', 'incomplete_expired'].includes(status.subscription.status)) return openPortal();
-    const result = await beginPremiumCheckout({ clerk, plan, fetchImplementation });
+    const result = await beginPremiumCheckout({ clerk, plan, discountCode: discountInput?.value || '', fetchImplementation });
     if (key !== identity(await getClerk())) return;
     if (result.state === 'sign_in_required') clerk.openSignIn();
     else if (result.state === 'manage_subscription') await openPortal();
@@ -146,16 +157,24 @@ export function initializeBilling({ root = document, getClerk, getAccess, onVeri
   retry.addEventListener('click', () => void act(refresh));
   root.addEventListener('feeveto:access-change', () => {
     // Never retain another account's billing state while a refresh is in flight.
+    if (discountInput) discountInput.value = '';
     revision++; status = null; render(); if (!refreshing) void refresh(); else { refreshing = false; void refresh(); }
   });
-  root.addEventListener('visibilitychange', () => { if (root.visibilityState === 'visible') void refresh(); });
-  const ready = (async () => {
+  let configurationRevision = 0;
+  async function refreshConfiguration() {
+    const request = ++configurationRevision;
     try {
       const response = await fetchImplementation('./api/billing/plans', { cache: 'no-store', signal: AbortSignal.timeout(15000) });
       if (!response.ok) throw new Error('Plans unavailable');
-      configuration = await response.json();
-    } catch { configuration = { available: false, mode: 'test' }; }
-    render(); await refresh();
+      const value = await response.json();
+      if (request === configurationRevision) configuration = value;
+    } catch { if (request === configurationRevision) configuration = { available: false, mode: 'test' }; }
+    if (request === configurationRevision) render();
+  }
+  root.addEventListener('feeveto:owner-settings-change', () => void refreshConfiguration());
+  root.addEventListener('visibilitychange', () => { if (root.visibilityState === 'visible') { void refreshConfiguration(); void refresh(); } });
+  const ready = (async () => {
+    await refreshConfiguration(); await refresh();
     if (returnUrl.searchParams.has('payment')) {
       returnUrl.searchParams.delete('payment'); returnUrl.searchParams.delete('plan');
       root.defaultView.history.replaceState({}, '', `${returnUrl.pathname}${returnUrl.search}${returnUrl.hash}`);

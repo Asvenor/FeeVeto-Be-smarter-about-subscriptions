@@ -10,6 +10,7 @@ import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
 import { ORDINARY_ACCESS } from './access.js';
 import { initializeBilling } from './billing.js';
+import { initializeAdmin } from './admin.js';
 import { initializeJourney } from './journey.js';
 import { journeyFromSubscription } from './journeyModel.js';
 import { initializeExperience, openDisclosures, revealContent } from './experience.js';
@@ -565,6 +566,7 @@ billingController = initializeBilling({
 });
 
 const journey = initializeJourney({ getClerk: () => clerkPromise, getCurrency: () => state.auditCurrency, storage: browserStorage });
+initializeAdmin({ getClerk: () => clerkPromise, getAccess: () => currentAccess });
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');

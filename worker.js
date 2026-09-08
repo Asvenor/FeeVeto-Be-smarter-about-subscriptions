@@ -1,5 +1,7 @@
 import { handleAccessRequest } from './functions/api/access.js';
 import { handleAdminStatusRequest } from './functions/api/admin/status.js';
+import { handleAdminSettingsRequest } from './functions/api/admin/settings.js';
+import { handleAdminDiscountsRequest } from './functions/api/admin/discounts.js';
 import { handleRecommendationsRequest } from './functions/api/alternatives/recommendations.js';
 import { handlePremiumStatusRequest } from './functions/api/premium/status.js';
 import { handleCheckoutRequest } from './functions/api/billing/checkout.js';
@@ -16,6 +18,8 @@ const API_ROUTES = Object.freeze({
   '/api/assessment': handleAssessmentRequest,
   '/api/audits': handleAuditsRequest,
   '/api/admin/status': handleAdminStatusRequest,
+  '/api/admin/settings': handleAdminSettingsRequest,
+  '/api/admin/discounts': handleAdminDiscountsRequest,
   '/api/alternatives/recommendations': handleRecommendationsRequest,
   '/api/premium/status': handlePremiumStatusRequest,
   '/api/billing/checkout': handleCheckoutRequest,

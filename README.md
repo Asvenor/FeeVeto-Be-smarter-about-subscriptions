@@ -1,6 +1,6 @@
 # FeeVeto
 
-See [the local experience redesign](docs/experience-redesign.md) for the current workspace layout and its release boundaries. [The journey checkpoints](docs/JOURNEY-CHECKPOINTS.md), [journey release instructions](docs/JOURNEY-RELEASE.md) and [earlier polish report](docs/POLISH-QA.md) provide the preceding implementation history.
+See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches, discount drafts and release boundaries. [The journey checkpoints](docs/JOURNEY-CHECKPOINTS.md), [journey release instructions](docs/JOURNEY-RELEASE.md) and [earlier polish report](docs/POLISH-QA.md) provide the preceding implementation history.
 
 **Keep, switch, or cancel with confidence.**
 
@@ -43,6 +43,7 @@ js/app.js                     Browser events and application state coordination
 js/auth.js                    Clerk initialization and signed-in/signed-out navigation controls
 js/access.js                  Browser client for the server-verified access summary
 js/billing.js                 Checkout client, fixed plan display, and Stripe URL validation
+js/admin.js                   Server-authorized owner settings and discount draft workspace
 js/config.js                  Brand, storage keys, options, and global configuration
 js/currencyPreference.js      Shared currency options, safe form defaults, and illustrative amounts
 js/currencyPage.js            Currency preference synchronization on the privacy page
@@ -62,7 +63,7 @@ worker.js                     Cloudflare Worker router for protected APIs and st
 wrangler.jsonc                Versioned Worker, asset, and private KV binding configuration
 functions/api/                Reusable Cloudflare handlers for access and alternatives
 functions/_shared/            Clerk verification, access policy, private catalogue matching, and HTTP helpers
-migrations/                   Cloudflare D1 billing-entitlement schema
+migrations/                   Cloudflare D1 billing, saved assessments and owner controls
 ```
 
 ## How recommendations work
@@ -228,10 +229,10 @@ FeeVeto uses a module Worker so the protected Clerk/KV endpoints and static Vite
 
 1. Keep the existing Git-connected Worker named `feeveto`.
 2. Use `npm run build` as the build command and `npx wrangler deploy` as the deploy command.
-3. Use Node.js 20 or newer and add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
+3. Use a Node.js version supported by `package.json` (22.22.2+, 24.15.0+, or 26+) and add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
 4. Keep `worker.js` and `wrangler.jsonc` at the repository root. The Worker routes `/api/*` through the existing protected handlers and delegates all other requests to the `ASSETS` binding.
 5. The versioned `wrangler.jsonc` connects `FEEVETO_ALTERNATIVES` to the dedicated `feeveto-alternatives` KV namespace. If a separate Preview Worker is added later, give it a separate namespace instead of sharing production catalogue state.
-6. The same file binds `FEEVETO_BILLING` to the dedicated `feeveto-billing` D1 database. Review and apply all pending migrations (including `0004_monthly_lifetime_billing.sql`) to the intended environment before enabling the new billing code. Use separate local/test storage; never use the production D1 binding for sandbox payments.
+6. The same file binds `FEEVETO_BILLING` to the dedicated `feeveto-billing` D1 database. Back up, review and apply pending migrations (including `0004_monthly_lifetime_billing.sql` and `0005_owner_controls.sql`) to the intended environment before deploying dependent code. Use separate local/test storage; never use the production D1 binding for sandbox payments.
 7. Add `CLERK_PUBLISHABLE_KEY` as a runtime variable and `CLERK_SECRET_KEY` as an encrypted runtime secret. The publishable values may be the same key; the secret key must never enter Vite or a tracked file.
 8. Configure `BILLING_MODE`, `BILLING_ENABLED`, `STRIPE_MONTHLY_PRICE_ID`, `STRIPE_LIFETIME_PRICE_ID`, and `STRIPE_PORTAL_CONFIGURATION_ID` as runtime variables. Store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` only as encrypted Worker secrets. Keep existing approved price IDs in the same-mode legacy allowlist. See `docs/BILLING.md` for exact prices and portal settings.
 9. Register the intended environment's `/api/billing/webhook` in Stripe with the complete event list in `docs/BILLING.md`. Store its signing secret securely; never paste it into chat, Vite variables, or a tracked file. Local Stripe forwarding uses its own signing secret, not the deployed endpoint's secret.
@@ -252,6 +253,8 @@ For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, a
 7. Ask the user to reload FeeVeto after the change. Every protected request fetches current private metadata from Clerk, so it does not trust a browser-stored role.
 
 Use lowercase `admin` or `user` and a JSON boolean `true` or `false`, not quoted strings. An admin does not need `betaAccess: true`; the admin role already includes complimentary premium access.
+
+After signing in, an admin sees **Owner** beside their account menu. Open it to save purchase settings and discount drafts. Beta and paid access do not authorize this panel. See [owner controls and payment safeguards](docs/OWNER-CONTROLS.md). Keep existing unrelated private metadata when editing the role.
 
 Do not add payment, analytics, or API credentials to frontend files.
 

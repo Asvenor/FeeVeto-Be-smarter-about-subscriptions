@@ -1,4 +1,5 @@
 import { testDatabase } from './sqlite-d1.js';
+import { updateOwnerSettings } from '../../functions/_shared/owner-controls.js';
 export const now = Math.floor(Date.now() / 1000);
 export const identity = { userId: 'user_billing_test', user: { privateMetadata: { role: 'user' } } };
 export async function billingFixture() {
@@ -6,6 +7,8 @@ export async function billingFixture() {
   const env = { FEEVETO_BILLING: db, BILLING_ENABLED: 'true', BILLING_MODE: 'test',
     STRIPE_SECRET_KEY: 'sk_test_fictional', STRIPE_WEBHOOK_SECRET: 'whsec_fictional',
     STRIPE_MONTHLY_PRICE_ID: 'price_monthly', STRIPE_LIFETIME_PRICE_ID: 'price_lifetime', STRIPE_PORTAL_CONFIGURATION_ID: 'bpc_test' };
+  // Existing payment tests deliberately opt in; production and new databases stay paused.
+  await updateOwnerSettings({ env, actor: 'user_fixture_owner', body: { revision: 0, acceptNewPurchases: true, monthlyEnabled: true, lifetimeEnabled: true } });
   const sessions = new Map(), subscriptions = new Map(), invoices = new Map(), keys = new Map();
   const calls = { customers: 0, checkouts: 0, cancels: [], portal: null };
   const prices = { price_monthly: { id: 'price_monthly', unit_amount: 299, recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' } },

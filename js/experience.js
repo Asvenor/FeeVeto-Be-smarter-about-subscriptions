@@ -1,5 +1,5 @@
 // Presentation only: views retain the original DOM, form drafts and controllers.
-const ROUTES = Object.freeze({ top: 'discover', discover: 'discover', 'how-it-works': 'discover', audit: 'audit', results: 'audit', 'subscription-editor': 'audit', 'saved-audits': 'saved', 'personal-audit': 'review', privacy: 'help', faq: 'help', pricing: 'pricing' });
+const ROUTES = Object.freeze({ top: 'discover', discover: 'discover', 'how-it-works': 'discover', audit: 'audit', results: 'audit', 'subscription-editor': 'audit', 'saved-audits': 'saved', 'personal-audit': 'review', privacy: 'help', faq: 'help', pricing: 'pricing', 'owner-settings': 'admin' });
 const PRIMARY = { discover: 'Discover', audit: 'My subscriptions', saved: 'Saved audits' };
 const HOME = { discover: 'top', audit: 'audit', saved: 'saved-audits' };
 

@@ -1,6 +1,6 @@
 # FeeVeto experience redesign
 
-Status: implemented for local review. This document does not record a production deployment, merge, payment activation or completed launch approval. Payments remain on hold; this redesign does not change billing configuration.
+Status: redesign implemented and validated locally; the follow-up release adds [owner controls](OWNER-CONTROLS.md). The historical checks below are local evidence, not deployment evidence. Payments remain on hold; publishing the design does not authorize payment activation.
 
 ## A clearer workspace
 
@@ -27,7 +27,7 @@ Subscription cards foreground the recommendation, primary reason, confidence, or
 
 ## Local validation — 8 September 2026
 
-The work is isolated on `feature/experience-redesign`, continuing from the preserved, unmerged billing work at `98477fe`. It has not been pushed, merged or deployed.
+The work is isolated on `feature/experience-redesign`, continuing from the preserved, unmerged billing work at `98477fe`. At this initial validation checkpoint it had not been pushed, merged or deployed. See the owner-controls release record for the subsequent publishing status.
 
 - `npm run check`: **248 tests passed**, including the production build and catalogue fixture validation. Added connected application tests cover save/edit without duplicates, legacy CHF answers, cancellation, optional-field validation, alternative failure/retry, navigation, a single save action for refreshed history, and stale asynchronous responses. Existing backend access and billing tests still pass; those tests do not make real charges.
 - The browser preview uses the real local Worker and existing private catalogue. The validated 172-offer catalogue was imported into the isolated local KV store after confirming that preview store was empty. No production KV data or frontend catalogue assets were changed.
@@ -37,12 +37,12 @@ The work is isolated on `feature/experience-redesign`, continuing from the prese
 
 These are local checks, not a production launch, full assistive-technology audit, broad browser/device certification or live payment verification. The separate privacy page retains its existing readable design. The refreshed main page uses system fonts and no new external image/font service; no claim of a measured Core Web Vitals improvement is made. Following the Cloudflare skill, catalogue setup and verification remained server-side and explicitly local.
 
-## Proposed owner controls — NOT IMPLEMENTED
+## Owner controls — follow-up implementation
 
-A future private owner area could manage **Accept new purchases**, separate plan availability and discount codes. Every settings request must verify the Clerk session and server-fetched private `role: "admin"`; beta or paid Premium access must never authorize administration. An owner-only policy can additionally require a server-configured owner ID. Settings should be validated, stored server-side and accompanied by an action log, with the deployment-level safety gate retained.
+The private owner area now manages **Accept new purchases**, separate plan availability and discount drafts with explicit activation. Every request verifies the Clerk session and server-fetched private `role: "admin"`; beta or paid Premium access never authorizes administration. Settings are validated and stored server-side with revision protection and an action log. See [implementation, operation and release evidence](OWNER-CONTROLS.md).
 
-The existing runtime `BILLING_ENABLED` gate already requires the exact string `"true"` to start/resume checkout. Missing/false disables new checkout without revoking existing access, disabling webhooks or closing the billing portal. It **does not cancel subscriptions, stop renewals or expire previously issued Stripe checkout links**. Changing this setting in the Cloudflare dashboard is a configuration deployment, not an implemented FeeVeto owner toggle. [Cloudflare runtime variables](https://developers.cloudflare.com/workers/configuration/environment-variables/)
+The runtime `BILLING_ENABLED` gate requires the exact string `"true"` to start/resume checkout and remains separate from the new owner toggle. Missing/false disables new checkout without revoking existing access, disabling webhooks or closing the billing portal. Neither gate **cancels subscriptions, stops renewals or expires previously issued Stripe checkout links**. [Cloudflare runtime variables](https://developers.cloudflare.com/workers/configuration/environment-variables/)
 
-Stripe coupons/promotion codes could discount monthly or lifetime purchases while preserving the approved base price. Plan-specific eligibility needs explicit enforcement: both current prices share one Stripe product, so a product restriction alone cannot distinguish the plans. Duration, expiration, redemption limits and customer eligibility need clear controls; changing existing subscribers is a separate action. [Stripe discounts](https://docs.stripe.com/payments/checkout/discounts), [subscription coupon behavior](https://docs.stripe.com/billing/subscriptions/coupons)
+Explicit activation creates Stripe coupons/promotion codes for monthly or lifetime purchases while preserving the approved base price. Plan eligibility is checked server-side even when both prices share one Stripe product. Duration, expiration and redemption limits are configured on drafts; changing existing subscribers is a separate action. [Stripe discounts](https://docs.stripe.com/payments/checkout/discounts), [subscription coupon behavior](https://docs.stripe.com/billing/subscriptions/coupons)
 
 Do not simply enable unrestricted or 100% codes. Current lifetime fulfillment requires a positive paid total and PaymentIntent; monthly access requires a paid invoice payment. Fully discounted orders need a separately designed and tested fulfillment path because Stripe can complete a no-cost order without a PaymentIntent. Complimentary admin/beta access remains separate. [Stripe no-cost orders](https://docs.stripe.com/payments/checkout/no-cost-orders)

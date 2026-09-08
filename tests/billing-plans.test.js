@@ -175,7 +175,7 @@ test('a stale concurrent subscription read loses its revision race and refetches
   } finally { f.db.close(); }
 });
 test('public plan information never exposes secrets and defaults to disabled test checkout', async () => {
-  const response = handleBillingPlansRequest({ env: {}, request: new Request('https://feeveto.example/api/billing/plans') });
+  const response = await handleBillingPlansRequest({ env: {}, request: new Request('https://feeveto.example/api/billing/plans') });
   const body = await response.json(); assert.equal(body.available, false); assert.equal(body.mode, 'test');
   assert.deepEqual(body.plans.map(p => p.amountMinor), [299, 4999]); assert.ok(!JSON.stringify(body).includes('STRIPE'));
 });
