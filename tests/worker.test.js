@@ -26,3 +26,11 @@ test('worker fails closed when static assets are not configured', async () => {
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: 'Static assets are not configured.' });
 });
+
+test('worker exposes checkout and webhook only as POST API routes', async () => {
+  for (const pathname of ['/api/billing/checkout', '/api/billing/webhook']) {
+    const response = await handleWorkerRequest(new Request(`https://feeveto.example${pathname}`), {}, null);
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get('allow'), 'POST');
+  }
+});

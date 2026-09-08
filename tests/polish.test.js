@@ -105,6 +105,18 @@ test('alternative requests are time bounded and retain authentication failure st
   await assert.rejects(provider.getAlternatives(entry, 'expired'), (error) => error.resultState === 'authentication_failed');
 });
 
+test('backend provider sends the selected currency as a validated market hint', async () => {
+  let sent;
+  const provider = new BackendAlternativesProvider(async (_url, options) => {
+    sent = JSON.parse(options.body);
+    return Response.json({ state: 'general_suggestions', items: [] });
+  });
+  await provider.getAlternatives({ name: 'Netflix', detailedReview: null }, '', 'CHF');
+  assert.equal(sent.marketCurrency, 'CHF');
+  await provider.getAlternatives({ name: 'Netflix', detailedReview: null }, '', 'CAD');
+  assert.equal(sent.marketCurrency, '');
+});
+
 test('generated profile initials are green-themed while uploaded or unknown photos are untouched', () => {
   assert.deepEqual(avatarPresentation({ hasImage: false, firstName: 'Test', lastName: 'Person' }), { generated: true, initials: 'TP' });
   assert.equal(avatarPresentation({ hasImage: true }).generated, false);

@@ -3,6 +3,7 @@ import { CATEGORY_OPTIONS, CURRENCIES, IMPORTANCE_OPTIONS, optionLabel, USAGE_OP
 import { officialDestination, recommendationRequestFor } from './alternativeProvider.js';
 import { evaluateSubscription } from './recommendationEngine.js';
 import { requirementLabel, supportedServiceFor } from './serviceCatalog.js';
+import { resultFeedback } from './feedback.js';
 
 export function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -33,12 +34,42 @@ function matchesFilter(result, alternatives, filter) {
   return true;
 }
 
-function alternativeCard(item, serviceId) {
+export function alternativeCard(item, serviceId) {
   const card = element('article', 'alternative-card');
   const heading = element('div', 'alternative-heading');
   heading.append(element('h4', '', `${item.productName} — ${item.planName}`), element('span', 'alternative-type', item.pricingLabel));
   const statusClass = item.matchStatus === 'matched' ? 'matched' : item.matchStatus === 'general' ? 'general' : 'candidate';
-  card.append(heading, element('p', `alternative-status ${statusClass}`, item.matchLabel), element('p', '', item.description), element('p', 'alternative-match', item.whyMatches));
+  card.append(heading, element('p', `alternative-status ${statusClass}`, item.matchLabel), element('p', 'alternative-match', item.whyMatches || item.description));
+  const match = item.feeVetoMatch;
+  const percentage = Number.isInteger(match?.score) && match.score >= 0 && match.score <= 100 ? match.score : null;
+  const fit = element('p', 'feeveto-match', percentage === null ? `FeeVeto Match: ${match?.label || 'Not scored'}` : `FeeVeto Match: ${percentage}%`);
+  card.insertBefore(fit, card.children[1]);
+  const why = element('details', 'match-explanation');
+  why.append(element('summary', '', percentage === null ? 'Why this match?' : `Why this match? ${percentage}% explained`));
+  why.append(element('p', '', match?.meaning || 'This result has no saved FeeVeto Match calculation. Reevaluate a saved audit to check current facts and your existing answers.'));
+  if (match?.reason) why.append(element('p', 'field-help', match.reason));
+  const factors = element('ul', 'match-factors');
+  for (const factor of match?.factors || []) factors.append(element('li', factor.status === 'supported' ? 'fit-supported' : 'fit-unconfirmed', factor.reason));
+  why.append(factors);
+  const pros = [...new Set((item.features || []).map(id => requirementLabel(serviceId, id)))].slice(0, 4);
+  const strengths = element('section', 'alternative-pros');
+  strengths.append(element('h5', '', 'Pros'));
+  if (pros.length) {
+    const list = element('ul');
+    for (const pro of pros) list.append(element('li', '', pro));
+    strengths.append(list);
+  } else strengths.append(element('p', 'field-help', 'No additional verified strengths recorded yet. See the plan description and official source.'));
+  const tradeoffs = element('section', 'alternative-cons');
+  tradeoffs.append(element('h5', '', 'Cons / trade-offs'));
+  if (item.limitations?.length) {
+    const list = element('ul');
+    for (const limitation of item.limitations.slice(0, 3)) list.append(element('li', '', limitation));
+    tradeoffs.append(list);
+  } else tradeoffs.append(element('p', 'field-help', 'No specific drawbacks recorded. This does not mean there are none; verify the plan before switching.'));
+  card.append(strengths, tradeoffs);
+  const details = element('details', 'result-disclosure');
+  details.append(element('summary', '', 'Details & sources'));
+  if (item.description && item.whyMatches && item.description !== item.whyMatches) details.append(element('p', '', item.description));
   const facts = element('dl', 'alternative-facts');
   const price = item.price || {};
   let priceText = 'Check current pricing';
@@ -48,25 +79,47 @@ function alternativeCard(item, serviceId) {
     priceText = `${formatMoney(price.amountMinor, price.currency)}${interval}`;
   }
   facts.append(
-    line('Pricing model', item.pricingLabel),
     line('Verified price', priceText),
     line('Switching effort', item.switchingDifficulty || 'Unknown'),
-    line('Claims verified', item.verifiedAt),
   );
-  card.append(facts);
-  if (item.supportedRequirements?.length) card.append(element('p', 'alternative-detail', `Supports: ${item.supportedRequirements.map((id) => requirementLabel(serviceId, id)).join(', ')}`));
-  if (item.limitations?.length) card.append(element('p', 'alternative-detail', `Trade-offs: ${item.limitations.join(' ')}`));
+  card.insertBefore(facts, card.children[2]);
+  if (item.supportedRequirements?.length) details.append(element('p', 'alternative-detail', `Supports: ${item.supportedRequirements.map((id) => requirementLabel(serviceId, id)).join(', ')}`));
+  // Qualifications stay beside the price, not behind the optional details.
   if (item.usageLimits?.length) card.append(element('p', 'alternative-detail', `Plan limits: ${item.usageLimits.join(' ')}`));
   if (price.upfrontCommitmentMonths) card.append(element('p', 'alternative-detail', `Commitment: ${price.upfrontCommitmentMonths} months paid or committed up front.`));
   if (price.introductoryTerms) card.append(element('p', 'alternative-detail', `Introductory terms: ${price.introductoryTerms}`));
   if (price.renewalTerms) card.append(element('p', 'alternative-detail', `Renewal terms: ${price.renewalTerms}`));
   if (item.verificationNotes?.length) card.append(element('p', 'verification-note', item.verificationNotes.join(' ')));
+  if (item.features?.length) details.append(element('p', 'alternative-detail', `Useful for: ${item.features.slice(0, 4).map(id => requirementLabel(serviceId, id)).join(', ')}.`));
+  if (item.unsupportedFeatures?.length) card.append(element('p', 'alternative-detail', `Does not include: ${item.unsupportedFeatures.map(id => requirementLabel(serviceId, id)).join(', ')}.`));
+  if (item.reviewRating) {
+    const rating = element('p', 'alternative-detail', `Customer reviews: ${item.reviewRating.value}/${item.reviewRating.scale} from ${item.reviewRating.count} reviews on ${item.reviewRating.source}; checked ${item.reviewRating.checkedAt}. Separate from your suitability assessment. `);
+    const sourceUrl = officialDestination({ officialUrl: item.reviewRating.sourceUrl });
+    if (sourceUrl) { const source = element('a', '', 'Review source'); source.href = sourceUrl; source.target = '_blank'; source.rel = 'noopener noreferrer'; rating.append(source); }
+    details.append(rating);
+  }
+  const verification = element('dl', 'alternative-facts');
+  verification.append(line('Claims verified', item.verifiedAt || 'Unknown'));
+  if (price.verifiedAt) verification.append(line('Price checked', price.verifiedAt));
+  details.append(verification);
+  if (item.sourceUrls?.length) {
+    const sources = element('div', 'alternative-sources');
+    for (const [index, url] of item.sourceUrls.entries()) {
+      const safe = officialDestination({officialUrl:url});
+      if (!safe) continue;
+      const source = element('a', '', `Source ${index + 1}`); source.href = safe; source.target = '_blank'; source.rel = 'noopener noreferrer'; sources.append(source);
+    }
+    details.append(sources);
+  }
+  card.append(why, details);
   const destination = officialDestination(item);
   const link = element('a', 'button button-secondary button-small', item.actionLabel || 'Visit official website');
   link.href = destination;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   if (destination) card.append(link);
+  link.dataset.alternativeOutbound = 'true';
+  if (serviceId) link.dataset.serviceId = serviceId;
   return card;
 }
 
@@ -85,22 +138,30 @@ function subscriptionCard(item, result, alternativesState) {
   const metrics = element('dl', 'card-metrics');
   metrics.append(
     line('Original cost', `${formatMoney(item.amountMinor, item.currency)} / ${item.cycle}`),
-    line('Monthly equivalent', formatMoney(monthlyCost(item.amountMinor, item.cycle), item.currency)),
     line('Annual equivalent', formatMoney(annualCost(item.amountMinor, item.cycle), item.currency)),
-    line('Usage', optionLabel(USAGE_OPTIONS, item.usage)),
-    line('Importance', optionLabel(IMPORTANCE_OPTIONS, item.importance)),
   );
-  const perUse = estimatedCostPerUse(item.amountMinor, item.cycle, item.usage);
-  if (perUse !== null) metrics.append(line('Estimated cost per use', `Approximately ${formatMoney(perUse, item.currency)}`));
   if (item.renewalDate) metrics.append(line('Renewal date', new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${item.renewalDate}T12:00:00`))));
   card.append(metrics);
 
   const explanation = element('div', 'recommendation-copy');
-  explanation.append(element('strong', '', result.summary));
+  explanation.append(element('strong', '', result.summary), element('p', 'confidence', `Confidence: ${result.confidence}`));
+  for (const warning of result.warnings || []) explanation.append(element('p', 'verification-note', warning));
+  card.append(explanation);
+
+  const details = element('details', 'result-disclosure');
+  details.append(element('summary', '', 'Why this recommendation'));
+  const breakdown = element('dl', 'card-metrics');
+  if (item.cycle !== 'monthly') breakdown.append(line('Monthly equivalent', formatMoney(monthlyCost(item.amountMinor, item.cycle), item.currency)));
+  breakdown.append(
+    line('Usage', optionLabel(USAGE_OPTIONS, item.usage)),
+    line('Importance', optionLabel(IMPORTANCE_OPTIONS, item.importance)),
+  );
+  const perUse = estimatedCostPerUse(item.amountMinor, item.cycle, item.usage);
+  if (perUse !== null) breakdown.append(line('Estimated cost per use', `Approximately ${formatMoney(perUse, item.currency)}`));
   const reasons = element('ul');
   for (const reason of result.reasons) reasons.append(element('li', '', reason));
-  explanation.append(reasons, element('p', 'confidence', `Confidence: ${result.confidence}`));
-  card.append(explanation);
+  details.append(breakdown, reasons);
+  card.append(details);
 
   if (alternativesState) {
     const section = element('section', 'alternatives-section');
@@ -123,6 +184,7 @@ function subscriptionCard(item, result, alternativesState) {
       section.append(element('p', alternativesState.state === 'access_restricted' ? 'access-note' : 'empty-alternatives', alternativesState.message || 'No accessible verified alternative meets the selected requirements.'));
     }
     card.append(section);
+    if (alternatives.length || ['no_matches', 'no_verified_alternatives'].includes(alternativesState.state)) card.append(resultFeedback({serviceId:service?.id || '',surface:'subscription'}));
   }
 
   const actions = element('div', 'card-actions');
@@ -131,6 +193,9 @@ function subscriptionCard(item, result, alternativesState) {
   const remove = element('button', 'text-button danger-text', 'Delete');
   remove.type = 'button'; remove.dataset.action = 'delete'; remove.dataset.id = item.id; remove.setAttribute('aria-label', `Delete ${item.name}`);
   actions.append(edit);
+  const personalize = element('button','button button-secondary button-small','Find my best fit');
+  personalize.type='button'; personalize.dataset.action='personalize'; personalize.dataset.id=item.id;
+  personalize.setAttribute('aria-label',`Find the best fit for ${item.name}`); actions.append(personalize);
   if (recommendationRequestFor(item)) {
     const retrying = alternativesState?.status === 'error';
     const alternativesButton = element('button', 'button button-secondary button-small', retrying ? 'Retry alternatives' : 'Refresh alternatives');
@@ -197,7 +262,12 @@ export function renderDashboard({ state, elements, filter, query, alternativeRes
   const visible = recommendations.filter(({ item, result, alternatives }) => (!normalizedQuery || item.name.toLocaleLowerCase().includes(normalizedQuery)) && matchesFilter(result, alternatives, filter));
   elements.list.replaceChildren();
   elements.listSummary.textContent = `${visible.length} of ${state.subscriptions.length} subscriptions shown`;
-  if (!state.subscriptions.length) elements.list.append(element('p', 'empty-state', 'Add your first subscription above to begin the audit.'));
+  if (!state.subscriptions.length) {
+    const empty = element('div', 'empty-state');
+    empty.append(element('h3', '', 'Start with just one.'), element('p', '', 'Add something you pay for. We’ll help you see its yearly cost and whether it still fits.'));
+    const add = element('a', 'button button-secondary', 'Add your first subscription');
+    add.href = '#subscription-editor'; empty.append(add); elements.list.append(empty);
+  }
   else if (!visible.length) elements.list.append(element('p', 'empty-state', 'No subscriptions match this view.'));
   else for (const entry of visible) elements.list.append(subscriptionCard(entry.item, entry.result, entry.alternativesState));
   elements.clearAll.disabled = state.subscriptions.length === 0;

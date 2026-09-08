@@ -5,7 +5,24 @@ import { APP_CONFIG, CURRENCY_OPTIONS } from '../js/config.js';
 
 const root = new URL('../', import.meta.url);
 
-test('one-page audit contains the required sections and controls', async () => {
+test('Public Beta metadata has a real social image and all six one-click examples', async () => {
+  const html=await readFile(new URL('index.html',root),'utf8');
+  assert.match(html,/Public Beta/); assert.match(html,/summary_large_image/);
+  assert.match(html,/property="og:image" content="https:\/\/feeveto\.edward-nyarko\.workers\.dev\/social-preview.png"/);
+  assert.equal([...html.matchAll(/data-example-intent=/g)].length,6);
+  const image=await readFile(new URL('public/social-preview.png',root));
+  assert.equal(image.subarray(1,4).toString(),'PNG'); assert.equal(image.readUInt32BE(16),1200); assert.equal(image.readUInt32BE(20),630);
+});
+test('privacy and deployment configuration describe opt-in events without changing the billing gate', async () => {
+  const html=await readFile(new URL('privacy.html',root),'utf8');
+  assert.match(html,/measurement is off unless/i); assert.match(html,/Do Not Track/); assert.match(html,/self-service account-history deletion/);
+  assert.doesNotMatch(html,/Feedback opens Google Forms|does not currently use product analytics/);
+  const config=JSON.parse(await readFile(new URL('wrangler.jsonc',root),'utf8'));
+  assert.equal(config.keep_vars,true); assert.equal(config.vars.BILLING_ENABLED,undefined);
+  assert.equal(config.ratelimits[0].simple.limit,60); assert.equal(config.observability.logs.invocation_logs,false);
+});
+
+test('workspace views retain the required sections and controls', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
   for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"', 'id="service-id"', 'id="product-type"', 'id="requirement-questions"', 'id="required-title"', 'id="required-game"', 'id="server-country"', 'id="target-language"', 'id="learner-level"', 'id="specific-subject"', 'Save and review']) {
     assert.ok(html.includes(value), `Missing ${value}`);
@@ -24,14 +41,19 @@ test('subscription inputs use one adaptive form without a detailed-review dialog
   assert.doesNotMatch(html, /name="adSupportedPlan"/);
   assert.match(render, /Retry alternatives/);
   assert.match(app, /upsertSubscription/);
+  assert.match(app, /await journey\.saveSubscription\(item\)/);
+  assert.match(html, /aria-describedby="subscription-save-help"/);
+  assert.match(html, /id="subscription-save-status"[^>]*role="status"/);
+  assert.match(html, /Retry account save/);
 });
 
 test('partial-information alternatives have clear guidance and distinct result states', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
   const render = await readFile(new URL('js/render.js', root), 'utf8');
   const provider = await readFile(new URL('js/alternativeProvider.js', root), 'utf8');
-  assert.match(html, /More details help us find better matches\./);
-  assert.match(html, /Start with the basics, or add your requirements and preferences for more tailored suggestions\./);
+  assert.match(html, /Start with the basics\. The optional groups below help us find a closer fit\./);
+  assert.match(html, /id="needs-disclosure"/);
+  assert.match(html, /id="switching-disclosure"/);
   assert.match(render, /These are general suggestions based on the information provided\./);
   assert.match(render, /Improve my matches/);
   for (const state of ['general_suggestions', 'matched_suggestions', 'unsupported', 'no_matches', 'catalogue_unavailable', 'request_failed', 'access_restricted']) {
@@ -45,12 +67,14 @@ test('old product name is not visible in page copy or metadata', async () => {
   assert.doesNotMatch(withoutUrls, /SubKiller/i);
 });
 
-test('privacy page uses precise local storage wording', async () => {
+test('privacy distinguishes local subscriptions from opt-in account assessments', async () => {
   const html = await readFile(new URL('privacy.html', root), 'utf8');
-  assert.match(html, /stored locally in this browser/i);
-  assert.match(html, /not attached to your Clerk account/i);
+  assert.match(html, /original subscription list stays in this browser/i);
+  assert.match(html, /Signing in alone does not upload the local list/i);
   assert.match(html, /does not send the subscription name, entered price, private notes, calculated totals, or your full subscription list/i);
-  assert.match(html, /private-browsing mode/i);
+  assert.match(html, /Choosing Save this audit stores those answers/i);
+  assert.match(html, /Choosing Save and review in the subscription form while signed in also saves/i);
+  assert.match(html, /Protected comparison snapshots are not stored in local or session storage/i);
   assert.match(html, /Clerk for optional authentication/i);
 });
 
@@ -103,6 +127,21 @@ test('Cloudflare access control reads Clerk private metadata only on the backend
   assert.doesNotMatch(policy, /request|localStorage/);
 });
 
+test('payment UI relies on signed server fulfillment rather than browser entitlement flags', async () => {
+  const html = await readFile(new URL('index.html', root), 'utf8');
+  const browserBilling = await readFile(new URL('js/billing.js', root), 'utf8');
+  const webhook = await readFile(new URL('functions/api/billing/webhook.js', root), 'utf8');
+  const billingAccess = await readFile(new URL('functions/_shared/billing-access.js', root), 'utf8');
+  assert.match(html, /id="pricing"/);
+  assert.match(html, /id="premium-button"/);
+  assert.match(html, /one time/i);
+  assert.doesNotMatch(browserBilling, /localStorage|premiumAccess\s*=/);
+  assert.match(webhook, /constructEventAsync/);
+  assert.match(webhook, /priceIds\[0\] !== expectedPriceId/);
+  assert.match(billingAccess, /FEEVETO_BILLING/);
+  assert.doesNotMatch(`${html}\n${browserBilling}`, /STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET/);
+});
+
 test('visual system is light and respects reduced motion', async () => {
   const css = await readFile(new URL('style.css', root), 'utf8');
   assert.match(css, /color-scheme:\s*light/);
@@ -125,6 +164,9 @@ test('one global currency preference drives structured examples and new-entry de
   assert.doesNotMatch(html, /CHF\s*[0-9]/);
   assert.doesNotMatch(html, /id="audit-currency"/);
   assert.match(app, /renderIllustrativeMoney/);
+  assert.match(app, /getAlternatives\(item, token, state\.auditCurrency\)/);
+  assert.match(html, /market used for alternatives/);
+  assert.match(html, /entered country overrides/);
   assert.match(privacy, /id="page-currency-preference"/);
   assert.match(privacy, /js\/currencyPage\.js/);
 });

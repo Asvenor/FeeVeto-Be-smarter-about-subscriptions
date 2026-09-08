@@ -1,7 +1,13 @@
 {
   "name": "feeveto",
   "main": "worker.js",
-  "compatibility_date": "2026-09-06",
+  "compatibility_date": "2026-09-07",
+  "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "observability": { "enabled": true, "head_sampling_rate": 0.1, "redact_query_string": true, "logs": { "enabled": true, "invocation_logs": false } },
+  "vars": { "PRODUCT_ANALYTICS_ENABLED": "true" },
+  "analytics_engine_datasets": [{ "binding": "FEEVETO_EVENTS", "dataset": "feeveto_product_events" }],
+  "ratelimits": [{ "name": "FEEVETO_EVENT_LIMIT", "namespace_id": "260908001", "simple": { "limit": 60, "period": 60 } }],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -11,6 +17,13 @@
     {
       "binding": "FEEVETO_ALTERNATIVES",
       "id": "cb8a5e7564cf4d3f8c3ace6cc712b69e"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "FEEVETO_BILLING",
+      "database_name": "feeveto-billing",
+      "database_id": "3d000ffe-251a-4a58-8b72-17193ba956b0"
     }
   ]
 }

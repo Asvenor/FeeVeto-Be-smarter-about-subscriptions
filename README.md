@@ -1,6 +1,6 @@
 # FeeVeto
 
-See [the polish QA report](docs/POLISH-QA.md) for the current checks, browser-test instructions, Clerk avatar settings, and outstanding release blockers.
+See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches, discount drafts and release boundaries. [The journey checkpoints](docs/JOURNEY-CHECKPOINTS.md), [journey release instructions](docs/JOURNEY-RELEASE.md) and [earlier polish report](docs/POLISH-QA.md) provide the preceding implementation history.
 
 **Keep, switch, or cancel with confidence.**
 
@@ -8,17 +8,24 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 
 ## Current features
 
+- Discover, My subscriptions and Saved audits workspace views, with retained form state and optional detail disclosures
+- Instant natural-language supported-service discovery with correctable interpretation, guest results, filters, and retry
+- Optional two-stage personalised audit with explicit unknowns, feature requirements, spending, and switching preferences
+- Explainable keep/downgrade/switch/cancel assessments with same-currency estimates and dated source evidence
+- Opt-in account saves, retry-safe sign-in continuity, reopening, and append-only reevaluation history
 - One adaptive form for cost, usage, requirements, and optional switching context
-- One “Save and review” action that stores the entry, calculates the audit, and retrieves authorized alternatives
+- One “Save and review” action that keeps the browser entry, calculates the audit, retrieves authorized alternatives, and (when signed in) saves its account assessment with retry recovery
 - Transparent recommendations with reasons, confidence, and cautious wording
 - Weekly, monthly, quarterly, and yearly cost normalization
-- One persisted global display-currency preference, defaulting to USD, for examples, dashboard subtotals, and new-entry defaults
+- One persisted global display-currency preference, defaulting to USD, for examples, dashboard subtotals, new-entry defaults, and the default alternatives market
 - Per-subscription original currencies without fake exchange-rate conversion
 - Separate monthly and annual subtotals for mixed-currency audits
 - Evidence-based potential savings totals
 - Add, edit, delete, clear, filter, and search controls
 - JSON backup export and import
 - Optional Clerk sign-up, sign-in, profile management, and sign-out controls
+- Stripe Checkout for $2.99 USD/month or $49.99 USD lifetime Premium, with server-verified access and self-service billing
+- Signed Stripe webhook fulfillment backed by a Cloudflare D1 entitlement record
 - Curated matching for six launch subscriptions plus verified additional product types
 - Server-side product-type and requirement matching with protected free-plan records
 - Device-local storage with one-time migration from the former app formats
@@ -27,12 +34,16 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 ## File structure
 
 ```text
-index.html                    One-page marketing, unified adaptive audit form, and results
+index.html                    Discover, subscriptions, saved audits, and supporting workspace views
 privacy.html                  Plain-language privacy overview
-style.css                     Light responsive visual system
+style.css                     Base responsive visual system
+experience.css                Green workspace layout and progressive-disclosure presentation
+js/experience.js              Hash navigation, view visibility, and disclosure/focus behavior
 js/app.js                     Browser events and application state coordination
 js/auth.js                    Clerk initialization and signed-in/signed-out navigation controls
 js/access.js                  Browser client for the server-verified access summary
+js/billing.js                 Checkout client, fixed plan display, and Stripe URL validation
+js/admin.js                   Server-authorized owner settings and discount draft workspace
 js/config.js                  Brand, storage keys, options, and global configuration
 js/currencyPreference.js      Shared currency options, safe form defaults, and illustrative amounts
 js/currencyPage.js            Currency preference synchronization on the privacy page
@@ -52,6 +63,7 @@ worker.js                     Cloudflare Worker router for protected APIs and st
 wrangler.jsonc                Versioned Worker, asset, and private KV binding configuration
 functions/api/                Reusable Cloudflare handlers for access and alternatives
 functions/_shared/            Clerk verification, access policy, private catalogue matching, and HTTP helpers
+migrations/                   Cloudflare D1 billing, saved assessments and owner controls
 ```
 
 ## How recommendations work
@@ -75,11 +87,13 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains one global display-currency preference and subscriptions, including each entry's original billing currency and optional adaptive-form answers. The existing `auditCurrency` field remains the persisted preference name for backup compatibility. New visitors default to USD. Existing valid preferences, imported backups, legacy preferences, saved amounts, and saved billing currencies are preserved. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
-No analytics are included. Subscription names, prices, free-text notes, calculated totals, and the full subscription list are not transmitted. When a supported service is saved or its alternatives are retried, the browser sends only a supported service ID, product type, structured requirements, country, platform, applicable title/game/server-country/language/level/subject constraints, free/paid choices, advertisement/free-limit preferences, and required storage to FeeVeto's own Cloudflare Function.
+Product measurement is optional and off by default. First-party events use a strict non-sensitive allowlist; inline feedback sends only an explicit choice, fixed reason and known service/context. Browser privacy signals disable both. See [Public Beta hardening](docs/PUBLIC-BETA-HARDENING.md) for the event schema, scoring model, setup, verification and launch gaps. These changes are a review release, not a production deployment.
+
+Alternative-matching requests send structured requirements, not the local name, bill amount, notes, totals, or full list. Instant discovery also sends optional budget, switching tolerance, and market context. Personal assessment additionally sends the original request, current spending, and guided answers for server calculation. Save this audit, or Save and review while signed in, explicitly stores the selected entry's assessment in D1. Private notes stay local. Guest saves remain browser-only; sign-in alone never uploads earlier entries. See [journey release notes](docs/JOURNEY-RELEASE.md) for privacy, storage, and verification boundaries.
 
 ## Authentication
 
-Clerk provides optional account creation, sign-in, profile management, and sign-out. Authentication is deliberately separate from the subscription audit: signing in does not upload, attach, or synchronize audit entries. The browser loads ClerkJS and Clerk UI from the application’s Clerk Frontend API domain, following Clerk’s official script-tag integration. The build accepts `VITE_CLERK_PUBLISHABLE_KEY` or the Clerk CLI’s `CLERK_PUBLISHABLE_KEY` and injects only that public value; no Clerk secret is used in browser code.
+Clerk provides optional account creation, sign-in, profile management, and sign-out. Signing in alone does not upload or synchronize the local subscription list. An explicit pending Save this audit resumes after sign-in; account endpoints verify Clerk ownership before reading or writing any assessment. The browser loads ClerkJS and Clerk UI from the application’s Clerk Frontend API domain. The build accepts `VITE_CLERK_PUBLISHABLE_KEY` or `CLERK_PUBLISHABLE_KEY` and injects only that public value; no Clerk secret is used in browser code.
 
 The repository includes `.env.example` as a safe template. Local credentials belong in `.env.local`, which is ignored by Git. The project is linked to Clerk application `app_3IxBTR7IHayTnEm7oToPCrk8yNL` through the Clerk CLI.
 
@@ -93,9 +107,17 @@ The Cloudflare Worker verifies each Clerk session before reading access settings
 
 The browser receives a small access summary, not the raw private metadata. `/api/premium/status` checks premium permission before responding, and `/api/admin/status` checks admin permission. These endpoints are guard examples for future protected features; no admin dashboard is included. The free audit remains public and does not call either protected endpoint.
 
-Paid access is deliberately isolated in `functions/_shared/billing-access.js` and currently returns `false`. A future Stripe integration can replace that server-side resolver without treating Clerk beta metadata as payment state.
+Paid access remains deliberately separate from Clerk beta/admin metadata. The Worker looks up an active Stripe-backed entitlement in the `FEEVETO_BILLING` D1 database. A browser flag, request body, public Clerk metadata, or an unverified redirect can never grant premium access.
 
 Never use `publicMetadata`, `unsafeMetadata`, request bodies, or local storage as an authorization source.
+
+## Payments
+
+FeeVeto Premium offers $2.99 USD/month or $49.99 USD once for lifetime access. Both unlock the same features for one signed-in Clerk account. The site's display currency still controls examples, new audit entries, and market hints; it does not convert these purchase prices. Checkout is disabled unless explicitly configured. Local and sandbox checkout use test credentials and a visible test-mode notice.
+
+The Worker verifies Clerk identity, selects an approved Stripe price, and reserves one checkout per account. A redirect never grants access: signed Stripe webhooks and server reconciliation verify the payment, product, mode and account ownership. Monthly access requires a verified paid invoice and expires at its paid-through date. Lifetime purchases are separate grants. Full refunds revoke only the matching purchase or invoice grant, including when refund notifications arrive first. Card data stays at Stripe.
+
+Owner and beta access continues to come from Clerk private metadata and never requires payment. Monthly buyers can manage billing or buy lifetime access; a successful lifetime upgrade stops monthly renewals without automatic proration, credit or refund. Previously paid periods are not overwritten. See [billing setup, migration, operational recovery and verification](docs/BILLING.md) before enabling any environment. Production activation is a separate approval, not part of the sandbox implementation.
 
 ## Migration from the former app
 
@@ -116,9 +138,9 @@ The old keys are not deleted. The completion marker and new-state precedence pre
 
 The browser recognizes aliases for the six launch subscriptions and additional supported use cases inside the unified form, but unknown names still work in the basic audit. Users can correct the detected service and product type before saving. Service-specific requirements preserve four states: unanswered, must have, nice to have, and not needed. Product-specific structured questions appear in that same form. Optional free text remains a private note and is not interpreted by the matcher.
 
-`BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. A recognized service—including an older saved record without `detailedReview`—or a specific supported product type is enough to start discovery. Optional answers remain nullable and refine the comparison instead of blocking it. The Cloudflare Function reads schema-version 2 data from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v2`, validates the complete catalogue, applies deterministic matching, and returns at most three results.
+`BackendAlternativesProvider` sends only the minimum structured query to `POST /api/alternatives/recommendations`. A recognized service—including an older saved record without `detailedReview`—or a specific supported product type is enough to start discovery. Optional answers remain nullable and refine the comparison instead of blocking it. The request also carries the global display currency as a market hint. The Cloudflare Function reads schema-version 2 data from the private `FEEVETO_ALTERNATIVES` KV binding at key `catalogue:v2`, validates the complete catalogue, applies deterministic matching, and returns at most three results.
 
-Matching first requires the same product type. It then excludes explicitly unsupported must-haves, insufficient storage, known country/platform/language/level incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. Unknown critical facts remain eligible only as candidates with provider-verification notes. With only basic information, eligible records are labelled “General suggestion” and include useful product-specific details to add. When explicit selected needs are supported and no compatibility fact remains uncertain, the label becomes “Matches your selected needs.” Nice-to-have matches, limitations, switching effort, and verification uncertainty affect deterministic ordering. Affiliate status is not accepted as a scoring input.
+Matching first requires the same product type. It then excludes explicitly unsupported must-haves, insufficient storage, known country/platform/language/level incompatibility, advertisements the user rejected, and free-plan limits the user would not accept. When country is blank, the server maps USD to the US market, GBP to the UK, CHF to Switzerland/Liechtenstein, and EUR to the euro area; an explicit country always takes precedence. This mapping is server controlled, so callers cannot supply their own market country list. Worldwide records remain eligible, while unknown availability remains a candidate with a verification note. With only basic information, eligible records are labelled “General suggestion” and include useful product-specific details to add. When explicit selected needs are supported and no compatibility fact remains uncertain, the label becomes “Matches your selected needs.” Nice-to-have matches, limitations, switching effort, and verification uncertainty affect deterministic ordering. Affiliate status is not accepted as a scoring input.
 
 The response preserves distinct states for general suggestions, tailored suggestions, unsupported use cases, no accessible match, access restrictions, unavailable catalogue configuration, and retryable request failures. Errors never discard the saved subscription or its form answers, and request sequencing prevents an older response from replacing newer results.
 
@@ -137,16 +159,18 @@ Production records must never be committed. Keep the reviewed JSON outside Git, 
 - HTTPS official and pricing destinations, official source URLs, and the actual verification date
 - `affiliateUrl: null` and `affiliateStatus: "not_applied"`
 
-Temporary trials are not catalogue offers: the validator rejects `trialOnly: true`. The response never calculates savings or exposes evidence and affiliate fields.
+Temporary trials are not catalogue offers: the validator rejects `trialOnly: true`. Discovery does not calculate personal savings. The separate assessment endpoint calculates estimates only from a comparable verified price and the user's bill. Permitted source URLs and verification dates are returned with authorized offers; affiliate fields are never exposed.
 
 ### Adding or updating an offer
 
+For larger additions, use the [private catalogue expansion and maintenance workflow](docs/CATALOGUE-MAINTENANCE.md). It preserves the baseline, counts distinct services instead of pricing tiers, validates category coverage, and creates a new private review bundle without uploading it.
+
 1. Verify every claim against current official product, pricing, documentation, or support pages.
-2. Update `.private/verified-alternatives.json`; the entire directory is ignored and must never be added to Git, `data/`, `js/`, HTML, or another tracked path.
+2. Preserve a private baseline backup and edit a new review copy under `.private/`; the entire directory is ignored and must never be added to Git, `data/`, `js/`, HTML, or another tracked path.
 3. Record uncertain country, platform, or advertisement compatibility as `unknown` rather than guessing.
 4. Keep different plans as different records and label same-provider lower plans as `downgrade`.
 5. Run `node scripts/catalogue-validate.mjs .private/verified-alternatives.json`.
-6. Test with development storage, then explicitly upload the complete JSON to KV key `catalogue:v2` using `npm run catalogue:publish -- --file .private/verified-alternatives.json --namespace-id <KV_NAMESPACE_ID> --remote`.
+6. Test with development storage. After approval of the exact file and destination, back up the current live value and explicitly upload the reviewed JSON to KV key `catalogue:v2` using `npm run catalogue:publish -- --file <PRIVATE_REVIEWED_FILE> --namespace-id <KV_NAMESPACE_ID> --remote`. Stop if the live baseline changed during review.
 7. Add only fictional records to tracked tests and fixtures, then run `npm run check`.
 
 All current outbound actions use the verified `officialUrl` directly with `rel="noopener noreferrer"`. No tracking redirects, affiliate parameters, external alternatives API, pricing API, search API, or AI recommendation model are used.
@@ -188,6 +212,8 @@ The command checks browser and backend modules, validates the fictional public f
 12. Test keyboard navigation, validation focus, result focus, and visible focus styles.
 13. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
 14. Test signed-out, ordinary, beta, and admin accounts and confirm the catalogue access restrictions remain server-controlled.
+15. In Stripe test mode, sign in as an ordinary account and open checkout in each currency. Complete one test payment and confirm premium activates only after the signed webhook; repeat a delivered event and confirm no duplicate entitlement appears.
+16. Confirm an owner, beta tester, and already-paid account cannot start another checkout. Test a full sandbox refund and confirm only its matching paid entitlement is revoked.
 
 Use fictional subscription information during testing.
 
@@ -205,13 +231,16 @@ FeeVeto uses a module Worker so the protected Clerk/KV endpoints and static Vite
 
 1. Keep the existing Git-connected Worker named `feeveto`.
 2. Use `npm run build` as the build command and `npx wrangler deploy` as the deploy command.
-3. Use Node.js 20 or newer and add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
+3. Use a Node.js version supported by `package.json` (22.22.2+, 24.15.0+, or 26+) and add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
 4. Keep `worker.js` and `wrangler.jsonc` at the repository root. The Worker routes `/api/*` through the existing protected handlers and delegates all other requests to the `ASSETS` binding.
 5. The versioned `wrangler.jsonc` connects `FEEVETO_ALTERNATIVES` to the dedicated `feeveto-alternatives` KV namespace. If a separate Preview Worker is added later, give it a separate namespace instead of sharing production catalogue state.
-6. Add `CLERK_PUBLISHABLE_KEY` as a runtime variable and `CLERK_SECRET_KEY` as an encrypted runtime secret. The publishable values may be the same key; the secret key must never enter Vite or a tracked file.
-7. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated runtime variable for additional trusted frontend origins. The current request origin is always included automatically.
-8. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
-9. Deploy and test authentication, all four access states, catalogue filtering, storage, module paths, and privacy links on the final domain.
+6. The same file binds `FEEVETO_BILLING` to the dedicated `feeveto-billing` D1 database. Back up, review and apply pending migrations (including `0004_monthly_lifetime_billing.sql` and `0005_owner_controls.sql`) to the intended environment before deploying dependent code. Use separate local/test storage; never use the production D1 binding for sandbox payments.
+7. Add `CLERK_PUBLISHABLE_KEY` as a runtime variable and `CLERK_SECRET_KEY` as an encrypted runtime secret. The publishable values may be the same key; the secret key must never enter Vite or a tracked file.
+8. Configure `BILLING_MODE`, `BILLING_ENABLED`, `STRIPE_MONTHLY_PRICE_ID`, `STRIPE_LIFETIME_PRICE_ID`, and `STRIPE_PORTAL_CONFIGURATION_ID` as runtime variables. Store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` only as encrypted Worker secrets. Keep existing approved price IDs in the same-mode legacy allowlist. See `docs/BILLING.md` for exact prices and portal settings.
+9. Register the intended environment's `/api/billing/webhook` in Stripe with the complete event list in `docs/BILLING.md`. Store its signing secret securely; never paste it into chat, Vite variables, or a tracked file. Local Stripe forwarding uses its own signing secret, not the deployed endpoint's secret.
+10. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated runtime variable for additional trusted frontend origins. The current request origin is always included automatically.
+11. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
+12. Deploy and test authentication, all four access states, checkout, signed webhook fulfillment, refund handling, catalogue filtering, storage, module paths, and privacy links on the final domain.
 
 For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, run `npm run build`, then run `npx wrangler dev`. Put only fictional data in shared development fixtures.
 
@@ -227,25 +256,29 @@ For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, a
 
 Use lowercase `admin` or `user` and a JSON boolean `true` or `false`, not quoted strings. An admin does not need `betaAccess: true`; the admin role already includes complimentary premium access.
 
+After signing in, an admin sees **Owner** beside their account menu. Open it to save purchase settings and discount drafts. Beta and paid access do not authorize this panel. See [owner controls and payment safeguards](docs/OWNER-CONTROLS.md). Keep existing unrelated private metadata when editing the role.
+
 Do not add payment, analytics, or API credentials to frontend files.
 
 ## Current limitations
 
-- Data remains in one browser unless manually exported and imported.
-- No bank connection, automatic detection, automatic cancellation, or cloud sync
-- Accounts authenticate identity only; audits still remain in one browser
+- The original subscription list remains browser-local unless manually exported/imported. Account assessments are opt-in and separate, not automatic list synchronization.
+- No bank connection, automatic subscription detection, or automatic cancellation
+- Natural-language recognition is a deterministic supported-service parser, not a general AI model. Correct the understood service, motivation, country, and device when necessary.
+- Account history currently has no self-service deletion/export interface; local exports cover only the original subscription list.
 - No live currency conversion; real amounts retain their original currencies and mixed-currency audits use separate subtotals
 - No notification delivery when the page is closed
 - Catalogue coverage is curated and intentionally incomplete; unsupported products and unverified use cases return an honest no-match state
 - Real catalogue records require the private Cloudflare KV binding and are intentionally absent from Git
 - Cost-per-use is an estimate based on a frequency range
 - Recommendations depend on the accuracy and completeness of user-entered answers
+- Stripe is configured only in sandbox until the live account name, business details, tax obligations, customer support details, legal terms, and refund policy are reviewed
 
 ## Planned provider architecture
 
-The catalogue is deliberately curated rather than API-driven. A later administration workflow can update the same private KV schema without changing matching or rendering. Stripe can implement `getPaidPremiumAccess` separately from complimentary Clerk metadata.
+The catalogue is deliberately curated rather than API-driven. A later administration workflow can update the same private KV schema without changing matching or rendering. Paid Stripe entitlements remain separate from complimentary Clerk metadata.
 
-Payments, cloud sync, live pricing, external search, and AI-generated recommendations remain outside this release. Connecting the full audit to an account would require a separate privacy review and secure backend design.
+The provider boundary is `functions/_shared/catalogue-provider.js`. A future optional provider can supply the same checked schema to the existing authorization and ranking pipeline. Live provider pricing, external search, AI-generated recommendations, and automatic full-list cloud sync remain outside this release.
 
 ## License
 

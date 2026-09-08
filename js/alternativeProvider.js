@@ -1,3 +1,4 @@
+import { CURRENCIES } from './config.js';
 import { PRODUCT_TYPE_IDS, supportedServiceFor } from './serviceCatalog.js';
 
 const RESULT_STATES = new Set([
@@ -5,6 +6,7 @@ const RESULT_STATES = new Set([
   'matched_suggestions',
   'unsupported',
   'no_matches',
+  'no_verified_alternatives',
   'catalogue_unavailable',
   'request_failed',
   'authentication_failed',
@@ -51,7 +53,7 @@ export class AlternativesProvider {
   }
 }
 
-export function recommendationRequestFor(subscription) {
+export function recommendationRequestFor(subscription, marketCurrency = '') {
   const review = subscription?.detailedReview || {};
   const service = supportedServiceFor(subscription);
   const productType = PRODUCT_TYPE_IDS.includes(review.productType) ? review.productType : service?.productType;
@@ -60,6 +62,7 @@ export function recommendationRequestFor(subscription) {
   return {
     serviceId: applicableService?.id || '',
     productType,
+    marketCurrency: CURRENCIES.includes(marketCurrency) ? marketCurrency : '',
     mustHave: Array.isArray(review.mustHaveRequirements) ? review.mustHaveRequirements : [],
     niceToHave: Array.isArray(review.niceToHaveRequirements) ? review.niceToHaveRequirements : [],
     notNeeded: Array.isArray(review.notNeededRequirements) ? review.notNeededRequirements : [],
@@ -88,7 +91,7 @@ export function officialDestination(offer) {
   }
 }
 
-export function normalizeAlternativesResponse(value) {
+export function normalizeAlternativesResponse(value, maxItems = 3) {
   if (!value || typeof value !== 'object' || !Array.isArray(value.items)) throw new Error('The alternatives response was invalid.');
   return {
     accessScope: value.accessScope === 'complete' ? 'complete' : 'public',
@@ -97,7 +100,9 @@ export function normalizeAlternativesResponse(value) {
     missingDetails: Array.isArray(value.missingDetails)
       ? value.missingDetails.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4)
       : [],
-    items: value.items.filter((item) => officialDestination(item)).slice(0, 3),
+    items: value.items.filter((item) => officialDestination(item)).slice(0, Math.min(12, maxItems)),
+    hasMore: value.hasMore === true, total: Number.isInteger(value.total) ? value.total : value.items.length,
+    market: value.market || null, provider: 'curated', rankingVersion: value.rankingVersion || 'curated-v3',
   };
 }
 
@@ -107,11 +112,11 @@ export class BackendAlternativesProvider extends AlternativesProvider {
     this.fetchImplementation = fetchImplementation;
   }
 
-  async getAlternatives(subscription, token = '') {
-    const query = recommendationRequestFor(subscription);
+  async getAlternatives(subscription, token = '', marketCurrency = '') {
+    const query = recommendationRequestFor(subscription, marketCurrency);
     if (!query) return {
       accessScope: 'public', state: 'unsupported', items: [], missingDetails: [],
-      message: 'This service or use case is not supported for curated alternatives yet. The basic audit is still available.',
+      message: "FeeVeto doesn't have verified alternatives for this subscription yet. The basic audit is still available.",
     };
     const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;

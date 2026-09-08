@@ -144,6 +144,34 @@ test('known incompatible country and platform are excluded while unknown compati
   assert.ok(result.items[0].verificationNotes.some((note) => /platform/i.test(note)));
 });
 
+test('display currency supplies a server-controlled market when country is unanswered', () => {
+  const swiss = offer({ id: 'swiss-only', productId: 'swiss-only', countryAvailability: { status: 'limited', countries: ['CH'] } });
+  const us = offer({ id: 'us-only', productId: 'us-only', countryAvailability: { status: 'limited', countries: ['US'] } });
+  const worldwide = offer({ id: 'worldwide', productId: 'worldwide' });
+  const unknown = offer({ id: 'unknown-market', productId: 'unknown-market', countryAvailability: { status: 'unknown', countries: [] } });
+  const catalogue = [swiss, us, worldwide, unknown];
+
+  const usd = selectRecommendations(catalogue, query('canva', { marketCurrency: 'USD' }), { premiumAccess: true });
+  assert.equal(usd.items.some(({ id }) => id === 'swiss-only'), false);
+  assert.equal(usd.items.some(({ id }) => id === 'us-only'), true);
+  assert.equal(usd.items.some(({ id }) => id === 'worldwide'), true);
+
+  const chf = selectRecommendations(catalogue, query('canva', { marketCurrency: 'CHF' }), { premiumAccess: true });
+  assert.equal(chf.items.some(({ id }) => id === 'swiss-only'), true);
+  assert.equal(chf.items.some(({ id }) => id === 'us-only'), false);
+  assert.ok(chf.items.find(({ id }) => id === 'unknown-market')?.verificationNotes.some((note) => /CHF/));
+});
+
+test('an explicit country overrides the currency market and client-supplied country lists are ignored', () => {
+  const swiss = offer({ id: 'swiss-only', productId: 'swiss-only', countryAvailability: { status: 'limited', countries: ['CH'] } });
+  const us = offer({ id: 'us-only', productId: 'us-only', countryAvailability: { status: 'limited', countries: ['US'] } });
+  const result = selectRecommendations([swiss, us], query('canva', {
+    country: 'CH', marketCurrency: 'USD', marketCountries: ['US'],
+  }), { premiumAccess: true });
+  assert.deepEqual(result.items.map(({ id }) => id), ['swiss-only']);
+  assert.equal(normalizeRecommendationQuery(query('canva', { marketCurrency: 'XYZ' })).marketCurrency, '');
+});
+
 test('free-plan limits require explicit acceptance', () => {
   const free = offer({ id: 'fictional-free', planName: 'Free', pricingModel: 'free', pricingUrl: null, freePlanLimits: true });
   assert.equal(selectRecommendations([free], query('canva', { acceptFreeLimits: false }), { premiumAccess: true }).items.length, 0);
@@ -192,7 +220,8 @@ test('the unified save creates a minimal alternative request with preserved pref
       country: 'CH', platform: 'web', acceptAds: null, acceptFreeLimits: false, considerCheaper: true, considerFree: false,
       storageRequiredGb: null, neededFeatures: 'Private note',
     },
-  });
+  }, 'USD');
+  assert.equal(requestBody.marketCurrency, 'USD');
   assert.equal(requestBody.includePaid, true);
   assert.equal(requestBody.includeFree, false);
   assert.equal(requestBody.acceptAds, null);
@@ -224,8 +253,8 @@ test('the same service is allowed only as an explicit downgrade', () => {
 test('no supported match returns the honest empty state', () => {
   const result = selectRecommendations([], query('dropbox'), { premiumAccess: true });
   assert.equal(result.items.length, 0);
-  assert.equal(result.state, 'no_matches');
-  assert.match(result.message, /No accessible verified alternative/);
+  assert.equal(result.state, 'no_verified_alternatives');
+  assert.match(result.message, /doesn't have verified alternatives/);
 });
 
 test('duplicate offers are returned once', () => {

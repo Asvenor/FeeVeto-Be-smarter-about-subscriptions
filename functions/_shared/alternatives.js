@@ -1,4 +1,6 @@
+import { CURRENCIES } from '../../js/config.js';
 import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById } from '../../js/serviceCatalog.js';
+import { feeVetoMatch } from './match-score.js';
 
 const PRICING_MODELS = new Set(['free', 'subscription', 'one_time']);
 const BILLING_INTERVALS = new Set(['monthly', 'yearly', 'varies', 'one_time']);
@@ -8,6 +10,15 @@ const AVAILABILITY = new Set(['worldwide', 'limited', 'unknown']);
 const SWITCHING_DIFFICULTIES = new Set(['easy', 'moderate', 'complex', 'unknown']);
 const LEARNER_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
 const PLATFORMS = new Set(['web', 'windows', 'macos', 'linux', 'ios', 'android', 'smart_tv', 'game_console']);
+
+// The display currency provides a conservative market default when the user has
+// not supplied a country. An explicit country always takes precedence.
+export const MARKET_COUNTRIES_BY_CURRENCY = Object.freeze({
+  USD: Object.freeze(['US']),
+  EUR: Object.freeze(['AT', 'BE', 'BG', 'HR', 'CY', 'EE', 'FI', 'FR', 'DE', 'GR', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PT', 'SK', 'SI', 'ES']),
+  GBP: Object.freeze(['GB']),
+  CHF: Object.freeze(['CH', 'LI']),
+});
 
 export const MATCH_WEIGHTS = Object.freeze({
   MUST_HAVE: 40,
@@ -43,7 +54,20 @@ function httpsUrl(value) {
 }
 
 function validDate(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+}
+
+export function checkedRating(value) {
+  if (!value || !Number.isFinite(value.value) || !Number.isFinite(value.scale) || value.scale <= 0
+    || value.value < 0 || value.value > value.scale || !Number.isInteger(value.count) || value.count < 1
+    || !httpsUrl(value.sourceUrl) || !text(value.source, 80) || !validDate(value.checkedAt)) return null;
+  return { value: value.value, scale: value.scale, count: value.count, source: text(value.source, 80), sourceUrl: httpsUrl(value.sourceUrl), checkedAt: value.checkedAt };
+}
+
+export function freshnessFor(verifiedAt, now = new Date()) {
+  const days = validDate(verifiedAt) ? Math.floor((now.getTime() - Date.parse(verifiedAt)) / 86_400_000) : null;
+  return { policyDays: 90, needsRecheck: days === null || days < 0 || days > 90 };
 }
 
 function nullableMinorUnits(value) {
@@ -75,6 +99,7 @@ export function normalizeRecommendationQuery(value) {
   const niceToHave = stringList(value.niceToHave).filter((id) => requirementIds.has(id) && !mustHave.includes(id));
   const notNeeded = stringList(value.notNeeded).filter((id) => requirementIds.has(id) && !mustHave.includes(id) && !niceToHave.includes(id));
   const country = /^[A-Za-z]{2}$/.test(text(value.country, 2)) ? text(value.country, 2).toUpperCase() : '';
+  const marketCurrency = CURRENCIES.includes(value.marketCurrency) ? value.marketCurrency : '';
   const requiredServerCountry = /^[A-Za-z]{2}$/.test(text(value.requiredServerCountry, 2))
     ? text(value.requiredServerCountry, 2).toUpperCase() : '';
   const platform = PLATFORMS.has(value.platform) ? value.platform : '';
@@ -89,6 +114,7 @@ export function normalizeRecommendationQuery(value) {
     answeredRequirementCount: new Set([...mustHave, ...niceToHave, ...notNeeded]).size,
     requirementCount: requirementIds.size,
     country,
+    marketCurrency,
     platform,
     acceptAds: typeof value.acceptAds === 'boolean' ? value.acceptAds : null,
     acceptFreeLimits: typeof value.acceptFreeLimits === 'boolean' ? value.acceptFreeLimits : null,
@@ -101,6 +127,11 @@ export function normalizeRecommendationQuery(value) {
     targetLanguage: text(value.targetLanguage, 40),
     learnerLevel: LEARNER_LEVELS.has(value.learnerLevel) ? value.learnerLevel : '',
     specificSubject: text(value.specificSubject, 80),
+    budgetMinor: Number.isSafeInteger(value.budgetMinor) && value.budgetMinor >= 0 ? value.budgetMinor : null,
+    budgetCurrency: CURRENCIES.includes(value.budgetCurrency) ? value.budgetCurrency : '',
+    switchingTolerance: ['easy', 'moderate', 'any'].includes(value.switchingTolerance) ? value.switchingTolerance : '',
+    easierOnly: value.easierOnly === true,
+    limit: Number.isInteger(value.limit) ? Math.max(1, Math.min(12, value.limit)) : 3,
   };
 }
 
@@ -120,7 +151,9 @@ export function validateOffer(value) {
   const pricingModel = PRICING_MODELS.has(value.pricingModel) ? value.pricingModel : '';
   const relationship = RELATIONSHIPS.has(value.relationship) ? value.relationship : '';
   const availabilityStatus = AVAILABILITY.has(value.countryAvailability?.status) ? value.countryAvailability.status : '';
-  const countries = stringList(value.countryAvailability?.countries).filter((country) => /^[A-Z]{2}$/.test(country));
+  // Country lists can cover all ISO territories; the generic 24-item feature
+  // limit silently discarded legitimate markets from larger catalogues.
+  const countries = stringList(value.countryAvailability?.countries, 249).filter((country) => /^[A-Z]{2}$/.test(country));
   const platforms = stringList(value.platforms).filter((platform) => PLATFORMS.has(platform));
   const features = stringList(value.features);
   const unsupportedFeatures = stringList(value.unsupportedFeatures);
@@ -133,7 +166,7 @@ export function validateOffer(value) {
   const switchingDifficulty = SWITCHING_DIFFICULTIES.has(value.switchingDifficulty) ? value.switchingDifficulty : '';
   const languages = stringList(value.languages, 40, 40);
   const levels = stringList(value.levels).filter((level) => LEARNER_LEVELS.has(level));
-  const serverCountries = stringList(value.serverCountries).filter((country) => /^[A-Z]{2}$/.test(country));
+  const serverCountries = stringList(value.serverCountries, 249).filter((country) => /^[A-Z]{2}$/.test(country));
 
   const requiredText = id && productId && offerId && text(value.productName, 80) && text(value.planName, 80) && text(value.description);
   const requiredEnums = productType && pricingModel && relationship && availabilityStatus && switchingDifficulty;
@@ -174,7 +207,11 @@ export function validateOffer(value) {
     renewalTerms: nullableText(value.renewalTerms, 180),
     priceVerifiedAt: priceMinor === null ? null : value.priceVerifiedAt,
     officialUrl, pricingUrl: pricingUrl || null, sourceUrls,
-    verifiedAt: value.verifiedAt, affiliateUrl: null, affiliateStatus: 'not_applied', trialOnly: false,
+    verifiedAt: value.verifiedAt, reviewRating: checkedRating(value.reviewRating || {
+      value: value.externalRating, scale: value.externalRatingScale, count: value.externalReviewCount,
+      source: value.externalRatingSource, sourceUrl: value.externalRatingUrl, checkedAt: value.externalRatingVerifiedAt,
+    }),
+    affiliateUrl: null, affiliateStatus: 'not_applied', trialOnly: false,
   };
 }
 
@@ -182,8 +219,20 @@ function compatibility(offer, query) {
   if (offer.productType !== query.productType) return null;
   if (query.serviceId && !offer.relevantServices.includes(query.serviceId)) return null;
   if (query.serviceId && offer.providerServiceId === query.serviceId && offer.relationship !== 'downgrade') return null;
+  if (query.easierOnly && offer.switchingDifficulty !== 'easy') return null;
+  if (query.switchingTolerance === 'easy' && ['moderate', 'complex'].includes(offer.switchingDifficulty)) return null;
+  if (query.switchingTolerance === 'moderate' && offer.switchingDifficulty === 'complex') return null;
 
   const verification = [];
+  if (query.switchingTolerance && offer.switchingDifficulty === 'unknown') verification.push('Confirm how much effort this switch would take.');
+  if (freshnessFor(offer.verifiedAt).needsRecheck) verification.push('This record is due for a new check. Confirm its features and availability.');
+  if (query.budgetMinor !== null) {
+    const monthly = offer.pricingModel === 'free' ? 0 : offer.priceCurrency === query.budgetCurrency
+      && offer.priceMinor !== null && !offer.introductoryTerms
+      ? offer.billingInterval === 'monthly' ? offer.priceMinor : offer.billingInterval === 'yearly' ? offer.priceMinor / 12 : null : null;
+    if (monthly !== null && monthly > query.budgetMinor) return null;
+    if (monthly === null) verification.push('Price or billing currency prevents confirming this option fits your monthly budget.');
+  }
   const supportedMustHave = [];
   for (const feature of query.mustHave) {
     if (offer.unsupportedFeatures.includes(feature)) return null;
@@ -201,9 +250,17 @@ function compatibility(offer, query) {
   if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits === false) return null;
   if (offer.pricingModel === 'free' && offer.freePlanLimits && query.acceptFreeLimits === null) verification.push('Confirm that the free-plan limits are acceptable.');
 
-  if (query.country) {
-    if (offer.countryAvailability.status === 'limited' && !offer.countryAvailability.countries.includes(query.country)) return null;
-    if (offer.countryAvailability.status === 'unknown') verification.push('Confirm availability in your country with the provider.');
+  const marketCountries = query.country
+    ? [query.country]
+    : MARKET_COUNTRIES_BY_CURRENCY[query.marketCurrency] || [];
+  if (marketCountries.length) {
+    if (offer.countryAvailability.status === 'limited'
+      && !offer.countryAvailability.countries.some((country) => marketCountries.includes(country))) return null;
+    if (offer.countryAvailability.status === 'unknown') {
+      verification.push(query.country
+        ? 'Confirm availability in your country with the provider.'
+        : `Confirm availability in the market associated with ${query.marketCurrency}.`);
+    }
   }
 
   if (query.platform) {
@@ -233,7 +290,7 @@ function compatibility(offer, query) {
     if (offer.unsupportedFeatures.includes(feature)) verification.push(`This option does not include the preference “${feature}”.`);
     else if (!offer.features.includes(feature)) verification.push(`Confirm the preference “${feature}” with the provider.`);
   }
-  if (!query.country) verification.push('Check availability in your country.');
+  if (!query.country && !query.marketCurrency) verification.push('Check availability in your country.');
   if (!query.platform) verification.push('Confirm support for your device.');
   if (query.productType === 'cloud_storage' && query.storageRequiredGb === null) {
     verification.push('Check that this plan includes enough storage.');
@@ -281,9 +338,18 @@ function resultFor(offer, query, match, tailored) {
     relationship,
     matchStatus: tailored ? (confirmed ? 'matched' : 'candidate') : 'general',
     matchLabel: tailored ? (confirmed ? 'Matches your selected needs' : 'Candidate—needs verification') : 'General suggestion',
+    feeVetoMatch: feeVetoMatch(offer, query, { stale: freshnessFor(offer.verifiedAt).needsRecheck || (offer.priceMinor !== null && freshnessFor(offer.priceVerifiedAt).needsRecheck) }),
     description: offer.description,
     whyMatches: why,
     supportedRequirements: supported,
+    features: offer.features,
+    unsupportedFeatures: offer.unsupportedFeatures,
+    unknownFeatures: offer.unknownFeatures,
+    sourceUrls: offer.sourceUrls,
+    reviewRating: offer.reviewRating,
+    freshness: freshnessFor(offer.verifiedAt),
+    countryAvailability: offer.countryAvailability,
+    productType: offer.productType,
     limitations: offer.limitations.slice(0, 3),
     usageLimits: offer.usageLimits.slice(0, 3),
     verificationNotes: match.verification,
@@ -351,10 +417,12 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
   };
   const seen = new Set();
   const eligible = [];
+  let relevantCount = 0;
   for (const rawOffer of Array.isArray(catalogue) ? catalogue : []) {
     const offer = validateOffer(rawOffer);
     if (!offer || seen.has(offer.id)) continue;
     seen.add(offer.id);
+    if (offer.productType === query.productType && (!query.serviceId || offer.relevantServices.includes(query.serviceId))) relevantCount++;
     if (offer.pricingModel === 'free' && query.includeFree === false) continue;
     if (offer.pricingModel !== 'free' && query.includePaid === false) continue;
     const match = compatibility(offer, query);
@@ -365,7 +433,7 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
   const tailored = hasSelectedNeeds(query);
   const items = matches
     .sort((left, right) => right.match.rankScore - left.match.rankScore || left.offer.productName.localeCompare(right.offer.productName))
-    .slice(0, 3)
+    .slice(0, query.limit)
     .map(({ offer, match }) => resultFor(offer, query, match, tailored));
   let state = tailored ? 'matched_suggestions' : 'general_suggestions';
   let message = '';
@@ -373,8 +441,10 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
     state = 'access_restricted';
     message = 'No alternatives are available in your current access level for these requirements.';
   } else if (!items.length) {
-    state = 'no_matches';
-    message = 'No accessible verified alternative meets the requirements you selected. Review them to broaden the comparison if appropriate.';
+    state = relevantCount ? 'no_matches' : 'no_verified_alternatives';
+    message = relevantCount ? 'No compatible verified alternatives meet these requirements, market and access level. You can review your preferences; known incompatibilities are never ignored.' : "FeeVeto doesn't have verified alternatives for this subscription yet. You can still use the free basic audit.";
   }
-  return { accessScope, state, items, message, missingDetails: missingDetailsFor(query) };
+  return { accessScope, state, items, message, missingDetails: missingDetailsFor(query),
+    hasMore: matches.length > items.length, total: matches.length, provider: 'curated', rankingVersion: 'curated-v4-priority-coverage',
+    market: { country: query.country, currency: query.marketCurrency, source: query.country ? 'explicit_country' : query.marketCurrency ? 'currency_hint' : 'unknown' } };
 }

@@ -8,32 +8,40 @@ function frontendApiFromKey(publishableKey) {
   return domainWithTerminator.slice(0, -1);
 }
 
-function loadScript({ src, marker, attributes = {} }) {
-  if (document.querySelector(`script[${marker}]`)) return Promise.resolve();
-  return new Promise((resolve, reject) => {
+const scriptLoads = new Map();
+export function loadScript({ src, marker, attributes = {}, timeoutMs = 10000 }) {
+  if (scriptLoads.has(src)) return scriptLoads.get(src);
+  const pending = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = src;
     script.async = true;
     script.crossOrigin = 'anonymous';
     script.setAttribute(marker, '');
     for (const [name, value] of Object.entries(attributes)) script.setAttribute(name, value);
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('Clerk could not be loaded.')), { once: true });
+    const failed = () => { clearTimeout(timer); script.remove(); reject(new Error('Clerk could not be loaded.')); };
+    const timer = setTimeout(failed, timeoutMs);
+    script.addEventListener('load', () => { clearTimeout(timer); resolve(); }, { once: true });
+    script.addEventListener('error', failed, { once: true });
     document.head.appendChild(script);
   });
+  scriptLoads.set(src, pending);
+  void pending.catch(() => scriptLoads.delete(src));
+  return pending;
 }
 
 async function loadClerk(frontendApi, publishableKey) {
+  const scripts = [];
   if (!window.__internal_ClerkUICtor) {
-    await loadScript({ src: `https://${frontendApi}/npm/@clerk/ui@1/dist/ui.browser.js`, marker: 'data-feeveto-clerk-ui' });
+    scripts.push(loadScript({ src: `https://${frontendApi}/npm/@clerk/ui@1/dist/ui.browser.js`, marker: 'data-feeveto-clerk-ui' }));
   }
   if (!window.Clerk) {
-    await loadScript({
+    scripts.push(loadScript({
       src: `https://${frontendApi}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`,
       marker: 'data-feeveto-clerk-js',
       attributes: { 'data-clerk-publishable-key': publishableKey },
-    });
+    }));
   }
+  await Promise.all(scripts);
   if (!window.Clerk) throw new Error('Clerk did not initialize.');
   return window.Clerk;
 }
@@ -60,11 +68,21 @@ function renderAccessBadge(element, access) {
   if (element.textContent) element.hidden = false;
 }
 
-export async function initializeAuth({ onAccessChange = () => {} } = {}) {
+export async function initializeAuth({ onAccessChange = () => {}, onReady = () => {} } = {}) {
   const elements = authElements();
   if (Object.values(elements).some((element) => !element)) return null;
 
   const publishableKey = __FEEVETO_CLERK_PUBLISHABLE_KEY__;
+  const retry = document.getElementById('auth-retry');
+  if (retry) {
+    retry.hidden = true;
+    retry.onclick = async () => {
+      retry.disabled = true;
+      elements.loading.hidden = false; elements.status.hidden = true;
+      await initializeAuth({ onAccessChange, onReady });
+      retry.disabled = false;
+    };
+  }
   if (!publishableKey) {
     elements.loading.hidden = true;
     elements.status.hidden = false;
@@ -74,7 +92,13 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
 
   try {
     const clerk = await loadClerk(frontendApiFromKey(publishableKey), publishableKey);
-    await clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor }, appearance: APPEARANCE });
+    let timer;
+    try {
+      await Promise.race([
+        clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor }, appearance: APPEARANCE }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Sign-in timed out.')), 12000); }),
+      ]);
+    } finally { clearTimeout(timer); }
     let userButtonMounted = false;
     let accessRequest = 0;
     let identity = '';
@@ -100,6 +124,10 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
       const avatar = avatarPresentation(clerk.user);
       elements.userButton.toggleAttribute('data-generated-avatar', signedIn && avatar.generated);
       elements.userButton.style.setProperty('--feeveto-initials', JSON.stringify(avatar.initials));
+      // Clerk renders its menu/profile in a portal. Scope the fallback to the
+      // active account's generated avatar, never uploaded or other-user photos.
+      document.body?.toggleAttribute('data-feeveto-generated-avatar', signedIn && avatar.generated);
+      document.body?.style.setProperty('--feeveto-initials', JSON.stringify(avatar.initials));
       elements.loading.hidden = true;
       elements.status.hidden = true;
       elements.signedOut.hidden = signedIn;
@@ -124,6 +152,7 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && clerk.isSignedIn) void refreshAccess();
     });
+    onReady(clerk);
     renderAuth();
     return clerk;
   } catch {
@@ -131,7 +160,8 @@ export async function initializeAuth({ onAccessChange = () => {} } = {}) {
     elements.signedOut.hidden = true;
     elements.signedIn.hidden = true;
     elements.status.hidden = false;
-    elements.status.textContent = 'Account sign-in is temporarily unavailable.';
+    elements.status.textContent = 'Sign-in is unavailable. Your free audit and draft still work.';
+    if (retry) retry.hidden = false;
     return null;
   }
 }

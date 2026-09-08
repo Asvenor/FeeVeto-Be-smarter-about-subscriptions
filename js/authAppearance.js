@@ -10,6 +10,7 @@ export const CLERK_APPEARANCE = Object.freeze({
     userButtonTrigger: 'feeveto-profile-trigger',
     userButtonAvatarBox: 'feeveto-avatar-box',
     userButtonAvatarImage: 'feeveto-avatar-image',
+    userPreviewAvatarBox: 'feeveto-preview-avatar-box',
     modalContent: 'feeveto-account-modal',
   },
 });

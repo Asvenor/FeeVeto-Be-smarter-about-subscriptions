@@ -1,16 +1,24 @@
 import { APP_CONFIG } from './config.js';
 import { fromMinorUnits } from './calculations.js';
 import { fillCurrencyOptions, renderIllustrativeMoney, shouldApplyCurrencyDefault, validCurrencyPreference } from './currencyPreference.js';
-import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider } from './alternativeProvider.js';
+import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider, recommendationRequestFor } from './alternativeProvider.js';
 import { buildDetailedReview, categoryForProductType, upsertSubscription } from './formModel.js';
 import { renderDashboard } from './render.js';
 import { detectSupportedService, matchingProfileFor, PRODUCT_TYPES, serviceById, supportedServiceFor, SUPPORTED_SERVICES } from './serviceCatalog.js';
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
+import { initializeAnalytics } from './analytics.js';
+import { ORDINARY_ACCESS } from './access.js';
+import { initializeBilling } from './billing.js';
+import { initializeAdmin } from './admin.js';
+import { initializeJourney } from './journey.js';
+import { journeyFromSubscription } from './journeyModel.js';
+import { initializeExperience, openDisclosures, revealContent } from './experience.js';
 
 document.title = `${APP_CONFIG.brandName} — ${APP_CONFIG.slogan}`;
 document.querySelector('meta[name="description"]')?.setAttribute('content', APP_CONFIG.description);
+initializeExperience(document);
 
 const byId = (id) => document.getElementById(id);
 const elements = {
@@ -22,6 +30,7 @@ const elements = {
   confirmClear: byId('confirm-clear'), exportData: byId('export-data'), importData: byId('import-data'), importFile: byId('import-file'),
   toast: byId('toast'), toastMessage: byId('toast-message'), toastAction: byId('toast-action'), announcer: byId('announcer'),
   requirementQuestions: byId('requirement-questions'), serviceSupport: byId('service-support'),
+  premiumPrice: byId('premium-price'), premiumButton: byId('premium-button'), premiumStatus: byId('premium-status'),
 };
 
 const browserStorage = (() => {
@@ -35,6 +44,8 @@ let autoServiceSelection = true;
 let categoryManuallyChanged = false;
 let entryCurrencyExplicitlyChanged = false;
 let renderedRequirementServiceId = '';
+let currentAccess = ORDINARY_ACCESS;
+let billingController;
 const requirementDrafts = new Map();
 const alternativesProvider = new BackendAlternativesProvider();
 const alternativeResults = new Map();
@@ -59,8 +70,12 @@ function persist() {
 function render() {
   elements.currencyPreference.value = state.auditCurrency;
   renderIllustrativeMoney(document, state.auditCurrency);
+  renderPremium();
   renderDashboard({ state, elements, filter: activeFilter, query: elements.search.value, alternativeResults });
+  document.dispatchEvent(new CustomEvent('feeveto:currency-change'));
 }
+
+function renderPremium() { billingController?.render(); }
 
 function announce(message) {
   elements.announcer.textContent = '';
@@ -101,6 +116,7 @@ function showErrors(errors) {
     elements.form.elements[field].setAttribute('aria-invalid', 'true');
     first ||= elements.form.elements[field];
   }
+  openDisclosures(first);
   first?.focus();
 }
 
@@ -251,6 +267,8 @@ function resetForm() {
   renderRequirementsForSelection();
   updateAdaptiveVisibility();
   clearErrors();
+  for (const detail of elements.form.querySelectorAll('details')) detail.open = false;
+  byId('show-entry').textContent = 'Add subscription +';
 }
 
 function populateReview(review) {
@@ -291,7 +309,11 @@ function beginEdit(id) {
   elements.formTitle.textContent = `Edit ${item.name}`;
   elements.cancelEdit.hidden = false;
   elements.editBadge.hidden = false;
-  byId('audit').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  byId('show-entry').textContent = 'Continue editing';
+  if (review) { byId('needs-disclosure').open = true; byId('switching-disclosure').open = true; }
+  if (item.renewalDate || item.cancellationUrl || typeof review?.activeContract === 'boolean') byId('billing-details').open = true;
+  revealContent('subscription-editor');
+  byId('subscription-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
   elements.form.elements.name.focus({ preventScroll: true });
 }
 
@@ -307,6 +329,7 @@ function applyRecognizedService(service, updateCategory = true) {
 }
 
 function focusResult(id) {
+  revealContent('results');
   const card = elements.list.querySelector(`[data-id="${CSS.escape(id)}"]`);
   card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   card?.focus({ preventScroll: true });
@@ -330,9 +353,9 @@ async function refreshAlternatives(item, focus = false) {
   render();
   if (focus) focusResult(item.id);
   try {
-    const clerk = await clerkPromise;
+    const clerk = readyClerk || await clerkPromise;
     const token = await clerk?.session?.getToken?.() || '';
-    const result = await alternativesProvider.getAlternatives(item, token);
+    const result = await alternativesProvider.getAlternatives(item, token, state.auditCurrency);
     if (!isCurrent() || !state.subscriptions.some((entry) => entry.id === item.id && entry.updatedAt === item.updatedAt)) return;
     if (result.accessScope === 'public') {
       for (const [resultId, cached] of alternativeResults) {
@@ -355,8 +378,9 @@ async function refreshAlternatives(item, focus = false) {
   announce('Alternatives updated. Your subscription is saved.');
 }
 
-elements.form.addEventListener('submit', (event) => {
+elements.form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (elements.submitButton.disabled) return;
   const formData = new FormData(elements.form);
   const validation = validateSubscriptionInput(formData);
   const errors = { ...validation.errors, ...adaptiveErrors(formData) };
@@ -380,9 +404,13 @@ elements.form.addEventListener('submit', (event) => {
     tab.setAttribute('aria-pressed', String(tab.dataset.filter === 'all'));
   }
   persist(); resetForm(); render();
-  showToast(`${item.name} ${editingId ? 'updated' : 'saved'}.`);
-  announce(`${item.name} ${editingId ? 'updated' : 'saved'} and reviewed.`);
+  byId('subscription-editor').open = false;
+  showToast(`${item.name} ${editingId ? 'updated' : 'saved'} in this browser. Checking account save…`);
+  announce(`${item.name} ${editingId ? 'updated' : 'saved'} in this browser and reviewed.`);
   void refreshAlternatives(item, true);
+  elements.submitButton.disabled = true;
+  try { await journey.saveSubscription(item); }
+  finally { elements.submitButton.disabled = false; }
 });
 
 elements.form.elements.name.addEventListener('input', () => {
@@ -425,6 +453,10 @@ elements.list.addEventListener('click', (event) => {
   if (!target) return;
   if (target.dataset.action === 'edit') beginEdit(target.dataset.id);
   if (target.dataset.action === 'improve') beginEdit(target.dataset.id);
+  if (target.dataset.action === 'personalize') {
+    const item=state.subscriptions.find(entry=>entry.id===target.dataset.id);
+    if(item){journey?.setDraft(journeyFromSubscription(item,state.auditCurrency));journey?.openGuide();}
+  }
   if (target.dataset.action === 'alternatives') {
     const item = state.subscriptions.find((entry) => entry.id === target.dataset.id);
     if (item) void refreshAlternatives(item, true);
@@ -453,11 +485,17 @@ elements.currencyPreference.addEventListener('change', () => {
     elements.form.elements.currency.value = state.auditCurrency;
     elements.priceCurrency.textContent = state.auditCurrency;
   }
-  persist(); render();
+  persist();
+  invalidateAllAlternativeRequests();
+  render();
+  for (const item of state.subscriptions) {
+    if (recommendationRequestFor(item, state.auditCurrency)) void refreshAlternatives(item);
+  }
   const formNote = updatedEntryDefault ? 'The next new entry defaults to it.' : 'The currency on the current form was left unchanged.';
-  showToast(`Examples and ${state.auditCurrency} dashboard totals updated. ${formNote} Existing prices were not converted.`);
+  showToast(`Examples and ${state.auditCurrency} dashboard totals updated. Alternatives are updating for that market. ${formNote} Existing prices were not converted.`);
 });
-elements.cancelEdit.addEventListener('click', () => { resetForm(); elements.form.elements.name.focus(); });
+
+elements.cancelEdit.addEventListener('click', () => { resetForm(); byId('subscription-editor').open = false; byId('show-entry').focus(); });
 elements.clearAll.addEventListener('click', () => elements.clearDialog.showModal());
 elements.confirmClear.addEventListener('click', () => {
   const previous = [...state.subscriptions];
@@ -503,18 +541,38 @@ for (const fieldset of elements.form.querySelectorAll('fieldset')) {
 }
 resetForm();
 render();
+initializeAnalytics({ storage: browserStorage });
 let accessSignature = '';
+let readyClerk = null;
 const clerkPromise = initializeAuth({
+  onReady(clerk) { readyClerk = clerk; },
   onAccessChange(access) {
-    const nextSignature = JSON.stringify({ authenticated: access.authenticated, premiumAccess: access.premiumAccess });
+    currentAccess = access;
+    renderPremium();
+    const nextSignature = JSON.stringify(access);
+    if (nextSignature === accessSignature) return;
     if (accessSignature && accessSignature !== nextSignature) {
       invalidateAllAlternativeRequests();
       render();
       announce('Account access changed. Curated results were cleared and can be refreshed.');
     }
     accessSignature = nextSignature;
+    document.dispatchEvent(new CustomEvent('feeveto:access-change', {detail:access}));
   },
 });
+void clerkPromise.then(clerk => { readyClerk = clerk; });
+
+billingController = initializeBilling({
+  getClerk: () => readyClerk || clerkPromise, getAccess: () => currentAccess, notify: showToast,
+  onVerifiedAccess(access) {
+    currentAccess = access;
+    invalidateAllAlternativeRequests(); render();
+    document.dispatchEvent(new CustomEvent('feeveto:access-change', { detail: access }));
+  },
+});
+
+const journey = initializeJourney({ getClerk: () => readyClerk || clerkPromise, getSearchClerk: () => readyClerk, getCurrency: () => state.auditCurrency, storage: browserStorage });
+initializeAdmin({ getClerk: () => readyClerk || clerkPromise, getAccess: () => currentAccess });
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');
@@ -533,6 +591,10 @@ window.addEventListener('storage', (event) => {
     elements.form.elements.currency.value = nextCurrency;
     elements.priceCurrency.textContent = nextCurrency;
   }
+  invalidateAllAlternativeRequests();
   render();
-  announce(`Display currency changed to ${nextCurrency}. Existing billing currencies were not changed.`);
+  for (const item of state.subscriptions) {
+    if (recommendationRequestFor(item, state.auditCurrency)) void refreshAlternatives(item);
+  }
+  announce(`Display currency changed to ${nextCurrency}. Alternatives are updating for that market; existing billing currencies were not changed.`);
 });
