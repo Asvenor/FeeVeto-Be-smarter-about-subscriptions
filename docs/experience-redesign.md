@@ -1,6 +1,6 @@
 # FeeVeto experience redesign
 
-Status: redesign implemented and validated locally; the follow-up release adds [owner controls](OWNER-CONTROLS.md). The historical checks below are local evidence, not deployment evidence. Payments remain on hold; publishing the design does not authorize payment activation.
+Status: redesign and [owner controls](OWNER-CONTROLS.md) are published on the live FeeVeto Worker. See that release record for the deployed version and independent live verification. The historical checks below remain local evidence. Payments are on hold; publishing the design did not activate payments.
 
 ## A clearer workspace
 
