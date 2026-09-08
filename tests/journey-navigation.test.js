@@ -147,6 +147,21 @@ test('a new guided assessment reveals its loading review before applying unavail
   } finally { await environment.close(); }
 });
 
+test('refreshing history presents one save action and no stale saved confirmation', async () => {
+  const environment = await setup();
+  try {
+    await environment.open();
+    assert.equal(environment.byId('reevaluate-assessment').hidden, false);
+    environment.setCurrency('EUR');
+    environment.byId('retry-assessment').click();
+    await waitFor(() => !environment.byId('save-assessment').hidden);
+    assert.equal(environment.byId('reevaluate-assessment').hidden, true);
+    assert.equal(environment.byId('save-status').textContent, '');
+    assert.match(environment.byId('assessment-status').textContent, /not been saved/);
+    assert.equal(environment.calls.filter(call => call.path === '/api/audits' && call.body).length, 0);
+  } finally { await environment.close(); }
+});
+
 test('sign-out clears account assessment data immediately even for an unknown product type', async () => {
   for (const unknownService of [false, true]) {
     const environment = await setup({ unknownService });

@@ -286,6 +286,8 @@ export function initializeSavedAudits({
     },
     assessmentReady() {
       saveButton.hidden = false;
+      byId("reevaluate-assessment").hidden = true;
+      message.textContent = "";
       label();
     },
     hideSave() {
