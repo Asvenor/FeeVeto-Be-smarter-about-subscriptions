@@ -6,8 +6,11 @@ import { createStripeClient } from '../functions/_shared/stripe-client.js';
 
 // Explicit integration test, never part of npm test. Uses real Stripe sandbox
 // APIs and signed CLI forwarding to the unchanged local Worker. No auth stub.
-const prepareCheckout = process.argv[2] === '--prepare-monthly-checkout';
-if (!prepareCheckout && process.argv[2] !== '--run-sandbox') throw new Error('Explicitly choose --run-sandbox or --prepare-monthly-checkout after reviewing this script.');
+const command = process.argv[2];
+const preparePlan = { '--prepare-monthly-checkout': 'monthly', '--prepare-lifetime-checkout': 'lifetime' }[command];
+const prepareCheckout = Boolean(preparePlan), verifyCheckout = command === '--verify-hosted-checkout';
+if (!prepareCheckout && !verifyCheckout && command !== '--run-sandbox') throw new Error('Explicitly choose --run-sandbox, --prepare-monthly-checkout, --prepare-lifetime-checkout or --verify-hosted-checkout <cs_test_id>.');
+if (verifyCheckout && !/^cs_test_[A-Za-z0-9]+$/.test(process.argv[3] || '')) throw new Error('A sandbox Checkout session ID is required.');
 const directory = '.private/billing-sandbox', root = 'http://127.0.0.1:8790';
 const settings = parseEnv(await readFile(`${directory}/runtime.env`, 'utf8'));
 const preview = parseEnv(await readFile(`${directory}/preview.env`, 'utf8'));
@@ -21,8 +24,8 @@ assert.ok(clerkHost.endsWith('.clerk.accounts.dev'));
 const stripe = createStripeClient(settings), steps = [], subscriptions = [], checkouts = [];
 const runId = `feeveto-billing-${crypto.randomUUID()}`;
 let stage = 'sandbox identity', customerId, token, tokenUntil = 0, devClient, clerkSessionId;
-const report = { runId, startedAt: new Date().toISOString(), mode: 'test', kind: prepareCheckout ? 'checkout-handoff' : 'api-verification', steps, resources: { subscriptions, checkouts },
-  limitations: ['Hosted Checkout payment completion, browser/mobile interaction and calendar-month test-clock renewal are not covered by this API run.'] };
+const report = { runId, startedAt: new Date().toISOString(), mode: 'test', kind: prepareCheckout ? 'checkout-handoff' : verifyCheckout ? 'hosted-checkout-verification' : 'api-verification', steps, resources: { subscriptions, checkouts },
+  limitations: [verifyCheckout ? 'This verifies one already-completed hosted sandbox Checkout and its server entitlement, not calendar renewal or general browser/mobile coverage.' : 'Hosted Checkout payment completion, browser/mobile interaction and calendar-month test-clock renewal are not covered by this API run.'] };
 function mark(name) { steps.push({ name, passed: true }); console.log(`PASS: ${name}`); }
 async function clerkApi(path, data = {}) {
   const url = new URL(`https://${clerkHost}/v1/${path}`);
@@ -88,12 +91,46 @@ try {
   const plans = await api('/api/billing/plans', 'GET', false);
   assert.equal(plans.body.mode, 'test'); assert.equal(plans.body.available, true);
   mark('Correct sandbox and local test-only configuration');
-  if (prepareCheckout) {
-    stage = 'manual monthly test checkout';
-    const monthly = await checkout('monthly');
-    assert.equal(monthly.mode, 'subscription');
-    report.preparedCheckout = { sessionId: monthly.id, url: monthly.url, expiresAt: monthly.expires_at };
-    mark('Unpaid monthly sandbox Checkout prepared for manual browser testing');
+  if (verifyCheckout) {
+    stage = 'completed hosted checkout';
+    const completed = await stripe.checkout.sessions.retrieve(process.argv[3]);
+    const plan = completed.metadata?.plan;
+    assert.ok(['monthly', 'lifetime'].includes(plan));
+    assert.equal(completed.livemode, false); assert.equal(completed.status, 'complete'); assert.equal(completed.payment_status, 'paid');
+    assert.equal(completed.client_reference_id, user.userId); assert.equal(completed.metadata.clerk_user_id, user.userId);
+    assert.equal(completed.metadata.product_key, `feeveto_premium_${plan}`); assert.equal(completed.metadata.billing_mode, 'test');
+    assert.equal(completed.mode, plan === 'monthly' ? 'subscription' : 'payment');
+    assert.equal(completed.currency, 'usd'); assert.equal(completed.amount_total, plan === 'monthly' ? 299 : 4999);
+    const items = await stripe.checkout.sessions.listLineItems(completed.id, { limit: 10 });
+    assert.equal(items.has_more, false); assert.equal(items.data.length, 1); assert.equal(items.data[0].quantity, 1);
+    assert.equal(items.data[0].price.id, setup.prices[plan]);
+    mark(`Hosted ${plan} sandbox Checkout is paid at the exact approved price for the test account`);
+    const state = await until(s => plan === 'monthly' ? s.subscriptionAccess : s.lifetimeAccess && !s.renewalCancellationPending,
+      'server entitlement after hosted payment');
+    const access = await api('/api/access'); assert.equal(access.status, 200); assert.equal(access.body.authenticated, true);
+    assert.equal(access.body.paidPremiumAccess, true); assert.equal(access.body.premiumAccess, true);
+    assert.equal(access.body.complimentaryPremiumAccess, false); assert.equal(access.body.isAdmin, false); assert.equal(access.body.betaAccess, false);
+    if (plan === 'monthly') {
+      const sub = await stripe.subscriptions.retrieve(typeof completed.subscription === 'string' ? completed.subscription : completed.subscription.id);
+      assert.equal(sub.livemode, false); assert.equal(sub.customer, completed.customer); assert.equal(sub.status, 'active');
+      assert.equal(sub.metadata.clerk_user_id, user.userId); assert.ok(state.subscription.paidThrough > Date.now() / 1000);
+    } else {
+      const list = await stripe.subscriptions.list({ customer: completed.customer, status: 'all', limit: 100 });
+      assert.equal(list.has_more, false);
+      const owned = list.data.filter(s => s.metadata.clerk_user_id === user.userId && s.metadata.product_key === 'feeveto_premium_monthly');
+      assert.ok(owned.every(s => !s.livemode && ['canceled', 'incomplete_expired'].includes(s.status)));
+      mark('Stripe confirms no remaining monthly renewal for the upgraded test account');
+    }
+    report.hostedCheckout = { sessionId: completed.id, plan, billingStatus: state, access: access.body };
+    mark('Real Clerk-authenticated server access is paid Premium with no complimentary or admin privileges');
+  } else if (prepareCheckout) {
+    stage = `manual ${preparePlan} test checkout`;
+    const before = await api('/api/billing/status'); assert.equal(before.status, 200);
+    if (preparePlan === 'lifetime') { assert.equal(before.body.subscriptionAccess, true); assert.equal(before.body.lifetimeAccess, false); }
+    const prepared = await checkout(preparePlan);
+    assert.equal(prepared.mode, preparePlan === 'monthly' ? 'subscription' : 'payment');
+    report.preparedCheckout = { sessionId: prepared.id, plan: preparePlan, url: prepared.url, expiresAt: prepared.expires_at };
+    mark(`Unpaid ${preparePlan} sandbox Checkout prepared for manual browser testing`);
   } else {
   stage = 'signed-out restrictions';
   assert.equal((await api('/api/access', 'GET', false)).body.premiumAccess, false);
