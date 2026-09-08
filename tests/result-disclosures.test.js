@@ -132,6 +132,21 @@ test('alternative cards keep source-currency prices, material trade-offs and can
   } finally { env.cleanup(); }
 });
 
+test('historical results without a match calculation do not claim missing preferences or invent a score', () => {
+  const env = setup(); try {
+    const item = offer(), before = structuredClone(item), card = alternativeCard(item, 'canva');
+    assert.equal(card.querySelector('.feeveto-match').textContent, 'FeeVeto Match: Not scored');
+    assert.ok(card.querySelector('.match-explanation').textContent.includes('your existing answers'));
+    assert.equal(card.textContent.includes('More preferences are needed'), false);
+    assert.deepEqual(item, before);
+    const current = alternativeCard(offer({ feeVetoMatch: {
+      score: null, label: 'General match', meaning: 'More selected criteria are needed to calculate coverage.',
+    } }), 'canva');
+    assert.equal(current.querySelector('.feeveto-match').textContent, 'FeeVeto Match: General match');
+    assert.ok(current.querySelector('.match-explanation').textContent.includes('More selected criteria'));
+  } finally { env.cleanup(); }
+});
+
 test('unknown alternative prices stay unknown, while explicitly free plans remain distinguishable', () => {
   const env = setup(); try {
     for (const price of [{ amountMinor: null, currency: 'USD' }, {}, { amountMinor: null, currency: null }]) {

@@ -42,11 +42,11 @@ export function alternativeCard(item, serviceId) {
   card.append(heading, element('p', `alternative-status ${statusClass}`, item.matchLabel), element('p', 'alternative-match', item.whyMatches || item.description));
   const match = item.feeVetoMatch;
   const percentage = Number.isInteger(match?.score) && match.score >= 0 && match.score <= 100 ? match.score : null;
-  const fit = element('p', 'feeveto-match', percentage === null ? `FeeVeto Match: ${match?.label || 'General match'}` : `FeeVeto Match: ${percentage}%`);
+  const fit = element('p', 'feeveto-match', percentage === null ? `FeeVeto Match: ${match?.label || 'Not scored'}` : `FeeVeto Match: ${percentage}%`);
   card.insertBefore(fit, card.children[1]);
   const why = element('details', 'match-explanation');
   why.append(element('summary', '', percentage === null ? 'Why this match?' : `Why this match? ${percentage}% explained`));
-  why.append(element('p', '', match?.meaning || 'Based on the checked product type and the answers provided. More preferences are needed for a personal score.'));
+  why.append(element('p', '', match?.meaning || 'This result has no saved FeeVeto Match calculation. Reevaluate a saved audit to check current facts and your existing answers.'));
   if (match?.reason) why.append(element('p', 'field-help', match.reason));
   const factors = element('ul', 'match-factors');
   for (const factor of match?.factors || []) factors.append(element('li', factor.status === 'supported' ? 'fit-supported' : 'fit-unconfirmed', factor.reason));
