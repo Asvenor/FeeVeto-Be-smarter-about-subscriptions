@@ -73,3 +73,12 @@ test("invalid numbers are errors rather than silent empty defaults", () => {
     /valid monthly budget/,
   );
 });
+
+test('unified priorities and explicit optional skips preserve legacy context and partial preferences', () => {
+  const draft = {...parseIntent('Netflix').draft, includeFree:false,includePaid:null, mustHave:['ad_free'], context:{requiredTitle:'A show',seasonal:true,categoryAnswers:{rotateServices:true}}};
+  const next = captureGuide(data([['unifiedPriorities','true'],['priority_ad_free','must'],['acceptAds','yes'],['alternativeTypes','previous'],['requiredTitle','A show'],['acceptFreeLimits','']]),draft,2);
+  assert.equal(next.includeFree,false); assert.equal(next.includePaid,null); assert.equal(next.acceptFreeLimits,null);
+  assert.equal(next.context.seasonal,true); assert.equal(next.context.requiredTitle,'A show');
+  assert.equal(next.context.categoryAnswers.rotateServices,true); assert.equal(next.acceptAds,true);
+  assert.ok(!next.mustHave.includes('ad_free')); assert.deepEqual(next.tasks,[]);
+});

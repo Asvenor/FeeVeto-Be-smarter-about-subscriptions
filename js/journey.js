@@ -24,8 +24,10 @@ import { renderAssessment } from "./assessmentView.js";
 import { initializeSavedAudits } from "./savedAudits.js";
 import { initializeSubscriptionAccountSave } from "./subscriptionAccountSave.js";
 import { openDisclosures, revealContent } from "./experience.js";
+import { productEvent } from './analytics.js';
+import { resultFeedback } from './feedback.js';
 
-export function initializeJourney({ getClerk, getCurrency, storage }) {
+export function initializeJourney({ getClerk, getSearchClerk = getClerk, getCurrency, storage }) {
   const byId = (id) => document.getElementById(id);
   const searchForm = byId("intent-form");
   if (!searchForm) return null;
@@ -39,6 +41,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   let abort;
   let assessment = null;
   let assessmentRevision = 0;
+  let assessmentBusy = false;
   let account;
   const requests = new AlternativeRequestTracker();
   const correction = byId("intent-correction");
@@ -118,6 +121,8 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   function invalidateAssessment(message = 'Your answers changed. Refresh this review when you are ready; your answers are kept.') {
     assessmentRevision++;
     assessment = null;
+    assessmentBusy = false;
+    byId('retry-assessment').disabled = false;
     account?.invalidatePresentation();
     // Clear previous account data immediately, but leave an active review with a
     // useful next action. Hiding only its child would strand the user in a blank view.
@@ -129,6 +134,9 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     if (activeReview) byId("assessment-status").textContent = message;
   }
   async function runAssessment() {
+    if (assessmentBusy) return;
+    assessmentBusy = true;
+    byId('retry-assessment').disabled = true;
     persist();
     const revision = ++assessmentRevision;
     const input = {
@@ -148,6 +156,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       if (revision !== assessmentRevision) return;
       assessment = value.assessment;
       renderAssessment(byId("personal-audit-content"), assessment);
+      void productEvent('advanced_audit_completed', { serviceId: draft.serviceId, intent: draft.motivation, surface: 'advanced' });
       account.assessmentReady();
       byId("assessment-status").textContent =
         "Your personal assessment is ready. It has not been saved to an account yet.";
@@ -159,6 +168,8 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       if (revision !== assessmentRevision) return;
       byId("assessment-status").textContent = error.message;
       byId("retry-assessment").hidden = false;
+    } finally {
+      if (revision === assessmentRevision) { assessmentBusy = false; byId('retry-assessment').disabled = false; }
     }
     if (revision === assessmentRevision && navigationRevision === document.body.dataset.viewRevision) {
       byId("personal-audit").scrollIntoView({
@@ -193,6 +204,8 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   function renderResult() {
     results.replaceChildren();
     results.setAttribute("aria-busy", String(busy));
+    searchForm.querySelector('[type="submit"]').disabled = busy;
+    searchForm.setAttribute('aria-busy', String(busy));
     byId("intent-retry").hidden = busy || !result?.error;
     byId("intent-more").hidden = busy || !result?.hasMore;
     byId("intent-filters").hidden = !draft.productType;
@@ -211,7 +224,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       return;
     }
     status.textContent = result.items.length
-      ? `${result.items.length} ${result.items.length === 1 ? "suggestion" : "suggestions"} to explore. Based on limited information; confirm the trade-offs before switching.`
+      ? `${result.items.length} ${result.items.length === 1 ? "suggestion" : "suggestions"} to explore. ${result.state === 'general_suggestions' ? "General suggestions based on the information you've provided. Add requirements and preferences for more personalized matches." : 'Based on your selected needs. Confirm any unverified details before switching.'}`
       : result.message;
     if (result.state === "access_restricted") {
       const link = element(
@@ -238,6 +251,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
         ),
       );
     }
+    if (result.items.length || ['no_matches', 'no_verified_alternatives', 'unsupported'].includes(result.state)) results.append(resultFeedback({ serviceId: draft.serviceId, surface: 'discover' }));
   }
   async function runSearch({ focus = false, invalidationMessage } = {}) {
     if (focus) revealContent("discover");
@@ -253,7 +267,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
         items: [],
         state: "unsupported",
         message:
-          "Choose the service or a product type above. We cannot identify a reliable match from this request yet.",
+          "FeeVeto doesn't have verified alternatives for this subscription yet. Check the recognized service or choose a product type. The free basic audit still works.",
       };
       busy = false;
       renderResult();
@@ -272,12 +286,16 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       limit,
     });
     try {
-      const { token } = await journeySession(getClerk);
+      // A visitor's first public search must not wait for Clerk's script load.
+      const { token } = await journeySession(getSearchClerk);
+      if (!requests.isCurrent('search', request)) return;
+      void productEvent('alternatives_requested', { serviceId: draft.serviceId, intent: draft.motivation });
       const next = await requestJourneyAlternatives(query, token, {
         signal: controller.signal,
       });
       if (!requests.isCurrent("search", request)) return;
       result = next;
+      void productEvent('alternatives_shown', { serviceId: draft.serviceId, intent: draft.motivation, count: next.items.length });
     } catch (error) {
       if (!requests.isCurrent("search", request)) return;
       result = {
@@ -305,6 +323,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
   searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const input = byId("intent-input");
+    if (busy && input.value.trim() === draft.originalRequest) return;
     if (!input.value.trim()) {
       input.setCustomValidity("Describe what you would like to change.");
       input.reportValidity();
@@ -314,8 +333,12 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     const parsed = parseIntent(input.value, getCurrency());
     account.draftChanged({ newAudit: true });
     draft = parsed.draft;
+    void productEvent('intent_submitted', { serviceId: draft.serviceId, intent: draft.motivation });
+    if (draft.serviceId) void productEvent('service_recognized', { serviceId: draft.serviceId, intent: draft.motivation });
+    const clarify = byId('intent-clarification');
+    if (clarify) clarify.hidden = !parsed.needsClarification;
     limit = 3;
-    filter = "all";
+    filter = draft.includePaid === false && draft.includeFree === true ? 'free' : 'all';
     if (parsed.candidates.length > 1) {
       requests.invalidateAll();
       abort?.abort();
@@ -377,8 +400,18 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     const button = event.target.closest("[data-intent-filter]");
     if (!button) return;
     filter = button.dataset.intentFilter;
+    if (filter === 'all') draft = normalizeJourneyDraft({ ...draft, includeFree: null, includePaid: null });
     limit = 3;
     void runSearch();
+  });
+  byId('intent-clarification')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-intent-priority]');
+    if (!button) return;
+    const intent = button.dataset.intentPriority;
+    draft = normalizeJourneyDraft({ ...draft, motivation: intent, includeFree: intent === 'free' ? true : null, includePaid: intent === 'free' ? false : null });
+    for (const choice of byId('intent-clarification').querySelectorAll('button')) choice.setAttribute('aria-pressed', String(choice === button));
+    filter = draft.motivation === 'free' ? 'free' : 'all';
+    account.draftChanged(); limit = 3; void runSearch();
   });
   byId("intent-retry").addEventListener("click", () => void runSearch());
   byId("intent-more").addEventListener("click", () => {

@@ -12,7 +12,7 @@ export class JourneyError extends Error {
     this.status = status;
   }
 }
-export async function readJourneyBody(request) {
+export async function readJourneyBody(request, { limit = 24000 } = {}) {
   if (!request.headers.get("content-type")?.includes("application/json"))
     throw new JourneyError(415, "Send a JSON request.");
   const reader = request.body?.getReader();
@@ -24,7 +24,7 @@ export async function readJourneyBody(request) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 24000) {
+      if (size > limit) {
         await reader.cancel();
         throw new JourneyError(413, "Request is too large.");
       }

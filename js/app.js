@@ -8,6 +8,7 @@ import { detectSupportedService, matchingProfileFor, PRODUCT_TYPES, serviceById,
 import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
+import { initializeAnalytics } from './analytics.js';
 import { ORDINARY_ACCESS } from './access.js';
 import { initializeBilling } from './billing.js';
 import { initializeAdmin } from './admin.js';
@@ -352,7 +353,7 @@ async function refreshAlternatives(item, focus = false) {
   render();
   if (focus) focusResult(item.id);
   try {
-    const clerk = await clerkPromise;
+    const clerk = readyClerk || await clerkPromise;
     const token = await clerk?.session?.getToken?.() || '';
     const result = await alternativesProvider.getAlternatives(item, token, state.auditCurrency);
     if (!isCurrent() || !state.subscriptions.some((entry) => entry.id === item.id && entry.updatedAt === item.updatedAt)) return;
@@ -540,12 +541,16 @@ for (const fieldset of elements.form.querySelectorAll('fieldset')) {
 }
 resetForm();
 render();
+initializeAnalytics({ storage: browserStorage });
 let accessSignature = '';
+let readyClerk = null;
 const clerkPromise = initializeAuth({
+  onReady(clerk) { readyClerk = clerk; },
   onAccessChange(access) {
     currentAccess = access;
     renderPremium();
-    const nextSignature = JSON.stringify({ authenticated: access.authenticated, premiumAccess: access.premiumAccess });
+    const nextSignature = JSON.stringify(access);
+    if (nextSignature === accessSignature) return;
     if (accessSignature && accessSignature !== nextSignature) {
       invalidateAllAlternativeRequests();
       render();
@@ -555,9 +560,10 @@ const clerkPromise = initializeAuth({
     document.dispatchEvent(new CustomEvent('feeveto:access-change', {detail:access}));
   },
 });
+void clerkPromise.then(clerk => { readyClerk = clerk; });
 
 billingController = initializeBilling({
-  getClerk: () => clerkPromise, getAccess: () => currentAccess, notify: showToast,
+  getClerk: () => readyClerk || clerkPromise, getAccess: () => currentAccess, notify: showToast,
   onVerifiedAccess(access) {
     currentAccess = access;
     invalidateAllAlternativeRequests(); render();
@@ -565,8 +571,8 @@ billingController = initializeBilling({
   },
 });
 
-const journey = initializeJourney({ getClerk: () => clerkPromise, getCurrency: () => state.auditCurrency, storage: browserStorage });
-initializeAdmin({ getClerk: () => clerkPromise, getAccess: () => currentAccess });
+const journey = initializeJourney({ getClerk: () => readyClerk || clerkPromise, getSearchClerk: () => readyClerk, getCurrency: () => state.auditCurrency, storage: browserStorage });
+initializeAdmin({ getClerk: () => readyClerk || clerkPromise, getAccess: () => currentAccess });
 if (loaded.migrated) showToast('Your earlier subscription entries were migrated to FeeVeto.');
 if (loaded.recovered) showToast('Saved data could not be read, so FeeVeto opened an empty audit.');
 if (!loaded.storageAvailable) showToast('Browser storage is unavailable. Changes may not remain after this tab closes.');

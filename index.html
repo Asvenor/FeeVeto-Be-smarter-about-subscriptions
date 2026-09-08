@@ -1,13 +1,20 @@
 <!DOCTYPE html><html lang="en"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="FeeVeto is a private subscription audit that helps you understand recurring costs and decide what to keep, switch, or cancel.">
+    <meta name="description" content="Find alternatives to subscriptions you want to change. Start with a service name, compare checked options, and decide what to keep, switch, or cancel. Public Beta.">
     <meta name="theme-color" content="#f5f7f2">
     <meta property="og:title" content="FeeVeto — Keep, switch, or cancel with confidence.">
-    <meta property="og:description" content="Review subscriptions, understand their real annual cost, and explore verified alternatives based on what you use.">
+    <meta property="og:description" content="Start with one subscription. Discover alternatives, compare the trade-offs, and find what fits. No account needed to start. Public Beta.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://feeveto.edward-nyarko.workers.dev/">
-    <meta name="twitter:card" content="summary">
+    <meta property="og:image" content="https://feeveto.edward-nyarko.workers.dev/social-preview.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="FeeVeto Public Beta. Keep, switch, or cancel with confidence.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="FeeVeto — Keep, switch, or cancel with confidence.">
+    <meta name="twitter:description" content="Start with one subscription. Discover alternatives and find what fits. Public Beta.">
+    <meta name="twitter:image" content="https://feeveto.edward-nyarko.workers.dev/social-preview.png">
     <link rel="canonical" href="https://feeveto.edward-nyarko.workers.dev/">
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <title>FeeVeto — Keep, switch, or cancel with confidence.</title>
@@ -29,6 +36,7 @@
           <div id="signed-out-controls" class="auth-controls" hidden=""><details class="account-menu"><summary>Account</summary><div class="account-menu-actions"><button id="sign-in-button" class="auth-link" type="button">Sign in</button><button id="sign-up-button" class="button button-secondary button-small" type="button">Sign up</button></div></details></div>
           <div id="signed-in-controls" class="signed-in-controls" hidden=""><span class="sr-only">Signed in</span><span id="access-badge" class="access-badge" hidden=""></span><a id="owner-settings-link" class="owner-settings-link" href="#owner-settings" data-view-link="admin" hidden="">Owner<span class="sr-only"> settings</span></a><div id="user-button"></div></div>
           <span id="auth-status" class="auth-status" role="status" hidden=""></span>
+          <button id="auth-retry" class="auth-link" type="button" hidden>Retry sign-in</button>
 
         </div>
       </nav>
@@ -36,7 +44,7 @@
 
     <main id="top"><noscript>FeeVeto needs JavaScript for the interactive audit. Your saved data has not been changed.</noscript><div class="experience-view" data-view="discover"><section class="hero section-shell" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">Keep, switch, or cancel with confidence.</p>
+          <p class="eyebrow"><span class="beta-label">Public Beta</span> Keep, switch, or cancel with confidence.</p>
           <h1 id="hero-title">Less subscription noise.<br><span>More good choices.</span></h1>
           <p class="hero-lead">Find a better fit for the things you pay for. Start with one service—we’ll help you see what is worth keeping, switching, or leaving behind.</p>
           <form id="intent-form" class="intent-form">
@@ -45,7 +53,8 @@
             <button class="button button-primary" type="submit">Find alternatives <span aria-hidden="true">→</span></button>
             <p id="intent-help">Just a name is enough. No account, card or bill needed.</p>
           </form>
-          <div class="intent-examples" aria-label="Try an example request"><button type="button" data-example-intent="Canva is too expensive">Canva costs too much</button><button type="button" data-example-intent="I want to replace Dropbox for file sharing">An alternative to Dropbox</button><button type="button" data-example-intent="I want to switch from Netflix">Something besides Netflix</button></div>
+          <div class="intent-examples" aria-label="Try an example request"><button type="button" data-example-intent="Canva is too expensive">Cheaper than Canva</button><button type="button" data-example-intent="I want to switch from Netflix">Replace Netflix</button><button type="button" data-example-intent="I want a free alternative to ChatGPT">Free ChatGPT alternatives</button><button type="button" data-example-intent="I want to replace Dropbox for file sharing">Replace Dropbox</button><button type="button" data-example-intent="Photoshop is too expensive">Cheaper than Photoshop</button><button type="button" data-example-intent="I am thinking of cancelling Claude">Is Claude worth keeping?</button></div>
+          <p class="beta-note">Still improving. Suggestions are a starting point—not a promise of fit or savings.</p>
 
           <div class="hero-actions"><a class="text-button" href="#audit">Want the full picture? Review your subscriptions →</a></div>
         </div>
@@ -58,6 +67,7 @@
         </aside>
       </section><section class="trust-strip" aria-label="Privacy and access facts"><div class="section-shell trust-grid"><span>Account optional</span><span>No bank connection</span><span>Entries stored in this browser</span><span>The audit is free</span></div></section><section id="discover" class="discovery-section section-shell" aria-labelledby="discovery-title" hidden="">
         <div class="section-intro"><p class="eyebrow">A useful starting point</p><h2 id="discovery-title">A few possibilities. A clearer next step.</h2><p>Compare the trade-offs, then add details if you want a closer fit.</p></div>
+        <div id="intent-clarification" class="intent-clarification" hidden><h3>What would help most?</h3><p>Choose a direction, or keep exploring the general suggestions below.</p><div class="intent-filters" aria-label="Your main priority"><button type="button" data-intent-priority="cost" aria-pressed="false">Spend less</button><button type="button" data-intent-priority="free" aria-pressed="false">Find a free plan</button><button type="button" data-intent-priority="replace" aria-pressed="false">Replace it</button><button type="button" data-intent-priority="cancel" aria-pressed="false">Decide whether to keep it</button></div></div>
         <details id="search-settings" class="search-settings"><summary>Refine your search <span>Service, country &amp; preferences</span></summary><form id="intent-correction" class="surface intent-correction" hidden="">
           <h3>Here’s what we understood</h3><p id="intent-original"></p>
           <div class="form-section-grid"><div class="field"><label for="intent-service">Current service</label><select id="intent-service"></select></div><div class="field"><label for="intent-type">Product type</label><select id="intent-type"></select></div><div class="field"><label for="intent-motivation">What matters most?</label><select id="intent-motivation"></select></div><div class="field"><label for="intent-country">Country <span class="optional">Optional, two letters</span></label><input id="intent-country" maxlength="2" pattern="[A-Za-z]{2}" placeholder="US" autocomplete="country" aria-describedby="intent-market"></div><div class="field"><label for="intent-platform">Device <span class="optional">Optional</span></label><select id="intent-platform"><option value="">Not specified</option><option value="web">Web browser</option><option value="macos">Mac</option><option value="windows">Windows</option><option value="linux">Linux</option><option value="ios">iPhone / iPad</option><option value="android">Android</option><option value="smart_tv">Smart TV</option><option value="game_console">Game console</option></select></div><div class="field correction-action"><button class="button button-secondary" type="submit">Update suggestions</button></div></div>
@@ -234,7 +244,7 @@
         </div>
       </section></div></main>
 
-    <footer class="site-footer"><div class="section-shell footer-inner"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a><p>Keep, switch, or cancel with confidence.</p><nav aria-label="Footer"><a href="#how-it-works">How it works</a><a href="#faq">Help</a><a href="#pricing">Premium</a><a href="./privacy.html">Privacy</a><a href="https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions">Source</a><span>by asvenor</span></nav></div></footer>
+    <footer class="site-footer"><div class="section-shell footer-inner"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a><p>Keep, switch, or cancel with confidence. · Public Beta</p><nav aria-label="Footer"><a href="#how-it-works">How it works</a><a href="#faq">Help</a><a href="#pricing">Premium</a><a href="./privacy.html">Privacy</a><a href="https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions">Source</a><span>by asvenor</span></nav></div><div class="section-shell"><details class="privacy-choice"><summary>Privacy choices</summary><label><input id="analytics-consent" type="checkbox"> Allow optional product measurement</label><p>Off by default. Helps us understand which steps work, using fixed event names and recognized service IDs—not your requests, bills, notes or account identity. Feedback sends only the choice you submit. <a href="./privacy.html#measurement">What is collected?</a></p><p id="analytics-consent-status" role="status"></p></details></div></footer>
 
     <dialog id="clear-dialog" class="dialog confirm-dialog" aria-labelledby="clear-title"><form method="dialog"><h2 id="clear-title">Clear this audit?</h2><p>This removes every subscription from this browser. Export a backup first if you may need it later.</p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Keep my audit</button><button id="confirm-clear" class="button button-danger" value="confirm">Clear audit</button></div></form></dialog>
     <dialog id="guided-audit" class="dialog guided-dialog" aria-labelledby="guide-title" aria-describedby="guide-progress"><form id="guided-form"><div class="dialog-heading"><div><p id="guide-progress" class="eyebrow"></p><h2 id="guide-title" tabindex="-1"></h2></div><button id="guide-close" class="icon-button" type="button" aria-label="Close and keep my draft">×</button></div><div id="guide-content"></div><p id="guide-error" class="field-error" role="alert" tabindex="-1"></p><div class="guide-footer"><button id="guide-back" class="button button-secondary" type="button">Back</button><button id="guide-next" class="button button-primary" type="submit">Continue to my needs</button></div></form></dialog>

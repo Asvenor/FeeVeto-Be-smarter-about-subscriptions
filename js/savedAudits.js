@@ -1,6 +1,7 @@
 import { element } from "./render.js";
 import { journeyRequest, journeySession } from "./journeyApi.js";
 import { normalizeJourneyDraft } from "./journeyModel.js";
+import { productEvent } from './analytics.js';
 
 export const PENDING_SAVE_KEY = "feeveto_pending_account_save_v1";
 export function readPendingSave(storage) {
@@ -180,6 +181,7 @@ export function initializeSavedAudits({
       const value = await journeyRequest("audits", { token, body: ticket });
       if (revision !== epoch) return;
       // The server may have saved successfully while the user began another draft.
+      void productEvent('audit_saved', { serviceId: ticket.draft?.serviceId || '', surface: 'account' });
       // Refresh the list even then, without applying the old result to the new page.
       void loadList();
       if (pending !== ticket) return;

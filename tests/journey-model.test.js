@@ -3,6 +3,25 @@ import assert from 'node:assert/strict';
 import { parseIntent, journeyQuery, changeJourneyService, journeyFromSubscription, normalizeJourneyDraft, writeJourneyDraft, readJourneyDraft } from '../js/journeyModel.js';
 import { requestJourneyAlternatives } from '../js/journeyApi.js';
 
+test('intent distinguishes free, cheaper, replace, cancel and ambiguous requests without AI', () => {
+  for (const [text, service, intent] of [['A free alternative to Canva','canva','free'],['Netflix costs too much','netflix','cost'],['Switch from ChatGPT','chatgpt','replace'],['A cheaper Dropbox','dropbox','cost'],['Replace Photoshop','photoshop','replace'],['Cancel Claude','claude','cancel']]) {
+    const {draft} = parseIntent(text); assert.equal(draft.serviceId, service); assert.equal(draft.motivation, intent);
+  }
+  const free = parseIntent('A free alternative to Canva').draft;
+  assert.equal(journeyQuery(free).includePaid, false); assert.equal(free.includeFree, true);
+  assert.notEqual(parseIntent('An ad-free Netflix alternative').draft.includePaid, false);
+  assert.notEqual(parseIntent('Canva free or paid alternatives').draft.includePaid, false);
+  assert.notEqual(parseIntent('Not a free Canva alternative').draft.includePaid, false);
+  const ambiguous = parseIntent('Cancel Canva or find a free alternative');
+  assert.equal(ambiguous.needsClarification, true); assert.equal(ambiguous.draft.includePaid, null);
+  assert.equal(parseIntent('Canva').needsClarification, true);
+  assert.equal(parseIntent('I am thinking of cancelling Claude').draft.motivation,'cancel');
+  assert.equal(parseIntent('I am considering canceling Netflix').draft.motivation,'cancel');
+  assert.equal(parseIntent("I don't want to cancel Canva, just spend less on a cheaper plan").draft.motivation,'cost');
+  assert.notEqual(parseIntent('Feel free to suggest cheaper Canva alternatives').draft.motivation,'free');
+  assert.notEqual(parseIntent("I don't want a free Canva plan").draft.includePaid,false);
+});
+
 test('sparse Canva sentence starts discovery without a price, login or detailed answers', () => {
   const {draft} = parseIntent('Canva is too expensive');
   assert.equal(draft.serviceId, 'canva'); assert.equal(draft.motivation, 'cost'); assert.equal(draft.amountMinor, null);

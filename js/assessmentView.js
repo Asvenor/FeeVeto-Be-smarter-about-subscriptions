@@ -1,6 +1,7 @@
 import { element, alternativeCard } from "./render.js";
 import { formatMoney } from "./calculations.js";
 import { requirementsForProductType } from "./serviceCatalog.js";
+import { resultFeedback } from './feedback.js';
 
 export function renderAssessment(container, assessment) {
   container.replaceChildren();
@@ -96,4 +97,5 @@ export function renderAssessment(container, assessment) {
     ),
   );
   container.append(details);
+  container.append(resultFeedback({ surface: 'advanced' }));
 }

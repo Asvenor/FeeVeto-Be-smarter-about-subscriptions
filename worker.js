@@ -12,8 +12,10 @@ import { handleBillingPortalRequest } from './functions/api/billing/portal.js';
 import { handleAssessmentRequest } from './functions/api/assessment.js';
 import { handleAuditsRequest } from './functions/api/audits.js';
 import { json } from './functions/_shared/http.js';
+import { handleProductEvent } from './functions/api/events.js';
 
 const API_ROUTES = Object.freeze({
+  '/api/events': handleProductEvent,
   '/api/access': handleAccessRequest,
   '/api/assessment': handleAssessmentRequest,
   '/api/audits': handleAuditsRequest,

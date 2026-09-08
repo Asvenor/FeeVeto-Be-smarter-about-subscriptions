@@ -10,10 +10,13 @@ export async function journeySession(getClerk, { timeoutMs = 12000 } = {}) {
     return await Promise.race([
       (async () => {
         const clerk = await getClerk();
+        let token = '';
+        try { token = (await clerk?.session?.getToken?.()) || ''; }
+        catch { throw new Error('Sign-in verification is temporarily unavailable. Your answers are kept; retry or sign in again.'); }
         return {
           clerk,
           user: clerk?.user?.id || "",
-          token: (await clerk?.session?.getToken?.()) || "",
+          token,
         };
       })(),
       new Promise((_, reject) => {
@@ -33,11 +36,21 @@ export async function journeySession(getClerk, { timeoutMs = 12000 } = {}) {
   }
 }
 
+async function safeFetch(fetchImplementation, url, options) {
+  try { return await fetchImplementation(url, options); }
+  catch (error) {
+    if (error?.name === 'AbortError') throw error; // superseded requests stay silent
+    throw new Error(error?.name === 'TimeoutError'
+      ? 'The request took too long. Your answers are kept; retry in a moment.'
+      : 'Could not connect to FeeVeto. Your answers are kept; check your connection and retry.');
+  }
+}
+
 export async function journeyRequest(
   path,
   { token = "", body, signal, fetchImplementation = globalThis.fetch } = {},
 ) {
-  const response = await fetchImplementation(`./api/${path}`, {
+  const response = await safeFetch(fetchImplementation, `./api/${path}`, {
     method: body ? "POST" : "GET",
     headers: {
       Accept: "application/json",
@@ -74,7 +87,7 @@ export async function requestJourneyAlternatives(
   token = "",
   { signal, fetchImplementation = globalThis.fetch } = {},
 ) {
-  const response = await fetchImplementation(
+  const response = await safeFetch(fetchImplementation,
     "./api/alternatives/recommendations",
     {
       method: "POST",

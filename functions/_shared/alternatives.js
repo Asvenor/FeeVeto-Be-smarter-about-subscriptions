@@ -1,5 +1,6 @@
 import { CURRENCIES } from '../../js/config.js';
 import { PRODUCT_TYPE_IDS, SERVICE_IDS, serviceById } from '../../js/serviceCatalog.js';
+import { feeVetoMatch } from './match-score.js';
 
 const PRICING_MODELS = new Set(['free', 'subscription', 'one_time']);
 const BILLING_INTERVALS = new Set(['monthly', 'yearly', 'varies', 'one_time']);
@@ -206,7 +207,10 @@ export function validateOffer(value) {
     renewalTerms: nullableText(value.renewalTerms, 180),
     priceVerifiedAt: priceMinor === null ? null : value.priceVerifiedAt,
     officialUrl, pricingUrl: pricingUrl || null, sourceUrls,
-    verifiedAt: value.verifiedAt, reviewRating: checkedRating(value.reviewRating),
+    verifiedAt: value.verifiedAt, reviewRating: checkedRating(value.reviewRating || {
+      value: value.externalRating, scale: value.externalRatingScale, count: value.externalReviewCount,
+      source: value.externalRatingSource, sourceUrl: value.externalRatingUrl, checkedAt: value.externalRatingVerifiedAt,
+    }),
     affiliateUrl: null, affiliateStatus: 'not_applied', trialOnly: false,
   };
 }
@@ -334,6 +338,7 @@ function resultFor(offer, query, match, tailored) {
     relationship,
     matchStatus: tailored ? (confirmed ? 'matched' : 'candidate') : 'general',
     matchLabel: tailored ? (confirmed ? 'Matches your selected needs' : 'Candidate—needs verification') : 'General suggestion',
+    feeVetoMatch: feeVetoMatch(offer, query, { stale: freshnessFor(offer.verifiedAt).needsRecheck || (offer.priceMinor !== null && freshnessFor(offer.priceVerifiedAt).needsRecheck) }),
     description: offer.description,
     whyMatches: why,
     supportedRequirements: supported,
@@ -412,10 +417,12 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
   };
   const seen = new Set();
   const eligible = [];
+  let relevantCount = 0;
   for (const rawOffer of Array.isArray(catalogue) ? catalogue : []) {
     const offer = validateOffer(rawOffer);
     if (!offer || seen.has(offer.id)) continue;
     seen.add(offer.id);
+    if (offer.productType === query.productType && (!query.serviceId || offer.relevantServices.includes(query.serviceId))) relevantCount++;
     if (offer.pricingModel === 'free' && query.includeFree === false) continue;
     if (offer.pricingModel !== 'free' && query.includePaid === false) continue;
     const match = compatibility(offer, query);
@@ -434,10 +441,10 @@ export function selectRecommendations(catalogue, rawQuery, { premiumAccess = fal
     state = 'access_restricted';
     message = 'No alternatives are available in your current access level for these requirements.';
   } else if (!items.length) {
-    state = 'no_matches';
-    message = 'No accessible verified alternative meets the requirements you selected. Review them to broaden the comparison if appropriate.';
+    state = relevantCount ? 'no_matches' : 'no_verified_alternatives';
+    message = relevantCount ? 'No compatible verified alternatives meet these requirements, market and access level. You can review your preferences; known incompatibilities are never ignored.' : "FeeVeto doesn't have verified alternatives for this subscription yet. You can still use the free basic audit.";
   }
   return { accessScope, state, items, message, missingDetails: missingDetailsFor(query),
-    hasMore: matches.length > items.length, total: matches.length, provider: 'curated', rankingVersion: 'curated-v3',
+    hasMore: matches.length > items.length, total: matches.length, provider: 'curated', rankingVersion: 'curated-v4-priority-coverage',
     market: { country: query.country, currency: query.marketCurrency, source: query.country ? 'explicit_country' : query.marketCurrency ? 'currency_hint' : 'unknown' } };
 }

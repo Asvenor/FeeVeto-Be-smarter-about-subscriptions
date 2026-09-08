@@ -49,6 +49,21 @@ function assess(input = draft, offers = [offer]) {
     }),
   );
 }
+test('network and identity outages have actionable safe messages instead of technical exceptions', async () => {
+  await assert.rejects(journeyRequest('assessment',{body:{draft},fetchImplementation:async()=>{throw new DOMException('signal timed out','TimeoutError');}}), /took too long.*answers are kept/);
+  await assert.rejects(journeyRequest('assessment',{body:{draft},fetchImplementation:async()=>{throw new TypeError('network internals');}}), /check your connection and retry/);
+  await assert.rejects(journeySession(()=>({session:{getToken:async()=>{throw new Error('sensitive internal details');}}})), /Sign-in verification is temporarily unavailable/);
+});
+test('specific content and established workflows can favor keeping; seasonal streaming can rotate', () => {
+  const content = normalizeJourneyDraft({serviceId:'netflix',context:{requiredTitle:'Required series'},usage:'weekly',motivation:'cost'});
+  assert.equal(assess(content,[]).action,'keep');
+  assert.match(assess(content,[]).nextStep,/libraries|library/);
+  const seasonal = normalizeJourneyDraft({serviceId:'netflix',context:{seasonal:true},motivation:'cost'});
+  assert.equal(assess(seasonal,[]).action,'pause_rotate');
+  assert.equal(assess(normalizeJourneyDraft({...seasonal,context:{categoryAnswers:{rotateServices:true}}}),[]).action,'pause_rotate');
+  const workflow = normalizeJourneyDraft({...draft,usage:'daily',importance:'essential',mustHave:['templates','brand_assets'],switchingTolerance:'easy'});
+  assert.equal(assess(workflow,[]).action,'keep');
+});
 test("annual and monthly costs compare; unknown, intro, one-time and cross-currency never invent savings", () => {
   const result = assess();
   assert.equal(

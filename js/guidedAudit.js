@@ -3,6 +3,7 @@ import { CURRENCY_OPTIONS, BILLING_CYCLES, USAGE_OPTIONS } from "./config.js";
 import { toMinorUnits } from "./calculations.js";
 import { requirementsForProductType, serviceById } from "./serviceCatalog.js";
 import { normalizeJourneyDraft } from "./journeyModel.js";
+import { productEvent } from './analytics.js';
 
 export function captureGuide(formData, value, stage) {
   const draft = normalizeJourneyDraft(value);
@@ -33,9 +34,22 @@ export function captureGuide(formData, value, stage) {
     if (value === "nice") niceToHave.push(id);
     if (value === "not_needed") notNeeded.push(id);
   }
+  const nullableChoice = name => formData.get(name) === 'yes' ? true : formData.get(name) === 'no' ? false : null;
+  const ads = formData.has('acceptAds') ? nullableChoice('acceptAds') : draft.acceptAds;
+  if (ads === true) {
+    const index = mustHave.indexOf('ad_free'); if (index >= 0) mustHave.splice(index, 1);
+  }
+  const alternatives = formData.get('alternativeTypes');
+  const context = { ...draft.context, productType: draft.productType };
+  if (formData.has('storageRequiredGb')) {
+    const rawStorage = String(formData.get('storageRequiredGb') || '').trim();
+    if (rawStorage && (!Number.isFinite(Number(rawStorage)) || Number(rawStorage) < 0 || Number(rawStorage) > 100000)) throw new Error('Enter a storage amount between 0 and 100,000 GB, or leave it unanswered.');
+    context.storageRequiredGb = rawStorage ? Number(rawStorage) : null;
+  }
+  if (formData.has('requiredTitle')) context.requiredTitle = String(formData.get('requiredTitle') || '').trim();
   return normalizeJourneyDraft({
     ...draft,
-    tasks: formData.getAll("task"),
+    tasks: formData.has('unifiedPriorities') ? [] : formData.getAll("task"),
     mustHave,
     niceToHave,
     notNeeded,
@@ -44,6 +58,15 @@ export function captureGuide(formData, value, stage) {
     budgetMinor: budget,
     budgetCurrency: formData.get("budgetCurrency"),
     switchingTolerance: formData.get("switchingTolerance"),
+    importance: formData.get('importance') ?? draft.importance,
+    userType: formData.get('userType') ?? draft.userType,
+    country: formData.get('country') ?? draft.country,
+    platform: formData.get('platform') ?? draft.platform,
+    acceptAds: ads,
+    acceptFreeLimits: formData.has('acceptFreeLimits') ? nullableChoice('acceptFreeLimits') : draft.acceptFreeLimits,
+    includeFree: alternatives === null || alternatives === 'previous' ? draft.includeFree : alternatives === 'paid' ? false : ['free', 'both'].includes(alternatives) ? true : null,
+    includePaid: alternatives === null || alternatives === 'previous' ? draft.includePaid : alternatives === 'free' ? false : ['paid', 'both'].includes(alternatives) ? true : null,
+    context,
   });
 }
 
@@ -153,7 +176,7 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
           draft.currency,
           "Billing currency",
         ),
-        select("cycle", BILLING_CYCLES, draft.cycle, "Billing period"),
+        question("Billing period", "cycle", BILLING_CYCLES.filter(([id]) => ['monthly', 'yearly', draft.cycle].includes(id)), draft.cycle),
       );
       contents.append(grid);
       const unknown = element("label", "choice-card");
@@ -179,27 +202,10 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
       );
       const requirements = requirementsForProductType(draft.productType);
       if (requirements.length) {
-        contents.append(
-          progressiveQuestion(
-            question(
-              "What do you mainly use it for?",
-              "task",
-              requirements.filter(
-                ([id]) =>
-                  !["team_collaboration", "collaboration", "ad_free"].includes(
-                    id,
-                  ),
-              ),
-              draft.tasks,
-              true,
-            ),
-            draft.tasks.length,
-          ),
-        );
         const priorities = element("fieldset", "guide-question");
         priorities.dataset.question = "priorities";
         priorities.append(
-          element("legend", "", "Which features would you keep?"),
+          element("legend", "", "What do you use it for—and need to keep?"),
         );
         priorities.append(
           element(
@@ -209,17 +215,17 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
           ),
         );
         for (const [id, label] of requirements.filter(
-          ([id]) => !["team_collaboration", "collaboration"].includes(id),
+          ([id]) => !["team_collaboration", "collaboration", "ad_free"].includes(id),
         )) {
           const value = draft.mustHave.includes(id)
             ? "must"
-            : draft.niceToHave.includes(id)
+            : draft.niceToHave.includes(id) || draft.tasks.includes(id)
               ? "nice"
               : draft.notNeeded.includes(id)
                 ? "not_needed"
                 : "";
-          const row = select(
-            `priority_${id}`,
+          const row = question(
+            label, `priority_${id}`,
             [
               ["", "Unanswered"],
               ["must", "Must have"],
@@ -227,14 +233,14 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
               ["not_needed", "Not needed"],
             ],
             value,
-            label,
           );
           row.classList.add("requirement-row");
+          delete row.dataset.question;
           priorities.append(row);
         }
         // Collaboration is asked once in the audience question. Preserve an old
         // explicit priority until the person changes that audience answer.
-        for (const id of ["team_collaboration", "collaboration"]) {
+        for (const id of ["team_collaboration", "collaboration", "ad_free"]) {
           if (!requirements.some(([key]) => key === id)) continue;
           const hidden = element("input");
           hidden.type = "hidden";
@@ -256,6 +262,7 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
               draft.notNeeded.length,
           ),
         );
+        const unified = element('input'); unified.type = 'hidden'; unified.name = 'unifiedPriorities'; unified.value = 'true'; contents.append(unified);
       }
       contents.append(
         progressiveQuestion(
@@ -278,6 +285,7 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
           draft.usage,
         ),
       );
+      contents.append(progressiveQuestion(question('How important is it to you?', 'importance', [['', 'Not sure'], ['not_important', 'Not important'], ['nice_to_have', 'Nice to have'], ['useful', 'Useful'], ['important', 'Important'], ['essential', 'Essential']], draft.importance), draft.importance));
       const audience = question(
         "Who is it for?",
         "audience",
@@ -291,7 +299,7 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
       );
       audience.addEventListener("change", () => {
         for (const hidden of contents.querySelectorAll(
-          'input[type="hidden"][name^="priority_"]',
+          'input[type="hidden"][name="priority_collaboration"], input[type="hidden"][name="priority_team_collaboration"]',
         ))
           hidden.value = "";
       });
@@ -331,7 +339,10 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
           "An annual plan is compared by its monthly equivalent, with its full commitment shown. Other currencies remain unconfirmed.",
         ),
       );
-      contents.append(progressiveQuestion(budget, draft.budgetMinor !== null));
+      const alternativesValue = draft.includeFree === true && draft.includePaid === false ? 'free' : draft.includePaid === true && draft.includeFree === false ? 'paid' : draft.includeFree === true && draft.includePaid === true ? 'both' : draft.includeFree === null && draft.includePaid === null ? '' : 'previous';
+      const alternativeChoices = [['', 'Not sure'], ['both', 'Free or paid'], ['free', 'Only free plans'], ['paid', 'Paid options']];
+      if (alternativesValue === 'previous') alternativeChoices.push(['previous', 'Keep my saved preference']);
+      contents.append(question('What alternatives would you consider?', 'alternativeTypes', alternativeChoices, alternativesValue));
       contents.append(
         progressiveQuestion(
           question(
@@ -348,12 +359,40 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
           draft.switchingTolerance,
         ),
       );
+      const extra = element('details', 'guide-extra');
+      extra.append(element('summary', '', 'Refine compatibility · optional'), budget);
+      extra.append(select('userType', [['', 'Unanswered'], ['personal', 'Personal'], ['student', 'Student'], ['creator', 'Creator'], ['freelancer', 'Freelancer'], ['professional', 'Professional']], draft.userType, 'How do you use it?'));
+      extra.append(element('p', 'field-help', 'Your role is context, not proof that an alternative supports your work. Select the features you actually need above.'));
+      const platforms = [['', 'Unanswered'], ['web', 'Web browser'], ['windows', 'Windows'], ['macos', 'Mac'], ['linux', 'Linux'], ['ios', 'iPhone / iPad'], ['android', 'Android'], ['smart_tv', 'Smart TV'], ['game_console', 'Game console']].filter(([id]) => !['smart_tv', 'game_console'].includes(id) || ['streaming_video', 'music_streaming', 'home_workouts', 'game_catalogue'].includes(draft.productType) || id === draft.platform);
+      extra.append(select('platform', platforms, draft.platform, 'Required platform'));
+      const countryLabel = element('label', 'field', 'Country · two-letter code');
+      const country = element('input'); country.name = 'country'; country.maxLength = 2; country.pattern = '[A-Za-z]{2}'; country.autocomplete = 'country'; country.value = draft.country;
+      country.addEventListener('input', () => { country.value = country.value.toUpperCase(); }); countryLabel.append(country); extra.append(countryLabel);
+      if (['streaming_video', 'music_streaming'].includes(draft.productType)) {
+        extra.append(question('Would you accept advertisements?', 'acceptAds', [['', 'Unanswered'], ['yes', 'Yes'], ['no', 'No']], draft.mustHave.includes('ad_free') ? 'no' : draft.acceptAds === null ? '' : draft.acceptAds ? 'yes' : 'no'));
+      }
+      if (draft.productType === 'streaming_video') {
+        const label = element('label', 'field', 'Any shows or films you must keep?');
+        const input = element('input'); input.name = 'requiredTitle'; input.maxLength = 80; input.value = draft.context?.requiredTitle || ''; label.append(input); extra.append(label, element('p', 'field-help', 'Libraries differ. A specific title stays unconfirmed until its availability is verified.'));
+      }
+      if (draft.productType === 'cloud_storage') {
+        const label = element('label', 'field', 'How much storage do you need? (GB)');
+        const input = element('input'); input.name = 'storageRequiredGb'; input.type = 'number'; input.min = '0'; input.max = '100000'; input.step = 'any'; input.value = draft.context?.storageRequiredGb ?? ''; label.append(input); extra.append(label);
+      }
+      extra.append(question('Would you accept free-plan usage limits?', 'acceptFreeLimits', [['', 'Unanswered'], ['yes', 'Yes'], ['no', 'No']], draft.acceptFreeLimits === null ? '' : draft.acceptFreeLimits ? 'yes' : 'no'));
+      contents.append(extra);
     }
     title.focus();
   }
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!form.reportValidity() || !capture()) return;
+    if (!form.checkValidity()) {
+      const invalid = form.querySelector('input:invalid, select:invalid, textarea:invalid');
+      for (let parent = invalid?.parentElement; parent && parent !== form; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
+      invalid?.reportValidity(); invalid?.focus();
+      return;
+    }
+    if (!capture()) return;
     if (stage === 1) {
       stage = 2;
       draw();
@@ -382,6 +421,8 @@ export function initializeGuidedAudit({ getDraft, onChange, onComplete }) {
   });
   return {
     open() {
+      if (dialog.open) return;
+      void productEvent('advanced_audit_started', { serviceId: getDraft().serviceId, intent: getDraft().motivation, surface: 'advanced' });
       returnFocus = document.activeElement;
       stage = 1;
       draw();

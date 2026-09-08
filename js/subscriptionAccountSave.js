@@ -4,6 +4,8 @@ import { journeyRequest, journeySession } from './journeyApi.js';
 export const SUBSCRIPTION_SAVE_KEY = 'feeveto_subscription_account_outbox_v1';
 
 // Only explicitly submitted entries enter this outbox. Never scan or upload the local list.
+import { productEvent } from './analytics.js';
+
 export function initializeSubscriptionAccountSave({ getClerk, getCurrency, storage, onSaved }) {
   const status = document.getElementById('subscription-save-status');
   const retry = document.getElementById('retry-subscription-save');
@@ -54,6 +56,7 @@ export function initializeSubscriptionAccountSave({ getClerk, getCurrency, stora
           persist();
           if (epoch !== revision || clerk.user?.id !== user) return;
           status.textContent = 'Saved to your account and this browser. Open Saved audits to revisit it.';
+          void productEvent('audit_saved', { serviceId: ticket.draft?.serviceId || '', surface: 'subscription' });
           savedLink.hidden = false;
           retry.hidden = !pending.some((entry) => entry.expectedOwner === user);
           await onSaved?.(value.saved);

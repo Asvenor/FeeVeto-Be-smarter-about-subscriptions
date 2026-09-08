@@ -24,7 +24,7 @@ const waitFor = async (predicate) => {
   }
   assert.fail("Timed out waiting for DOM state");
 };
-async function setup({ pending = null, user = null, subscriptionPending = null } = {}) {
+async function setup({ pending = null, user = null, subscriptionPending = null, clerkGate = null } = {}) {
   const dom = new JSDOM(html, { url: "https://app.test/" }),
     database = await testDatabase(),
     original = {};
@@ -121,16 +121,20 @@ async function setup({ pending = null, user = null, subscriptionPending = null }
     );
   if (subscriptionPending) dom.window.sessionStorage.setItem(SUBSCRIPTION_SAVE_KEY, JSON.stringify(subscriptionPending));
   const journey = initializeJourney({
-    getClerk: async () => clerk,
+    getClerk: async () => clerkGate || clerk,
+    ...(clerkGate ? {getSearchClerk:()=>null} : {}),
     getCurrency: () => "USD",
     storage: dom.window.localStorage,
   });
   const byId = (id) => dom.window.document.getElementById(id);
   const change = (selector, value) => {
-    const input = dom.window.document.querySelector(
+    let input = dom.window.document.querySelector(
       selector.startsWith("[name=") ? `#guided-form ${selector}` : selector,
     );
-    if (input.type === "checkbox") input.checked = value;
+    if (input.type === 'radio') {
+      input = [...dom.window.document.querySelectorAll(`#guided-form input[name="${input.name}"]`)].find(item => item.value === value);
+      input.checked = true;
+    } else if (input.type === "checkbox") input.checked = value;
     else input.value = value;
     input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
   };
@@ -269,7 +273,7 @@ test("connected DOM journey: guest discovery, guide, sign-in continuity, retry, 
     byId("guided-form").requestSubmit();
     assert.match(byId("guide-progress").textContent, /Step 2/);
     assert.equal(
-      byId("guide-content").querySelectorAll("[data-question]").length,
+      byId("guide-content").querySelectorAll(":scope > [data-question], :scope > .prefilled-question > [data-question]").length,
       6,
     );
     change("[name=priority_templates]", "must");
@@ -296,7 +300,7 @@ test("connected DOM journey: guest discovery, guide, sign-in continuity, retry, 
     byId("personalize-results").click();
     byId("guided-form").requestSubmit();
     assert.equal(
-      dom.window.document.querySelector("[name=priority_templates]").value,
+      dom.window.document.querySelector("[name=priority_templates]:checked").value,
       "must",
     );
     byId("guided-form").requestSubmit();
@@ -394,11 +398,12 @@ test("a completed pending save resumes after a page reload without reopening the
 test("an earlier slow search cannot overwrite a later intent", async () => {
   const env = await setup();
   try {
-    let resolveFirst,
+    let requests = 0, resolveFirst,
       started = false;
     globalThis.fetch = async (url, init) => {
       const body = JSON.parse(init.body);
       if (body.serviceId === "canva") {
+        requests++;
         started = true;
         return new Promise((resolve) => {
           resolveFirst = resolve;
@@ -413,6 +418,9 @@ test("an earlier slow search cannot overwrite a later intent", async () => {
     env.byId("intent-input").value = "Canva is expensive";
     env.byId("intent-form").requestSubmit();
     await waitFor(() => started);
+    env.byId("intent-form").requestSubmit();
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(requests,1,'Repeated pending submit does not duplicate the search');
     env.byId("intent-input").value = "Dropbox is expensive";
     env.byId("intent-form").requestSubmit();
     await waitFor(
@@ -434,6 +442,18 @@ test("an earlier slow search cannot overwrite a later intent", async () => {
   } finally {
     await env.cleanup();
   }
+});
+
+test('guest discovery does not wait for account initialization', async () => {
+  let release;
+  const clerkGate = new Promise(resolve => {release=resolve});
+  const env=await setup({clerkGate});
+  try {
+    env.byId('intent-input').value='Canva costs too much'; env.byId('intent-form').requestSubmit();
+    await waitFor(()=>env.byId('instant-results').querySelector('.alternative-card'));
+    assert.ok(env.calls.some(call=>call.path==='/api/alternatives/recommendations'));
+    assert.equal(env.byId('guided-audit').open,false);
+  } finally {release(env.clerk);await new Promise(resolve=>setImmediate(resolve));await env.cleanup();}
 });
 
 test("failed alternatives preserve intent; retry and service correction work without a questionnaire", async () => {

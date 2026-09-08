@@ -5,6 +5,23 @@ import { APP_CONFIG, CURRENCY_OPTIONS } from '../js/config.js';
 
 const root = new URL('../', import.meta.url);
 
+test('Public Beta metadata has a real social image and all six one-click examples', async () => {
+  const html=await readFile(new URL('index.html',root),'utf8');
+  assert.match(html,/Public Beta/); assert.match(html,/summary_large_image/);
+  assert.match(html,/property="og:image" content="https:\/\/feeveto\.edward-nyarko\.workers\.dev\/social-preview.png"/);
+  assert.equal([...html.matchAll(/data-example-intent=/g)].length,6);
+  const image=await readFile(new URL('public/social-preview.png',root));
+  assert.equal(image.subarray(1,4).toString(),'PNG'); assert.equal(image.readUInt32BE(16),1200); assert.equal(image.readUInt32BE(20),630);
+});
+test('privacy and deployment configuration describe opt-in events without changing the billing gate', async () => {
+  const html=await readFile(new URL('privacy.html',root),'utf8');
+  assert.match(html,/measurement is off unless/i); assert.match(html,/Do Not Track/); assert.match(html,/self-service account-history deletion/);
+  assert.doesNotMatch(html,/Feedback opens Google Forms|does not currently use product analytics/);
+  const config=JSON.parse(await readFile(new URL('wrangler.jsonc',root),'utf8'));
+  assert.equal(config.keep_vars,true); assert.equal(config.vars.BILLING_ENABLED,undefined);
+  assert.equal(config.ratelimits[0].simple.limit,60); assert.equal(config.observability.logs.invocation_logs,false);
+});
+
 test('workspace views retain the required sections and controls', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
   for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"', 'id="service-id"', 'id="product-type"', 'id="requirement-questions"', 'id="required-title"', 'id="required-game"', 'id="server-country"', 'id="target-language"', 'id="learner-level"', 'id="specific-subject"', 'Save and review']) {

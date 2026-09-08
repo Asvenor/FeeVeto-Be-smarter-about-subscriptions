@@ -6,6 +6,7 @@ const RESULT_STATES = new Set([
   'matched_suggestions',
   'unsupported',
   'no_matches',
+  'no_verified_alternatives',
   'catalogue_unavailable',
   'request_failed',
   'authentication_failed',
@@ -115,7 +116,7 @@ export class BackendAlternativesProvider extends AlternativesProvider {
     const query = recommendationRequestFor(subscription, marketCurrency);
     if (!query) return {
       accessScope: 'public', state: 'unsupported', items: [], missingDetails: [],
-      message: 'This service or use case is not supported for curated alternatives yet. The basic audit is still available.',
+      message: "FeeVeto doesn't have verified alternatives for this subscription yet. The basic audit is still available.",
     };
     const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;

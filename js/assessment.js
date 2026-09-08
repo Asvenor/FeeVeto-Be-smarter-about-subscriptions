@@ -3,7 +3,7 @@ import { annualCost } from "./calculations.js";
 import { evaluateSubscription } from "./recommendationEngine.js";
 import { requirementsForProductType, serviceById } from "./serviceCatalog.js";
 
-export const ASSESSMENT_VERSION = "personal-audit-v1";
+export const ASSESSMENT_VERSION = "personal-audit-v2";
 
 export function compareAnnualCost(draft, offer, now = new Date()) {
   const current = annualCost(draft.amountMinor, draft.cycle);
@@ -129,6 +129,11 @@ export function assessJourney(
       draft.context?.categoryAnswers?.criticalBackup ||
       draft.tasks.includes("photo_backup") ||
       query.mustHave.includes("photo_backup"));
+  const specificContent = draft.productType === 'streaming_video' && (query.requiredTitle || query.mustHave.includes('specific_exclusives') || draft.context?.categoryAnswers?.exclusiveContent === true);
+  const establishedWorkflow = ['daily', 'several_per_week'].includes(draft.usage)
+    && ['essential', 'important'].includes(draft.importance)
+    && (draft.context?.switchingDifficulty === 'difficult' || draft.switchingTolerance === 'easy')
+    && query.mustHave.length >= 2;
   if (draft.context?.activeContract === true || protectedCoverage) {
     action = "keep";
     title = draft.context?.activeContract
@@ -143,6 +148,18 @@ export function assessJourney(
     );
     nextStep =
       "Verify your renewal terms and, for backup services, test recovery and export before cancelling or moving anything.";
+  } else if (specificContent) {
+    action = 'keep'; title = 'Keep access to the content you need';
+    reasons.push('Streaming libraries differ. No other service is verified to replace the particular content you require.');
+    nextStep = 'Check the actual title library and your renewal terms. Pause or rotate only in months when you do not need that content; savings are not guaranteed.';
+  } else if (establishedWorkflow) {
+    action = 'keep'; title = 'Your current subscription may still be the best fit';
+    reasons.push('You use it frequently, rely on important features and need a low-effort switch. Changing services may not be worth the workflow trade-offs.');
+    nextStep = 'Try alternatives with your real workflow before changing anything. Review a downgrade only if it retains your essential features.';
+  } else if (draft.productType === 'streaming_video' && (draft.context?.seasonal === true || draft.context?.categoryAnswers?.rotateServices === true)) {
+    action = 'pause_rotate'; title = 'Consider pausing or rotating subscriptions';
+    reasons.push('Different streaming services have different libraries. Rotating can reduce overlapping payments when their content is not needed all year.');
+    nextStep = 'Check what you want to watch, cancellation dates and any annual commitments. Do not assume a guaranteed saving without checking the actual bills.';
   } else if (
     draft.usage === "never" &&
     draft.audience === "solo" &&

@@ -1,6 +1,7 @@
 import { APP_CONFIG } from './config.js';
 import { fillCurrencyOptions, validCurrencyPreference } from './currencyPreference.js';
 import { loadState, saveState } from './storage.js';
+import { initializeAnalytics } from './analytics.js';
 
 const select = document.getElementById('page-currency-preference');
 const status = document.getElementById('page-currency-status');
@@ -9,6 +10,7 @@ const browserStorage = (() => {
 })();
 
 let state = loadState(browserStorage).state;
+initializeAnalytics({ storage: browserStorage });
 fillCurrencyOptions(select, state.auditCurrency);
 
 select.addEventListener('change', () => {

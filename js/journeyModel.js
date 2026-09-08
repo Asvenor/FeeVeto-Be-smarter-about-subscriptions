@@ -12,6 +12,9 @@ export const JOURNEY_VERSION = 1;
 export const DRAFT_KEY = "feeveto_journey_draft_v1";
 export const MOTIVATIONS = [
   ["cost", "Spend less"],
+  ["free", "Find a free option"],
+  ["replace", "Replace or switch"],
+  ["cancel", "Consider cancelling"],
   ["needs", "Find a better fit"],
   ["complexity", "Something simpler"],
   ["unused", "I rarely use it"],
@@ -118,6 +121,7 @@ export function normalizeJourneyDraft(value = {}, defaultCurrency = "USD") {
     ].includes(value.importance)
       ? value.importance
       : "",
+    userType: ['personal', 'student', 'creator', 'freelancer', 'professional'].includes(value.userType) ? value.userType : '',
   };
 }
 
@@ -148,6 +152,18 @@ export function parseIntent(request, currency = "USD") {
       : /simpler|complicated|complex|easy/i.test(originalRequest)
         ? "complexity"
         : "explore";
+  const preferenceText = originalRequest.replace(/\bad[- ]free\b|\bfeel free\b/gi, '');
+  const freeIntent = /\bfree\b/i.test(preferenceText) && !/\b(not|no|avoid) (a )?free\b|\b(don['’]?t|do not|not) (want|need) (a )?free\b/i.test(preferenceText);
+  const cancelIntent = /\bcancel(?:ling|ing)?\b|not worth it/i.test(originalRequest) && !/\b(not|never|don['’]?t) (want to )?cancel(?:ling|ing)?\b/i.test(originalRequest);
+  const bothPrices = /\bfree (or|and) paid\b|\bpaid (or|and) free\b/i.test(preferenceText);
+  if (freeIntent && !bothPrices) {
+    draft.motivation = 'free'; draft.includeFree = true; draft.includePaid = false;
+  } else if (cancelIntent) draft.motivation = 'cancel';
+  else if (draft.motivation === 'explore' && /\breplace|\bswitch|\balternative/i.test(originalRequest)) draft.motivation = 'replace';
+  const needsClarification = draft.motivation === 'explore' || (freeIntent && cancelIntent);
+  if (freeIntent && cancelIntent) {
+    draft.motivation = 'explore'; draft.includeFree = null; draft.includePaid = null;
+  }
   const money = originalRequest.match(
     /(?:\b(USD|EUR|GBP|CHF)\s*|([$€£])\s*)(\d+(?:[.,]\d{1,2})?)/i,
   );
@@ -229,7 +245,8 @@ export function parseIntent(request, currency = "USD") {
     candidates: selected
       ? []
       : candidates.map(({ id, name }) => ({ id, name })),
-    parser: "supported-service-rules-v1",
+    parser: "supported-service-rules-v2",
+    needsClarification,
   };
 }
 

@@ -11,7 +11,6 @@ export const APP_CONFIG = Object.freeze({
   legacyCurrencyKey: 'subkiller_currency',
   defaultCurrency: 'USD',
   repositoryUrl: 'https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions',
-  feedbackUrl: 'https://forms.gle/xdrcAc2wWaxzGUVR6',
 });
 
 export const CURRENCY_OPTIONS = Object.freeze([

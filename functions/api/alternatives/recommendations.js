@@ -3,6 +3,7 @@ import { getVerifiedAccess } from '../../_shared/clerk-access.js';
 import { curatedRecommendations } from '../../_shared/catalogue-provider.js';
 import { CatalogueConfigurationError, loadPrivateCatalogue } from '../../_shared/catalogue-store.js';
 import { json, methodNotAllowed } from '../../_shared/http.js';
+import { readJourneyBody, JourneyError } from '../../_shared/journey-service.js';
 
 async function requestAccess(context, accessResolver) {
   if (!context.request.headers.get('authorization')) return resolveAccess();
@@ -29,9 +30,9 @@ export async function handleRecommendationsRequest(
   if (contentLength > 12_000) return json({ error: 'Request is too large.' }, { status: 413 });
   let query;
   try {
-    query = await context.request.json();
-  } catch {
-    return json({ error: 'A valid JSON request is required.' }, { status: 400 });
+    query = await readJourneyBody(context.request, { limit: 12000 });
+  } catch (error) {
+    return json({ error: 'Send a valid, bounded JSON request.' }, { status: error instanceof JourneyError ? error.status : 400 });
   }
   try {
     const access = await requestAccess(context, accessResolver);

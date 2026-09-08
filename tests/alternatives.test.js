@@ -253,8 +253,8 @@ test('the same service is allowed only as an explicit downgrade', () => {
 test('no supported match returns the honest empty state', () => {
   const result = selectRecommendations([], query('dropbox'), { premiumAccess: true });
   assert.equal(result.items.length, 0);
-  assert.equal(result.state, 'no_matches');
-  assert.match(result.message, /No accessible verified alternative/);
+  assert.equal(result.state, 'no_verified_alternatives');
+  assert.match(result.message, /doesn't have verified alternatives/);
 });
 
 test('duplicate offers are returned once', () => {

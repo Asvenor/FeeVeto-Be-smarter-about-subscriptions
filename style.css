@@ -1,3 +1,10 @@
+.privacy-choice { max-width: 44rem; margin: 1rem 0; font-size: .85rem; line-height: 1.6; }
+.privacy-choice summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
+.privacy-choice summary::after { content: '+'; margin-left: .7rem; }
+.privacy-choice[open] summary::after { content: '−'; }
+.privacy-choice label { display: flex; gap: .7rem; align-items: center; min-height: 44px; cursor: pointer; }
+.privacy-choice input { width: 20px; min-height: 20px; height: 20px; flex-shrink: 0; }
+.privacy-choice p { margin-block: .5rem; }
 :root {
   color-scheme: light;
   --color-background: #f5f7f2;

@@ -3,6 +3,7 @@ import { CATEGORY_OPTIONS, CURRENCIES, IMPORTANCE_OPTIONS, optionLabel, USAGE_OP
 import { officialDestination, recommendationRequestFor } from './alternativeProvider.js';
 import { evaluateSubscription } from './recommendationEngine.js';
 import { requirementLabel, supportedServiceFor } from './serviceCatalog.js';
+import { resultFeedback } from './feedback.js';
 
 export function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -39,6 +40,33 @@ export function alternativeCard(item, serviceId) {
   heading.append(element('h4', '', `${item.productName} — ${item.planName}`), element('span', 'alternative-type', item.pricingLabel));
   const statusClass = item.matchStatus === 'matched' ? 'matched' : item.matchStatus === 'general' ? 'general' : 'candidate';
   card.append(heading, element('p', `alternative-status ${statusClass}`, item.matchLabel), element('p', 'alternative-match', item.whyMatches || item.description));
+  const match = item.feeVetoMatch;
+  const percentage = Number.isInteger(match?.score) && match.score >= 0 && match.score <= 100 ? match.score : null;
+  const fit = element('p', 'feeveto-match', percentage === null ? `FeeVeto Match: ${match?.label || 'General match'}` : `FeeVeto Match: ${percentage}%`);
+  card.insertBefore(fit, card.children[1]);
+  const why = element('details', 'match-explanation');
+  why.append(element('summary', '', percentage === null ? 'Why this match?' : `Why this match? ${percentage}% explained`));
+  why.append(element('p', '', match?.meaning || 'Based on the checked product type and the answers provided. More preferences are needed for a personal score.'));
+  if (match?.reason) why.append(element('p', 'field-help', match.reason));
+  const factors = element('ul', 'match-factors');
+  for (const factor of match?.factors || []) factors.append(element('li', factor.status === 'supported' ? 'fit-supported' : 'fit-unconfirmed', factor.reason));
+  why.append(factors);
+  const pros = [...new Set((item.features || []).map(id => requirementLabel(serviceId, id)))].slice(0, 4);
+  const strengths = element('section', 'alternative-pros');
+  strengths.append(element('h5', '', 'Pros'));
+  if (pros.length) {
+    const list = element('ul');
+    for (const pro of pros) list.append(element('li', '', pro));
+    strengths.append(list);
+  } else strengths.append(element('p', 'field-help', 'No additional verified strengths recorded yet. See the plan description and official source.'));
+  const tradeoffs = element('section', 'alternative-cons');
+  tradeoffs.append(element('h5', '', 'Cons / trade-offs'));
+  if (item.limitations?.length) {
+    const list = element('ul');
+    for (const limitation of item.limitations.slice(0, 3)) list.append(element('li', '', limitation));
+    tradeoffs.append(list);
+  } else tradeoffs.append(element('p', 'field-help', 'No specific drawbacks recorded. This does not mean there are none; verify the plan before switching.'));
+  card.append(strengths, tradeoffs);
   const details = element('details', 'result-disclosure');
   details.append(element('summary', '', 'Details & sources'));
   if (item.description && item.whyMatches && item.description !== item.whyMatches) details.append(element('p', '', item.description));
@@ -54,10 +82,9 @@ export function alternativeCard(item, serviceId) {
     line('Verified price', priceText),
     line('Switching effort', item.switchingDifficulty || 'Unknown'),
   );
-  card.append(facts);
+  card.insertBefore(facts, card.children[2]);
   if (item.supportedRequirements?.length) details.append(element('p', 'alternative-detail', `Supports: ${item.supportedRequirements.map((id) => requirementLabel(serviceId, id)).join(', ')}`));
   // Qualifications stay beside the price, not behind the optional details.
-  if (item.limitations?.length) card.append(element('p', 'alternative-detail', `Trade-offs: ${item.limitations.join(' ')}`));
   if (item.usageLimits?.length) card.append(element('p', 'alternative-detail', `Plan limits: ${item.usageLimits.join(' ')}`));
   if (price.upfrontCommitmentMonths) card.append(element('p', 'alternative-detail', `Commitment: ${price.upfrontCommitmentMonths} months paid or committed up front.`));
   if (price.introductoryTerms) card.append(element('p', 'alternative-detail', `Introductory terms: ${price.introductoryTerms}`));
@@ -84,13 +111,15 @@ export function alternativeCard(item, serviceId) {
     }
     details.append(sources);
   }
-  card.append(details);
+  card.append(why, details);
   const destination = officialDestination(item);
   const link = element('a', 'button button-secondary button-small', item.actionLabel || 'Visit official website');
   link.href = destination;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   if (destination) card.append(link);
+  link.dataset.alternativeOutbound = 'true';
+  if (serviceId) link.dataset.serviceId = serviceId;
   return card;
 }
 
@@ -155,6 +184,7 @@ function subscriptionCard(item, result, alternativesState) {
       section.append(element('p', alternativesState.state === 'access_restricted' ? 'access-note' : 'empty-alternatives', alternativesState.message || 'No accessible verified alternative meets the selected requirements.'));
     }
     card.append(section);
+    if (alternatives.length || ['no_matches', 'no_verified_alternatives'].includes(alternativesState.state)) card.append(resultFeedback({serviceId:service?.id || '',surface:'subscription'}));
   }
 
   const actions = element('div', 'card-actions');
