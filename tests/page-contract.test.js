@@ -5,7 +5,7 @@ import { APP_CONFIG, CURRENCY_OPTIONS } from '../js/config.js';
 
 const root = new URL('../', import.meta.url);
 
-test('one-page audit contains the required sections and controls', async () => {
+test('workspace views retain the required sections and controls', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8');
   for (const value of ['FeeVeto', 'Keep, switch, or cancel with confidence.', 'id="audit"', 'id="how-it-works"', 'id="privacy"', 'id="faq"', 'id="subscription-form"', 'id="subscription-list"', 'id="announcer"', 'id="sign-in-button"', 'id="sign-up-button"', 'id="user-button"', 'id="access-badge"', 'id="service-id"', 'id="product-type"', 'id="requirement-questions"', 'id="required-title"', 'id="required-game"', 'id="server-country"', 'id="target-language"', 'id="learner-level"', 'id="specific-subject"', 'Save and review']) {
     assert.ok(html.includes(value), `Missing ${value}`);
@@ -34,8 +34,9 @@ test('partial-information alternatives have clear guidance and distinct result s
   const html = await readFile(new URL('index.html', root), 'utf8');
   const render = await readFile(new URL('js/render.js', root), 'utf8');
   const provider = await readFile(new URL('js/alternativeProvider.js', root), 'utf8');
-  assert.match(html, /More details help us find better matches\./);
-  assert.match(html, /Start with the basics, or add your requirements and preferences for more tailored suggestions\./);
+  assert.match(html, /Start with the basics\. The optional groups below help us find a closer fit\./);
+  assert.match(html, /id="needs-disclosure"/);
+  assert.match(html, /id="switching-disclosure"/);
   assert.match(render, /These are general suggestions based on the information provided\./);
   assert.match(render, /Improve my matches/);
   for (const state of ['general_suggestions', 'matched_suggestions', 'unsupported', 'no_matches', 'catalogue_unavailable', 'request_failed', 'access_restricted']) {

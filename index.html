@@ -1,166 +1,158 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="FeeVeto is a private subscription audit that helps you understand recurring costs and decide what to keep, switch, or cancel." />
-    <meta name="theme-color" content="#f5f7f2" />
-    <meta property="og:title" content="FeeVeto — Keep, switch, or cancel with confidence." />
-    <meta property="og:description" content="Review subscriptions, understand their real annual cost, and explore verified alternatives based on what you use." />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://feeveto.edward-nyarko.workers.dev/" />
-    <meta name="twitter:card" content="summary" />
-    <link rel="canonical" href="https://feeveto.edward-nyarko.workers.dev/" />
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FeeVeto is a private subscription audit that helps you understand recurring costs and decide what to keep, switch, or cancel.">
+    <meta name="theme-color" content="#f5f7f2">
+    <meta property="og:title" content="FeeVeto — Keep, switch, or cancel with confidence.">
+    <meta property="og:description" content="Review subscriptions, understand their real annual cost, and explore verified alternatives based on what you use.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://feeveto.edward-nyarko.workers.dev/">
+    <meta name="twitter:card" content="summary">
+    <link rel="canonical" href="https://feeveto.edward-nyarko.workers.dev/">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <title>FeeVeto — Keep, switch, or cancel with confidence.</title>
-    <link rel="stylesheet" href="./style.css" />
-  </head>
-  <body>
+    <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./experience.css"></head>
+  <body class="experience">
     <a class="skip-link" href="#audit">Skip to subscription audit</a>
 
     <header class="site-header">
       <nav class="nav-shell" aria-label="Primary navigation">
         <a class="brand" href="#top" aria-label="FeeVeto home"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a>
-        <div class="nav-links"><a href="#how-it-works">How it works</a><a href="#pricing">Premium</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a></div>
-        <div class="nav-actions">
+        <nav class="experience-nav" aria-label="Your workspace"><a href="#top" data-view-link="discover" aria-current="page">Discover</a><a href="#audit" data-view-link="audit">My subscriptions</a><a href="#saved-audits" data-view-link="saved">Saved audits</a></nav>
+        <div class="nav-actions"><div class="currency-menu">
+            <label for="currency-preference" class="sr-only">Display currency</label>
+            <select id="currency-preference" aria-describedby="currency-preference-help"></select>
+
+          <details class="currency-help"><summary aria-label="About display currency">?</summary><p id="currency-preference-help">Updates examples, new-entry defaults, dashboard subtotals and the market used for alternatives. Your country choice takes priority. Existing bills and provider prices keep their currencies; nothing is converted.</p></details></div>
           <span id="auth-loading" class="auth-loading" aria-hidden="true">Account</span>
-          <div id="signed-out-controls" class="auth-controls" hidden><button id="sign-in-button" class="auth-link" type="button">Sign in</button><button id="sign-up-button" class="button button-secondary button-small" type="button">Sign up</button></div>
-          <div id="signed-in-controls" class="signed-in-controls" hidden><span class="sr-only">Signed in</span><span id="access-badge" class="access-badge" hidden></span><div id="user-button"></div></div>
-          <span id="auth-status" class="auth-status" role="status" hidden></span>
-          <a class="button button-primary button-small nav-audit-button" href="#audit">Start audit</a>
+          <div id="signed-out-controls" class="auth-controls" hidden=""><details class="account-menu"><summary>Account</summary><div class="account-menu-actions"><button id="sign-in-button" class="auth-link" type="button">Sign in</button><button id="sign-up-button" class="button button-secondary button-small" type="button">Sign up</button></div></details></div>
+          <div id="signed-in-controls" class="signed-in-controls" hidden=""><span class="sr-only">Signed in</span><span id="access-badge" class="access-badge" hidden=""></span><div id="user-button"></div></div>
+          <span id="auth-status" class="auth-status" role="status" hidden=""></span>
+
         </div>
       </nav>
     </header>
 
-    <main id="top">
-      <section class="hero section-shell" aria-labelledby="hero-title">
+    <main id="top"><noscript>FeeVeto needs JavaScript for the interactive audit. Your saved data has not been changed.</noscript><div class="experience-view" data-view="discover"><section class="hero section-shell" aria-labelledby="hero-title">
         <div class="hero-copy">
           <p class="eyebrow">Keep, switch, or cancel with confidence.</p>
-          <h1 id="hero-title">Find what fits. Pay for what matters.</h1>
-          <p class="hero-lead">Tell us what you want to change. Explore checked alternatives now, then find your best fit with a few easy questions.</p>
+          <h1 id="hero-title">Less subscription noise.<br><span>More good choices.</span></h1>
+          <p class="hero-lead">Find a better fit for the things you pay for. Start with one service—we’ll help you see what is worth keeping, switching, or leaving behind.</p>
           <form id="intent-form" class="intent-form">
-            <label for="intent-input">What would you like to replace or improve?</label>
-            <textarea id="intent-input" name="request" rows="2" maxlength="1000" placeholder="I want to switch from Canva because it is too expensive." aria-describedby="intent-help" required></textarea>
+            <label for="intent-input">Which subscription is on your mind?</label>
+            <textarea id="intent-input" name="request" rows="2" maxlength="1000" placeholder="Netflix, Canva, Dropbox… or tell us what you need" aria-describedby="intent-help" required=""></textarea>
             <button class="button button-primary" type="submit">Find alternatives <span aria-hidden="true">→</span></button>
-            <p id="intent-help">No account or price needed. Start with the service name and what matters to you.</p>
+            <p id="intent-help">Just a name is enough. No account, card or bill needed.</p>
           </form>
           <div class="intent-examples" aria-label="Try an example request"><button type="button" data-example-intent="Canva is too expensive">Canva costs too much</button><button type="button" data-example-intent="I want to replace Dropbox for file sharing">An alternative to Dropbox</button><button type="button" data-example-intent="I want to switch from Netflix">Something besides Netflix</button></div>
-          <div class="currency-preference">
-            <label for="currency-preference">Display currency</label>
-            <select id="currency-preference" aria-describedby="currency-preference-help"></select>
-            <p id="currency-preference-help">Updates examples, dashboard totals, defaults for new entries, and the market used for alternatives. An entered country overrides this market. Existing subscriptions keep their saved billing currencies; FeeVeto does not convert prices.</p>
-          </div>
-          <div class="hero-actions"><a class="text-button" href="#audit">Open my subscription dashboard</a><a class="text-button" href="#how-it-works">See how it works</a></div>
+
+          <div class="hero-actions"><a class="text-button" href="#audit">Want the full picture? Review your subscriptions →</a></div>
         </div>
         <aside class="preview-card" aria-label="Example audit result. Presentation only.">
-          <div class="preview-label"><span>Example audit</span><span class="preview-status">Complete</span></div>
-          <p class="preview-kicker">Annual subscription cost</p><p class="preview-total" data-example-money="annualAudit"></p>
+          <div class="preview-label"><span>The clarity check</span><span class="preview-status">An example</span></div>
+          <p class="preview-kicker">A year of subscriptions</p><p class="preview-total" data-example-money="annualAudit"></p>
           <div class="preview-saving"><span>Potential savings</span><strong data-example-money="potentialSavings" data-money-suffix=" per year"></strong></div>
-          <div class="preview-actions" aria-label="Example recommended actions"><div><strong>2</strong><span>review</span></div><div><strong>1</strong><span>replace</span></div><div><strong>3</strong><span>keep</span></div></div>
+          <div class="preview-actions" aria-label="Example recommended actions"><div><strong>Keep</strong><span>What earns its place</span></div><div><strong>Switch</strong><span>Find a better fit</span></div><div><strong>Cancel</strong><span>Only when it makes sense</span></div></div>
           <p class="preview-note">Example only—not your saved results.</p>
         </aside>
-      </section>
-
-      <section class="trust-strip" aria-label="Privacy and access facts"><div class="section-shell trust-grid"><span>Account optional</span><span>No bank connection</span><span>Entries stored in this browser</span><span>The audit is free</span></div></section>
-
-      <section id="discover" class="discovery-section section-shell" aria-labelledby="discovery-title">
-        <div class="section-intro"><p class="eyebrow">A useful starting point</p><h2 id="discovery-title">Your options, made clearer.</h2><p>Suggestions come from checked product information. A few details can help you see which compromises are worth making.</p></div>
-        <form id="intent-correction" class="surface intent-correction" hidden>
+      </section><section class="trust-strip" aria-label="Privacy and access facts"><div class="section-shell trust-grid"><span>Account optional</span><span>No bank connection</span><span>Entries stored in this browser</span><span>The audit is free</span></div></section><section id="discover" class="discovery-section section-shell" aria-labelledby="discovery-title" hidden="">
+        <div class="section-intro"><p class="eyebrow">A useful starting point</p><h2 id="discovery-title">A few possibilities. A clearer next step.</h2><p>Compare the trade-offs, then add details if you want a closer fit.</p></div>
+        <details id="search-settings" class="search-settings"><summary>Refine your search <span>Service, country &amp; preferences</span></summary><form id="intent-correction" class="surface intent-correction" hidden="">
           <h3>Here’s what we understood</h3><p id="intent-original"></p>
-          <div class="form-section-grid"><div class="field"><label for="intent-service">Current service</label><select id="intent-service"></select></div><div class="field"><label for="intent-type">Product type</label><select id="intent-type"></select></div><div class="field"><label for="intent-motivation">What matters most?</label><select id="intent-motivation"></select></div><div class="field"><label for="intent-country">Country <span class="optional">Optional, two letters</span></label><input id="intent-country" maxlength="2" pattern="[A-Za-z]{2}" placeholder="US" autocomplete="country" aria-describedby="intent-market" /></div><div class="field"><label for="intent-platform">Device <span class="optional">Optional</span></label><select id="intent-platform"><option value="">Not specified</option><option value="web">Web browser</option><option value="macos">Mac</option><option value="windows">Windows</option><option value="linux">Linux</option><option value="ios">iPhone / iPad</option><option value="android">Android</option><option value="smart_tv">Smart TV</option><option value="game_console">Game console</option></select></div><div class="field correction-action"><button class="button button-secondary" type="submit">Update suggestions</button></div></div>
+          <div class="form-section-grid"><div class="field"><label for="intent-service">Current service</label><select id="intent-service"></select></div><div class="field"><label for="intent-type">Product type</label><select id="intent-type"></select></div><div class="field"><label for="intent-motivation">What matters most?</label><select id="intent-motivation"></select></div><div class="field"><label for="intent-country">Country <span class="optional">Optional, two letters</span></label><input id="intent-country" maxlength="2" pattern="[A-Za-z]{2}" placeholder="US" autocomplete="country" aria-describedby="intent-market"></div><div class="field"><label for="intent-platform">Device <span class="optional">Optional</span></label><select id="intent-platform"><option value="">Not specified</option><option value="web">Web browser</option><option value="macos">Mac</option><option value="windows">Windows</option><option value="linux">Linux</option><option value="ios">iPhone / iPad</option><option value="android">Android</option><option value="smart_tv">Smart TV</option><option value="game_console">Game console</option></select></div><div class="field correction-action"><button class="button button-secondary" type="submit">Update suggestions</button></div></div>
           <p id="intent-market" class="field-help"></p>
-        </form>
-        <div id="intent-filters" class="intent-filters" aria-label="Suggestion filters" hidden><button type="button" data-intent-filter="all" aria-pressed="true">All options</button><button type="button" data-intent-filter="free" aria-pressed="false">Free plans</button><button type="button" data-intent-filter="easy" aria-pressed="false">Easier to switch</button></div>
+        </form></details>
+        <div id="intent-filters" class="intent-filters" aria-label="Suggestion filters" hidden=""><button type="button" data-intent-filter="all" aria-pressed="true">All options</button><button type="button" data-intent-filter="free" aria-pressed="false">Free plans</button><button type="button" data-intent-filter="easy" aria-pressed="false">Easier to switch</button></div>
         <p id="intent-status" class="journey-status" role="status" tabindex="-1">Describe your need above to see your first suggestions.</p>
         <p id="journey-storage-status" class="field-help" role="status"></p>
         <div id="instant-results" class="instant-results"></div>
-        <div class="journey-actions"><button id="personalize-results" class="button button-primary" type="button" hidden>Find my best fit</button><button id="intent-retry" class="button button-secondary" type="button" hidden>Retry suggestions</button><button id="intent-more" class="button button-secondary" type="button" hidden>Explore more options</button></div>
-        <section id="personal-audit" class="personal-audit" aria-labelledby="personal-audit-title" hidden><h2 id="personal-audit-title" tabindex="-1">Your personal audit</h2><div id="personal-audit-content"></div><p id="assessment-status" class="journey-status" role="status"></p><div class="journey-actions"><button id="retry-assessment" class="button button-secondary" type="button" hidden>Retry my audit</button><button id="edit-assessment" class="button button-secondary" type="button">Update my answers</button><button id="save-assessment" class="button button-primary" type="button" hidden>Save this audit</button><button id="reevaluate-assessment" class="button button-primary" type="button" hidden>Reevaluate and save a new assessment</button></div><p id="save-status" class="journey-status" role="status"></p><p class="field-help">Saving sends this request and its answers to your account. Each reevaluation adds a dated result; earlier assessments stay unchanged.</p></section>
-        <section id="saved-audits" class="personal-audit" aria-labelledby="saved-audits-title"><h2 id="saved-audits-title">Your account audits</h2><p>Reopen your answers, compare dated assessments, or check the latest information. Your existing browser-saved subscriptions remain in the audit below.</p><button id="load-saved-audits" class="button button-secondary" type="button">Open my saved audits</button><p id="saved-audits-status" class="journey-status" role="status"></p><div id="saved-audit-list" class="instant-results"></div><button id="saved-audits-more" class="text-button" type="button" hidden>Load more audits</button><h3 id="saved-history-title" hidden>Assessment history</h3><div id="saved-audit-history" class="journey-actions"></div><button id="saved-history-more" class="text-button" type="button" hidden>Older assessments</button></section>
-      </section>
+        <div class="journey-actions"><button id="personalize-results" class="button button-primary" type="button" hidden="">Find my best fit</button><button id="intent-retry" class="button button-secondary" type="button" hidden="">Retry suggestions</button><button id="intent-more" class="button button-secondary" type="button" hidden="">Explore more options</button></div>
 
-      <section id="audit" class="audit-section section-shell" aria-labelledby="audit-title">
-        <div class="section-intro"><p class="eyebrow">Your private audit</p><h2 id="audit-title">Add it once. Review it fully.</h2><p>Enter the subscription and any context you want to share in one adaptive form. One save creates the audit result and checks for suitable alternatives.</p></div>
 
-        <div class="audit-layout">
-          <section class="surface form-surface" aria-labelledby="form-title">
-            <div class="surface-heading"><div><p class="step-label">Unified audit</p><h3 id="form-title">Add a subscription</h3></div><span id="edit-badge" class="soft-badge" hidden>Editing</span></div>
-            <div class="matching-guidance"><h4>More details help us find better matches.</h4><p>Start with the basics, or add your requirements and preferences for more tailored suggestions.</p></div>
-            <p id="storage-warning" class="storage-warning" role="status" hidden>This browser cannot save changes. Keep this tab open and export a backup before leaving.</p>
-            <form id="subscription-form" class="audit-form" novalidate>
-              <input id="subscription-id" name="subscriptionId" type="hidden" />
+      </section><section id="how-it-works" class="explain-section section-shell" aria-labelledby="how-title">
+        <div class="section-intro centered"><p class="eyebrow">A decision system you can inspect</p><h2 id="how-title">From “do I need this?” to a clearer choice.</h2><p>No bank connection. No automatic cancellations. You stay in charge.</p></div>
+        <div class="process-grid">
+          <article><span>01</span><h3>Find your options</h3><p>Tell us what you want to change. Explore checked suggestions immediately, without an account or questionnaire.</p></article>
+          <article><span>02</span><h3>Make it personal</h3><p>Optionally add your spending and a few needs. Get reasons to keep, downgrade, switch, or consider cancelling—not a predetermined answer.</p></article>
+          <article><span>03</span><h3>Keep your perspective</h3><p>Choose Save this audit to keep a dated assessment in your account. Reevaluate later without losing earlier results. Complete comparisons require Premium.</p></article>
+        </div>
+      </section></div><div class="experience-view" data-view="audit" hidden=""><section id="audit" class="audit-section section-shell" aria-labelledby="audit-title">
+        <div class="workspace-heading"><div><p class="eyebrow">My subscriptions</p><h2 id="audit-title">See the whole picture.</h2><p class="workspace-description">Your bills, your habits, your next move. Start small—one subscription is enough.</p></div><div class="workspace-actions"><button id="show-entry" class="button button-primary" type="button">Add subscription <span aria-hidden="true">+</span></button></div></div>
+
+        <details id="subscription-editor" class="subscription-editor"><summary><span>Subscription details</span><small>Open to add or edit an entry</small></summary><section class="surface form-surface" aria-labelledby="form-title">
+            <div class="surface-heading"><div><p class="step-label">One entry. One review.</p><h3 id="form-title">Add a subscription</h3></div><span id="edit-badge" class="soft-badge" hidden="">Editing</span></div>
+            <div class="matching-guidance"><p>Start with the basics. The optional groups below help us find a closer fit.</p></div>
+            <p id="storage-warning" class="storage-warning" role="status" hidden="">This browser cannot save changes. Keep this tab open and export a backup before leaving.</p>
+            <form id="subscription-form" class="audit-form" novalidate="">
+              <input id="subscription-id" name="subscriptionId" type="hidden">
               <section class="form-section field-wide" aria-labelledby="subscription-section-title">
                 <div class="form-section-heading"><span>1</span><div><h4 id="subscription-section-title">Your subscription</h4><p>The essential details used for cost and audit calculations.</p></div></div>
                 <div class="form-section-grid">
-                  <div class="field field-wide"><label for="name">Service name</label><input id="name" name="name" type="text" maxlength="80" autocomplete="off" aria-describedby="name-error service-support" required /><p id="name-error" class="field-error"></p></div>
+                  <div class="field field-wide"><label for="name">Service name</label><input id="name" name="name" type="text" maxlength="80" autocomplete="off" aria-describedby="name-error service-support" required=""><p id="name-error" class="field-error"></p></div>
                   <div class="field field-wide"><label for="service-id">Recognized service <span class="optional">Optional</span></label><select id="service-id" name="serviceId"></select><small id="service-support" class="field-help">Type a service name and FeeVeto will recognize supported services when possible.</small></div>
-                  <div class="field"><label for="price">Price</label><div class="price-control"><span id="price-currency">USD</span><input id="price" name="price" type="number" min="0" max="9999999.99" step="0.01" inputmode="decimal" aria-describedby="price-error entry-currency-help" required /></div><p id="price-error" class="field-error"></p></div>
-                  <div class="field"><label for="currency">Billing currency</label><select id="currency" name="currency" aria-describedby="entry-currency-help" required></select><small id="entry-currency-help" class="field-help">Defaults to the display currency for a new entry. You can change this subscription without changing the global preference.</small></div>
-                  <div class="field"><label for="cycle">Billing cycle</label><select id="cycle" name="cycle" required><option value="weekly">Weekly</option><option value="monthly" selected>Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div>
-                  <div class="field"><label for="category">Category</label><select id="category" name="category" required><option value="streaming">Streaming and entertainment</option><option value="software">Software and productivity</option><option value="cloud">Cloud storage and backup</option><option value="fitness">Fitness and health</option><option value="gaming">Gaming</option><option value="learning">News and learning</option><option value="shopping">Shopping and memberships</option><option value="other">Other</option></select></div>
-                  <div class="field"><label for="usage">Usage frequency</label><select id="usage" name="usage" required><option value="daily">Daily</option><option value="several_per_week">Several times per week</option><option value="weekly">Weekly</option><option value="several_per_month" selected>Several times per month</option><option value="monthly">Monthly</option><option value="less_than_monthly">Less than monthly</option><option value="never">Never</option></select></div>
-                  <div class="field"><label for="importance">Importance</label><select id="importance" name="importance" required><option value="essential">Essential</option><option value="important">Important</option><option value="useful" selected>Useful</option><option value="nice_to_have">Nice to have</option><option value="not_important">Not important</option></select></div>
-                  <div class="field"><label for="renewal-date">Renewal date <span class="optional">Optional</span></label><input id="renewal-date" name="renewalDate" type="date" /></div>
-                  <div class="field"><label for="status">Status</label><select id="status" name="status"><option value="active" selected>Active</option><option value="trial">Free trial</option><option value="cancelled">Cancelled</option></select></div>
-                  <fieldset><legend>Currently locked into a contract? <span class="optional">Optional</span></legend><label><input type="radio" name="activeContract" value="true" /> Yes</label><label><input type="radio" name="activeContract" value="false" /> No</label></fieldset>
-                  <details class="field-wide optional-details"><summary>Optional account link</summary><div class="field"><label for="cancellation-url">Provider account or cancellation page</label><input id="cancellation-url" name="cancellationUrl" type="url" inputmode="url" aria-describedby="url-help url-error" /><p id="url-help" class="field-help">A link you enter yourself. FeeVeto does not manage or cancel the subscription.</p><p id="url-error" class="field-error"></p></div></details>
-                </div>
+                  <div class="field"><label for="price">Price</label><div class="price-control"><span id="price-currency">USD</span><input id="price" name="price" type="number" min="0" max="9999999.99" step="0.01" inputmode="decimal" aria-describedby="price-error entry-currency-help" required=""></div><p id="price-error" class="field-error"></p></div>
+                  <div class="field"><label for="currency">Billing currency</label><select id="currency" name="currency" aria-describedby="entry-currency-help" required=""></select><small id="entry-currency-help" class="field-help">Defaults to the display currency for a new entry. You can change this subscription without changing the global preference.</small></div>
+                  <div class="field"><label for="cycle">Billing cycle</label><select id="cycle" name="cycle" required=""><option value="weekly">Weekly</option><option value="monthly" selected="">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div>
+                  <div class="field"><label for="category">Category</label><select id="category" name="category" required=""><option value="streaming">Streaming and entertainment</option><option value="software">Software and productivity</option><option value="cloud">Cloud storage and backup</option><option value="fitness">Fitness and health</option><option value="gaming">Gaming</option><option value="learning">News and learning</option><option value="shopping">Shopping and memberships</option><option value="other">Other</option></select></div>
+                  <div class="field"><label for="usage">Usage frequency</label><select id="usage" name="usage" required=""><option value="daily">Daily</option><option value="several_per_week">Several times per week</option><option value="weekly">Weekly</option><option value="several_per_month" selected="">Several times per month</option><option value="monthly">Monthly</option><option value="less_than_monthly">Less than monthly</option><option value="never">Never</option></select></div>
+                  <div class="field"><label for="importance">Importance</label><select id="importance" name="importance" required=""><option value="essential">Essential</option><option value="important">Important</option><option value="useful" selected="">Useful</option><option value="nice_to_have">Nice to have</option><option value="not_important">Not important</option></select></div>
+
+
+
+
+                <details id="billing-details" class="form-disclosure field-wide"><summary><span>Renewal &amp; account details</span><small>Optional · dates, contracts and your provider link</small></summary><div class="form-section-grid"><div class="field"><label for="renewal-date">Renewal date <span class="optional">Optional</span></label><input id="renewal-date" name="renewalDate" type="date"></div><div class="field"><label for="status">Status</label><select id="status" name="status"><option value="active" selected="">Active</option><option value="trial">Free trial</option><option value="cancelled">Cancelled</option></select></div><fieldset><legend>Currently locked into a contract? <span class="optional">Optional</span></legend><label><input type="radio" name="activeContract" value="true"> Yes</label><label><input type="radio" name="activeContract" value="false"> No</label></fieldset><div class="field field-wide"><label for="cancellation-url">Provider account or cancellation page</label><input id="cancellation-url" name="cancellationUrl" type="url" inputmode="url" aria-describedby="url-help url-error"><p id="url-help" class="field-help">A link you enter yourself. FeeVeto does not manage or cancel the subscription.</p><p id="url-error" class="field-error"></p></div></div></details></div>
               </section>
 
-              <section id="needs-section" class="form-section field-wide" aria-labelledby="needs-section-title">
-                <div class="form-section-heading"><span>2</span><div><h4 id="needs-section-title">What you need</h4><p>Structured answers are used for matching. Unanswered stays different from “not needed.”</p></div></div>
+              <details id="needs-disclosure" class="form-disclosure field-wide"><summary><span>What you need</span><small>Optional · refine your alternatives</small></summary><section id="needs-section" class="form-section field-wide" aria-label="What you need">
+
                 <div class="form-section-grid">
                   <div class="field"><label for="product-type">Product type <span class="optional">Optional for unknown services</span></label><select id="product-type" name="productType" aria-describedby="product-type-error"></select><p id="product-type-error" class="field-error"></p></div>
-                  <div class="field" id="alternative-country-field"><label for="alternative-country">Country code <span class="optional">Optional</span></label><input id="alternative-country" name="country" type="text" inputmode="text" maxlength="2" placeholder="For example, US" aria-describedby="country-help country-error" /><small id="country-help" class="field-help">Two letters, such as US, GB, DE, or CH. If blank, FeeVeto uses the selected display currency as the market; an entered country overrides it.</small><p id="country-error" class="field-error"></p></div>
+                  <div class="field" id="alternative-country-field"><label for="alternative-country">Country code <span class="optional">Optional</span></label><input id="alternative-country" name="country" type="text" inputmode="text" maxlength="2" placeholder="For example, US" aria-describedby="country-help country-error"><small id="country-help" class="field-help">Two letters, such as US, GB, DE, or CH. If blank, FeeVeto uses the selected display currency as the market; an entered country overrides it.</small><p id="country-error" class="field-error"></p></div>
                   <div class="field" id="alternative-platform-field"><label for="alternative-platform">Required platform <span class="optional">Optional</span></label><select id="alternative-platform" name="platform"><option value="">Unanswered</option><option value="web">Web browser</option><option value="windows">Windows</option><option value="macos">macOS</option><option value="linux">Linux</option><option value="ios">iPhone or iPad</option><option value="android">Android</option><option value="smart_tv">Smart TV</option><option value="game_console">Game console</option></select></div>
-                  <div class="field" id="storage-requirement"><label for="storage-required">Required storage in GB <span class="optional">Optional</span></label><input id="storage-required" name="storageRequiredGb" type="number" min="0" max="100000" step="1" placeholder="For example, 5" aria-describedby="storage-error" /><p id="storage-error" class="field-error"></p></div>
-                  <div class="field" id="required-title-field"><label for="required-title">Specific title you need <span class="optional">Optional</span></label><input id="required-title" name="requiredTitle" type="text" maxlength="80" autocomplete="off" /><small class="field-help">A different catalogue is not treated as an equivalent when a particular title matters.</small></div>
-                  <div class="field" id="required-game-field"><label for="required-game">Specific game you need <span class="optional">Optional</span></label><input id="required-game" name="requiredGame" type="text" maxlength="80" autocomplete="off" /><small class="field-help">Availability must be confirmed for the required platform and current catalogue.</small></div>
-                  <div class="field" id="server-country-field"><label for="server-country">Required VPN server country <span class="optional">Optional</span></label><input id="server-country" name="requiredServerCountry" type="text" inputmode="text" maxlength="2" placeholder="For example, US" aria-describedby="server-country-help server-country-error" /><small id="server-country-help" class="field-help">This is separate from your country and never changes it.</small><p id="server-country-error" class="field-error"></p></div>
-                  <div class="field" id="target-language-field"><label for="target-language">Language you want to learn <span class="optional">Optional</span></label><input id="target-language" name="targetLanguage" type="text" maxlength="40" autocomplete="off" /></div>
+                  <div class="field" id="storage-requirement"><label for="storage-required">Required storage in GB <span class="optional">Optional</span></label><input id="storage-required" name="storageRequiredGb" type="number" min="0" max="100000" step="1" placeholder="For example, 5" aria-describedby="storage-error"><p id="storage-error" class="field-error"></p></div>
+                  <div class="field" id="required-title-field"><label for="required-title">Specific title you need <span class="optional">Optional</span></label><input id="required-title" name="requiredTitle" type="text" maxlength="80" autocomplete="off"><small class="field-help">A different catalogue is not treated as an equivalent when a particular title matters.</small></div>
+                  <div class="field" id="required-game-field"><label for="required-game">Specific game you need <span class="optional">Optional</span></label><input id="required-game" name="requiredGame" type="text" maxlength="80" autocomplete="off"><small class="field-help">Availability must be confirmed for the required platform and current catalogue.</small></div>
+                  <div class="field" id="server-country-field"><label for="server-country">Required VPN server country <span class="optional">Optional</span></label><input id="server-country" name="requiredServerCountry" type="text" inputmode="text" maxlength="2" placeholder="For example, US" aria-describedby="server-country-help server-country-error"><small id="server-country-help" class="field-help">This is separate from your country and never changes it.</small><p id="server-country-error" class="field-error"></p></div>
+                  <div class="field" id="target-language-field"><label for="target-language">Language you want to learn <span class="optional">Optional</span></label><input id="target-language" name="targetLanguage" type="text" maxlength="40" autocomplete="off"></div>
                   <div class="field" id="learner-level-field"><label for="learner-level">Current learning level <span class="optional">Optional</span></label><select id="learner-level" name="learnerLevel"><option value="">Unanswered</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select></div>
-                  <div class="field" id="specific-subject-field"><label for="specific-subject">Course subject <span class="optional">Optional</span></label><input id="specific-subject" name="specificSubject" type="text" maxlength="80" autocomplete="off" /><small class="field-help">FeeVeto will not recommend a general course directory as a confirmed match.</small></div>
+                  <div class="field" id="specific-subject-field"><label for="specific-subject">Course subject <span class="optional">Optional</span></label><input id="specific-subject" name="specificSubject" type="text" maxlength="80" autocomplete="off"><small class="field-help">FeeVeto will not recommend a general course directory as a confirmed match.</small></div>
                   <div class="field field-wide"><label for="needed-features">Optional notes</label><textarea id="needed-features" name="neededFeatures" rows="3" maxlength="240" placeholder="For your reference only"></textarea><small class="field-help">These notes stay local and are not interpreted or sent for matching.</small></div>
                 </div>
                 <section id="requirement-questions" class="requirement-questions" aria-label="Requirements for the selected product type"></section>
-              </section>
+              </section></details>
 
-              <section class="form-section field-wide" aria-labelledby="switching-section-title">
-                <div class="form-section-heading"><span>3</span><div><h4 id="switching-section-title">Switching preferences</h4><p>Optional context makes the audit safer and filters alternatives to your preferences.</p></div></div>
+              <details id="switching-disclosure" class="form-disclosure field-wide"><summary><span>Switching preferences</span><small>Optional · what would make a switch worthwhile?</small></summary><section class="form-section field-wide" aria-label="Switching preferences">
+
                 <div class="form-section-grid">
                   <div class="field"><label for="satisfaction">How satisfied are you? <span class="optional">Optional</span></label><select id="satisfaction" name="satisfaction"><option value="">Unanswered</option><option value="very_satisfied">Very satisfied</option><option value="satisfied">Satisfied</option><option value="neutral">Neutral</option><option value="dissatisfied">Dissatisfied</option><option value="very_dissatisfied">Very dissatisfied</option></select></div>
                   <div class="field"><label for="switching-difficulty">Would changing services be difficult? <span class="optional">Optional</span></label><select id="switching-difficulty" name="switchingDifficulty"><option value="">Unanswered</option><option value="easy">No, it would be easy</option><option value="manageable">Some effort, but manageable</option><option value="difficult">Yes, it would be difficult</option></select></div>
-                  <fieldset><legend>Does anyone else in your household use it? <span class="optional">Optional</span></legend><label><input type="radio" name="householdUse" value="true" /> Yes</label><label><input type="radio" name="householdUse" value="false" /> No</label></fieldset>
-                  <fieldset><legend>Do you pay for another similar service? <span class="optional">Optional</span></legend><label><input type="radio" name="overlap" value="true" /> Yes</label><label><input type="radio" name="overlap" value="false" /> No</label></fieldset>
-                  <fieldset><legend>Consider a cheaper paid alternative? <span class="optional">Optional</span></legend><label><input type="radio" name="considerCheaper" value="true" /> Yes</label><label><input type="radio" name="considerCheaper" value="false" /> No</label></fieldset>
-                  <fieldset id="free-alternatives-field"><legend>Consider a free alternative? <span class="optional">Optional</span></legend><label><input type="radio" name="considerFree" value="true" /> Yes</label><label><input type="radio" name="considerFree" value="false" /> No</label></fieldset>
-                  <fieldset id="advertisement-field"><legend>Accept advertisements for a lower price? <span class="optional">Optional</span></legend><label><input type="radio" name="acceptAds" value="true" /> Yes</label><label><input type="radio" name="acceptAds" value="false" /> No</label></fieldset>
-                  <fieldset id="free-limits-field"><legend>Accept free-plan usage limits? <span class="optional">Optional</span></legend><label><input type="radio" name="acceptFreeLimits" value="true" /> Yes</label><label><input type="radio" name="acceptFreeLimits" value="false" /> No</label></fieldset>
-                  <fieldset><legend>Mainly seasonal? <span class="optional">Optional</span></legend><label><input type="radio" name="seasonal" value="true" /> Yes</label><label><input type="radio" name="seasonal" value="false" /> No</label></fieldset>
+                  <fieldset><legend>Does anyone else in your household use it? <span class="optional">Optional</span></legend><label><input type="radio" name="householdUse" value="true"> Yes</label><label><input type="radio" name="householdUse" value="false"> No</label></fieldset>
+                  <fieldset><legend>Do you pay for another similar service? <span class="optional">Optional</span></legend><label><input type="radio" name="overlap" value="true"> Yes</label><label><input type="radio" name="overlap" value="false"> No</label></fieldset>
+                  <fieldset><legend>Consider a cheaper paid alternative? <span class="optional">Optional</span></legend><label><input type="radio" name="considerCheaper" value="true"> Yes</label><label><input type="radio" name="considerCheaper" value="false"> No</label></fieldset>
+                  <fieldset id="free-alternatives-field"><legend>Consider a free alternative? <span class="optional">Optional</span></legend><label><input type="radio" name="considerFree" value="true"> Yes</label><label><input type="radio" name="considerFree" value="false"> No</label></fieldset>
+                  <fieldset id="advertisement-field"><legend>Accept advertisements for a lower price? <span class="optional">Optional</span></legend><label><input type="radio" name="acceptAds" value="true"> Yes</label><label><input type="radio" name="acceptAds" value="false"> No</label></fieldset>
+                  <fieldset id="free-limits-field"><legend>Accept free-plan usage limits? <span class="optional">Optional</span></legend><label><input type="radio" name="acceptFreeLimits" value="true"> Yes</label><label><input type="radio" name="acceptFreeLimits" value="false"> No</label></fieldset>
+                  <fieldset><legend>Mainly seasonal? <span class="optional">Optional</span></legend><label><input type="radio" name="seasonal" value="true"> Yes</label><label><input type="radio" name="seasonal" value="false"> No</label></fieldset>
                 </div>
                 <div id="category-questions" class="category-questions">
-                  <section data-category="streaming" hidden><h4>Streaming context</h4><fieldset><legend>Regularly watch content exclusive to this service? <span class="optional">Optional</span></legend><label><input type="radio" name="exclusiveContent" value="true" /> Yes</label><label><input type="radio" name="exclusiveContent" value="false" /> No</label></fieldset><fieldset><legend>Would rotating streaming services work for you? <span class="optional">Optional</span></legend><label><input type="radio" name="rotateServices" value="true" /> Yes</label><label><input type="radio" name="rotateServices" value="false" /> No</label></fieldset></section>
-                  <section data-category="software" hidden><h4>Software context</h4><fieldset><legend>Need only basic features? <span class="optional">Optional</span></legend><label><input type="radio" name="basicFeaturesOnly" value="true" /> Yes</label><label><input type="radio" name="basicFeaturesOnly" value="false" /> No</label></fieldset><fieldset><legend>Is collaboration required? <span class="optional">Optional</span></legend><label><input type="radio" name="collaborationRequired" value="true" /> Yes</label><label><input type="radio" name="collaborationRequired" value="false" /> No</label></fieldset><fieldset><legend>Are files locked into a proprietary format? <span class="optional">Optional</span></legend><label><input type="radio" name="proprietaryFormat" value="true" /> Yes</label><label><input type="radio" name="proprietaryFormat" value="false" /> No</label></fieldset><fieldset><legend>Would open-source software be acceptable? <span class="optional">Optional</span></legend><label><input type="radio" name="openSourceAcceptable" value="true" /> Yes</label><label><input type="radio" name="openSourceAcceptable" value="false" /> No</label></fieldset></section>
-                  <section data-category="cloud" hidden><h4>Cloud and backup context</h4><div class="field"><label for="storage-used">Storage currently used <span class="optional">Optional</span></label><input id="storage-used" name="storageUsed" type="text" maxlength="40" placeholder="For example, 120 GB" /></div><fieldset><legend>Used for critical backup? <span class="optional">Optional</span></legend><label><input type="radio" name="criticalBackup" value="true" /> Yes</label><label><input type="radio" name="criticalBackup" value="false" /> No</label></fieldset><fieldset><legend>Equivalent storage included elsewhere? <span class="optional">Optional</span></legend><label><input type="radio" name="includedElsewhere" value="true" /> Yes</label><label><input type="radio" name="includedElsewhere" value="false" /> No</label></fieldset></section>
-                  <section data-category="fitness" hidden><h4>Fitness context</h4><div class="field"><label for="times-per-month">Uses per month <span class="optional">Optional</span></label><input id="times-per-month" name="timesPerMonth" type="number" min="0" max="100" /></div><fieldset><legend>Might pay-per-visit be cheaper? <span class="optional">Optional</span></legend><label><input type="radio" name="payPerVisitCheaper" value="true" /> Yes</label><label><input type="radio" name="payPerVisitCheaper" value="false" /> No</label></fieldset></section>
-                  <section data-category="gaming" hidden><h4>Gaming context</h4><fieldset><legend>Required for multiplayer access? <span class="optional">Optional</span></legend><label><input type="radio" name="multiplayerRequired" value="true" /> Yes</label><label><input type="radio" name="multiplayerRequired" value="false" /> No</label></fieldset><fieldset><legend>Use the included games regularly? <span class="optional">Optional</span></legend><label><input type="radio" name="includedGamesUsed" value="true" /> Yes</label><label><input type="radio" name="includedGamesUsed" value="false" /> No</label></fieldset><fieldset><legend>Would pausing between releases work? <span class="optional">Optional</span></legend><label><input type="radio" name="pausePractical" value="true" /> Yes</label><label><input type="radio" name="pausePractical" value="false" /> No</label></fieldset></section>
+                  <section data-category="streaming" hidden=""><h4>Streaming context</h4><fieldset><legend>Regularly watch content exclusive to this service? <span class="optional">Optional</span></legend><label><input type="radio" name="exclusiveContent" value="true"> Yes</label><label><input type="radio" name="exclusiveContent" value="false"> No</label></fieldset><fieldset><legend>Would rotating streaming services work for you? <span class="optional">Optional</span></legend><label><input type="radio" name="rotateServices" value="true"> Yes</label><label><input type="radio" name="rotateServices" value="false"> No</label></fieldset></section>
+                  <section data-category="software" hidden=""><h4>Software context</h4><fieldset><legend>Need only basic features? <span class="optional">Optional</span></legend><label><input type="radio" name="basicFeaturesOnly" value="true"> Yes</label><label><input type="radio" name="basicFeaturesOnly" value="false"> No</label></fieldset><fieldset><legend>Is collaboration required? <span class="optional">Optional</span></legend><label><input type="radio" name="collaborationRequired" value="true"> Yes</label><label><input type="radio" name="collaborationRequired" value="false"> No</label></fieldset><fieldset><legend>Are files locked into a proprietary format? <span class="optional">Optional</span></legend><label><input type="radio" name="proprietaryFormat" value="true"> Yes</label><label><input type="radio" name="proprietaryFormat" value="false"> No</label></fieldset><fieldset><legend>Would open-source software be acceptable? <span class="optional">Optional</span></legend><label><input type="radio" name="openSourceAcceptable" value="true"> Yes</label><label><input type="radio" name="openSourceAcceptable" value="false"> No</label></fieldset></section>
+                  <section data-category="cloud" hidden=""><h4>Cloud and backup context</h4><div class="field"><label for="storage-used">Storage currently used <span class="optional">Optional</span></label><input id="storage-used" name="storageUsed" type="text" maxlength="40" placeholder="For example, 120 GB"></div><fieldset><legend>Used for critical backup? <span class="optional">Optional</span></legend><label><input type="radio" name="criticalBackup" value="true"> Yes</label><label><input type="radio" name="criticalBackup" value="false"> No</label></fieldset><fieldset><legend>Equivalent storage included elsewhere? <span class="optional">Optional</span></legend><label><input type="radio" name="includedElsewhere" value="true"> Yes</label><label><input type="radio" name="includedElsewhere" value="false"> No</label></fieldset></section>
+                  <section data-category="fitness" hidden=""><h4>Fitness context</h4><div class="field"><label for="times-per-month">Uses per month <span class="optional">Optional</span></label><input id="times-per-month" name="timesPerMonth" type="number" min="0" max="100"></div><fieldset><legend>Might pay-per-visit be cheaper? <span class="optional">Optional</span></legend><label><input type="radio" name="payPerVisitCheaper" value="true"> Yes</label><label><input type="radio" name="payPerVisitCheaper" value="false"> No</label></fieldset></section>
+                  <section data-category="gaming" hidden=""><h4>Gaming context</h4><fieldset><legend>Required for multiplayer access? <span class="optional">Optional</span></legend><label><input type="radio" name="multiplayerRequired" value="true"> Yes</label><label><input type="radio" name="multiplayerRequired" value="false"> No</label></fieldset><fieldset><legend>Use the included games regularly? <span class="optional">Optional</span></legend><label><input type="radio" name="includedGamesUsed" value="true"> Yes</label><label><input type="radio" name="includedGamesUsed" value="false"> No</label></fieldset><fieldset><legend>Would pausing between releases work? <span class="optional">Optional</span></legend><label><input type="radio" name="pausePractical" value="true"> Yes</label><label><input type="radio" name="pausePractical" value="false"> No</label></fieldset></section>
                 </div>
-              </section>
+              </section></details>
 
-              <p id="subscription-save-help" class="field-help field-wide">Save and review keeps this entry in your browser. When signed in, it also saves a dated assessment to your account’s Saved audits. Only this entry’s spending and structured answers are sent; private notes stay here. Signing in alone does not upload earlier entries.</p>
-              <div class="form-actions field-wide"><button id="submit-button" class="button button-primary" type="submit" aria-describedby="subscription-save-help">Save and review</button><button id="cancel-edit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
+              <p id="subscription-save-help" class="field-help field-wide">Saved on this device. When signed in, a dated assessment also goes to Saved audits. Private notes stay here; earlier entries are not uploaded automatically.</p>
+              <div class="form-actions field-wide"><button id="submit-button" class="button button-primary" type="submit" aria-describedby="subscription-save-help">Save and review</button><button id="cancel-edit" class="button button-secondary" type="button" hidden="">Cancel edit</button></div>
             </form>
-            <p id="subscription-save-status" class="journey-status" role="status"></p>
-            <div class="journey-actions"><button id="retry-subscription-save" class="button button-secondary" type="button" hidden>Retry account save</button><a id="subscription-saved-link" class="button button-secondary" href="#saved-audits" hidden>Open Saved audits</a></div>
-          </section>
 
-          <aside class="audit-sidebar">
-            <section class="surface privacy-card"><span class="privacy-icon" aria-hidden="true">✓</span><div><h3>Your choice to save</h3><p>Guest saves stay in this browser. Save and review while signed in also saves this entry’s assessment to your account. Private notes remain in the browser; earlier entries are not uploaded automatically.</p></div></section>
-          </aside>
-        </div>
+
+          </section></details><p id="subscription-save-status" class="journey-status" role="status"></p><div class="journey-actions"><button id="retry-subscription-save" class="button button-secondary" type="button" hidden="">Retry account save</button><a id="subscription-saved-link" class="button button-secondary" href="#saved-audits" hidden="">Open Saved audits</a></div>
 
         <section id="results" class="results" aria-labelledby="results-title">
-          <div class="results-heading"><div><p class="eyebrow">Your results</p><h2 id="results-title">Audit dashboard</h2></div><div class="data-actions"><button id="export-data" class="button button-secondary button-small" type="button">Export backup</button><button id="import-data" class="button button-secondary button-small" type="button">Import backup</button><input id="import-file" type="file" accept="application/json,.json" hidden /></div></div>
+          <div class="results-heading"><div><p class="eyebrow">Your overview</p><h2 id="results-title">Your subscriptions</h2></div><div class="data-actions"><button id="export-data" class="button button-secondary button-small" type="button">Export backup</button><button id="import-data" class="button button-secondary button-small" type="button">Import backup</button><input id="import-file" type="file" accept="application/json,.json" hidden=""></div></div>
           <div id="summary-grid" class="summary-grid" aria-label="Audit totals"><article><span id="monthly-total-label">Monthly total</span><strong id="total-monthly">—</strong></article><article><span id="annual-total-label">Annual total</span><strong id="total-annual">—</strong></article><article><span id="savings-total-label">Potential annual savings</span><strong id="potential-savings">—</strong></article><article><span>Subscriptions</span><strong id="subscription-count">0</strong></article><article><span>Recommended actions</span><strong id="action-count">0</strong></article></div>
           <p id="currency-summary" class="currency-summary"></p>
           <div class="result-tools">
@@ -171,40 +163,15 @@
               <button class="filter-tab" data-filter="save" type="button">Save money</button>
               <button class="filter-tab" data-filter="alternatives" type="button">Alternatives available</button>
             </div>
-            <div class="list-actions"><label for="result-search" class="sr-only">Search subscriptions</label><input id="result-search" type="search" placeholder="Search subscriptions" /><button id="clear-all" class="text-button danger-text" type="button" disabled>Clear audit</button></div>
+            <div class="list-actions"><label for="result-search" class="sr-only">Search subscriptions</label><input id="result-search" type="search" placeholder="Search subscriptions"><button id="clear-all" class="text-button danger-text" type="button" disabled="">Clear audit</button></div>
           </div>
           <p id="list-summary" class="list-summary"></p>
           <div id="subscription-list" class="subscription-list"></div>
         </section>
-      </section>
-
-      <section id="how-it-works" class="explain-section section-shell" aria-labelledby="how-title">
-        <div class="section-intro centered"><p class="eyebrow">A decision system you can inspect</p><h2 id="how-title">Better questions, clearer choices.</h2><p>FeeVeto combines what a service costs with how it fits your life. No black-box AI and no automatic cancellation.</p></div>
-        <div class="process-grid">
-          <article><span>01</span><h3>Describe your need</h3><p>Tell us what you want to change. Explore checked suggestions immediately, without an account or questionnaire.</p></article>
-          <article><span>02</span><h3>Find your best fit</h3><p>Optionally add your spending and a few needs. Get reasons to keep, downgrade, switch, or consider cancelling—not a predetermined answer.</p></article>
-          <article><span>03</span><h3>Save and revisit</h3><p>Choose Save this audit to keep a dated assessment in your account. Reevaluate later without losing earlier results. Complete comparisons require Premium.</p></article>
-        </div>
-      </section>
-
-      <section class="example-section">
-        <div class="section-shell example-layout">
-          <div><p class="eyebrow">What a result looks like</p><h2>A recommendation, not a command.</h2><p>FeeVeto uses measured language and shows why a suggestion was made. Your circumstances—not a generic rule—drive the final decision.</p></div>
-          <article class="example-result" aria-label="Presentation-only example recommendation">
-            <div class="result-card-top"><div><span class="category-label">Example result</span><h3>Creative toolkit</h3></div><span class="recommendation-badge badge-amber">Consider downgrading</span></div>
-            <p>You use this service frequently, but said basic features are enough and that you would consider a cheaper option.</p>
-            <dl><div><dt>Estimated annual cost</dt><dd data-example-money="annualCreativeToolkit"></dd></div><div><dt>Estimated cost per use</dt><dd data-example-money="creativeToolkitCostPerUse" data-money-prefix="Approximately "></dd></div><div><dt>Confidence</dt><dd>High</dd></div></dl>
-            <small>Example only—not your saved results.</small>
-          </article>
-        </div>
-      </section>
-
-      <section id="privacy" class="privacy-section section-shell" aria-labelledby="privacy-title">
+      </section></div><div class="experience-view" data-view="saved" hidden=""><section id="saved-audits" class="saved-workspace section-shell" aria-labelledby="saved-audits-title"><p class="eyebrow">Saved audits</p><h2 id="saved-audits-title">Good decisions, kept.</h2><p>Your saved account audits, with the answers and dated results that led to each decision.</p><button id="load-saved-audits" class="button button-secondary" type="button">Load my saved audits</button><p id="saved-audits-status" class="journey-status" role="status"></p><div id="saved-audit-list" class="instant-results"></div><button id="saved-audits-more" class="text-button" type="button" hidden="">Load more audits</button><p class="workspace-footnote">Looking for entries saved on this device? <a href="#audit">Open My subscriptions →</a></p></section></div><div class="experience-view" data-view="review" hidden=""><section id="personal-audit" class="personal-audit section-shell review-workspace" aria-labelledby="personal-audit-title" hidden=""><a class="text-button" href="#top" data-review-back="">← Discover</a><h2 id="personal-audit-title" tabindex="-1">Your personal audit</h2><div id="personal-audit-content"></div><p id="assessment-status" class="journey-status" role="status"></p><div class="journey-actions"><button id="retry-assessment" class="button button-secondary" type="button" hidden="">Retry my audit</button><button id="edit-assessment" class="button button-secondary" type="button">Update my answers</button><button id="save-assessment" class="button button-primary" type="button" hidden="">Save this audit</button><button id="reevaluate-assessment" class="button button-primary" type="button" hidden="">Reevaluate and save a new assessment</button></div><p id="save-status" class="journey-status" role="status"></p><p class="field-help">Saving sends this request and its answers to your account. Each reevaluation adds a dated result; earlier assessments stay unchanged.</p><h3 id="saved-history-title" hidden="">Assessment history</h3><div id="saved-audit-history" class="journey-actions"></div><button id="saved-history-more" class="text-button" type="button" hidden="">Older assessments</button></section></div><div class="experience-view" data-view="help" hidden=""><section id="privacy" class="privacy-section section-shell" aria-labelledby="privacy-title">
         <div class="privacy-copy"><p class="eyebrow">Your choice to save</p><h2 id="privacy-title">Your audit stays under your control.</h2><p>Existing subscription entries remain in this browser. Searching sends structured matching requirements to FeeVeto; personalising sends your request, current spending, and answers for assessment. Save this audit, or Save and review while signed in, stores a dated assessment in your account. An entered country overrides the currency's starting market.</p><a href="./privacy.html">Read the privacy overview</a></div>
         <div class="privacy-points"><article><h3>Optional account</h3><p>Clerk handles sign-in. Save individual assessments deliberately; signing in alone does not upload your local subscription list.</p></article><article><h3>No financial connection</h3><p>FeeVeto does not connect to banks or automatically detect subscriptions.</p></article><article><h3>Portable local backup</h3><p>Export a JSON backup of browser-saved subscriptions before clearing browser data or changing devices. Account assessments have separate dated history.</p></article></div>
-      </section>
-
-      <section id="faq" class="faq-section section-shell" aria-labelledby="faq-title">
+      </section><section id="faq" class="faq-section section-shell" aria-labelledby="faq-title">
         <div class="section-intro"><p class="eyebrow">Frequently asked questions</p><h2 id="faq-title">Before you start.</h2></div>
         <div class="faq-list">
           <details><summary>Does FeeVeto find or cancel subscriptions automatically?</summary><p>No. You enter subscriptions yourself. FeeVeto does not access bank accounts, manage provider accounts, or cancel services.</p></details>
@@ -215,43 +182,47 @@
           <details><summary>Is FeeVeto Premium a subscription?</summary><p>You choose: $2.99 USD per month, or $49.99 USD once for lifetime Premium. Both unlock the same features for one account. Monthly renews automatically until cancelled; use Manage billing to cancel and keep access through your paid period. Owner and approved beta accounts keep complimentary access.</p></details>
           <details><summary>Are alternative prices always current?</summary><p>Only alternatives with a verification date and sufficient local data are displayed. You should still confirm prices, features, and availability with the provider.</p></details>
         </div>
-      </section>
-
-      <section id="pricing" class="pricing-section section-shell" aria-labelledby="pricing-title">
-        <div class="pricing-copy"><p class="eyebrow">Your choice</p><h2 id="pricing-title">Go monthly. Or make it one and done.</h2><p>The basic subscription audit stays free, without login. Both Premium plans unlock complete curated comparisons and restricted alternative details for one account.</p><p>Premium checkout is priced in USD. Your audit currency does not change these purchase prices or convert your saved subscriptions.</p><p id="billing-mode-notice" role="status">Checkout is not enabled yet. The free audit still works.</p></div>
+      </section><section class="example-section">
+        <div class="section-shell example-layout">
+          <div><p class="eyebrow">What a result looks like</p><h2>A recommendation, not a command.</h2><p>FeeVeto uses measured language and shows why a suggestion was made. Your circumstances—not a generic rule—drive the final decision.</p></div>
+          <article class="example-result" aria-label="Presentation-only example recommendation">
+            <div class="result-card-top"><div><span class="category-label">Example result</span><h3>Creative toolkit</h3></div><span class="recommendation-badge badge-amber">Consider downgrading</span></div>
+            <p>You use this service frequently, but said basic features are enough and that you would consider a cheaper option.</p>
+            <dl><div><dt>Estimated annual cost</dt><dd data-example-money="annualCreativeToolkit"></dd></div><div><dt>Estimated cost per use</dt><dd data-example-money="creativeToolkitCostPerUse" data-money-prefix="Approximately "></dd></div><div><dt>Confidence</dt><dd>High</dd></div></dl>
+            <small>Example only—not your saved results.</small>
+          </article>
+        </div>
+      </section><section class="legal-note section-shell" aria-label="Important product notices">
+        <p>FeeVeto provides estimates based on the information you enter. It does not detect, manage, or cancel subscriptions and does not provide financial advice. Verify prices, renewal dates, features, and cancellation conditions directly with the relevant provider before making a decision.</p>
+        <p>FeeVeto is an independent subscription audit tool and is not affiliated with, sponsored by, or endorsed by any subscription provider. Third-party names are used only to identify services entered by users or relevant alternatives.</p>
+      </section></div><div class="experience-view" data-view="pricing" hidden=""><section id="pricing" class="pricing-section section-shell" aria-labelledby="pricing-title">
+        <div class="pricing-copy"><p class="eyebrow">Premium access</p><h2 id="pricing-title">More perspective. When you need it.</h2><p>The basic subscription audit stays free, without login. Both Premium plans unlock complete curated comparisons and restricted alternative details for one account.</p><p>Premium checkout is priced in USD. Your audit currency does not change these purchase prices or convert your saved subscriptions.</p><p id="billing-mode-notice" role="status">Checkout is not enabled yet. The free audit still works.</p><p class="workspace-footnote">Payments are not launching yet. Keep exploring with the free audit; existing owner and beta access is unchanged.</p></div>
         <div class="pricing-options">
         <article class="pricing-card" aria-labelledby="monthly-plan-title">
           <div><p class="step-label">Flexible access</p><h3 id="monthly-plan-title">Premium Monthly</h3></div>
           <p class="pricing-amount"><strong id="premium-monthly-price">$2.99</strong><span>USD / month</span></p>
           <ul><li>Full curated comparison access</li><li>Free-plan and restricted alternative details</li><li>Cancel anytime; access lasts through the paid period</li></ul>
-          <button id="premium-monthly-button" class="button button-secondary" type="button" disabled>Sign in for monthly</button>
+          <button id="premium-monthly-button" class="button button-secondary" type="button" disabled="">Sign in for monthly</button>
           <small>Renews automatically at $2.99 USD each month until cancelled. Manage payment details, invoices and cancellation in Stripe.</small>
         </article>
         <article class="pricing-card" aria-labelledby="premium-plan-title">
           <div><p class="step-label">No recurring FeeVeto charge</p><h3 id="premium-plan-title">Premium Lifetime</h3></div>
           <p class="pricing-amount"><strong id="premium-price">$49.99</strong><span>USD / one time</span></p>
           <ul><li>The same full Premium comparison features</li><li>One payment for this signed-in account</li><li>No monthly renewal</li></ul>
-          <button id="premium-button" class="button button-primary" type="button" disabled>Sign in for lifetime</button>
+          <button id="premium-button" class="button button-primary" type="button" disabled="">Sign in for lifetime</button>
           <small>Already monthly? After a successful lifetime upgrade, future monthly billing stops. Previous monthly payments are not automatically refunded or credited.</small>
         </article>
         </div>
-        <div class="billing-controls"><p id="premium-status" class="pricing-status" role="status" aria-live="polite">An account is required to connect your purchase securely.</p><button id="billing-manage" class="button button-secondary" type="button" hidden>Manage billing</button><button id="billing-refresh" class="button button-secondary" type="button" hidden>Retry billing check</button></div>
-      </section>
+        <div class="billing-controls"><p id="premium-status" class="pricing-status" role="status" aria-live="polite">An account is required to connect your purchase securely.</p><button id="billing-manage" class="button button-secondary" type="button" hidden="">Manage billing</button><button id="billing-refresh" class="button button-secondary" type="button" hidden="">Retry billing check</button></div>
+      </section></div></main>
 
-      <section class="final-cta section-shell"><p class="eyebrow">A ten-minute money check</p><h2>Keep what earns its place.</h2><p>Build your private audit and make the next renewal decision with better context.</p><a class="button button-primary" href="#audit">Start my free audit</a></section>
-
-      <section class="legal-note section-shell" aria-label="Important product notices">
-        <p>FeeVeto provides estimates based on the information you enter. It does not detect, manage, or cancel subscriptions and does not provide financial advice. Verify prices, renewal dates, features, and cancellation conditions directly with the relevant provider before making a decision.</p>
-        <p>FeeVeto is an independent subscription audit tool and is not affiliated with, sponsored by, or endorsed by any subscription provider. Third-party names are used only to identify services entered by users or relevant alternatives.</p>
-      </section>
-    </main>
-
-    <footer class="site-footer"><div class="section-shell footer-inner"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a><p>Keep, switch, or cancel with confidence.</p><nav aria-label="Footer"><a href="./privacy.html">Privacy</a><a href="https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions">Source</a><span>by asvenor</span></nav></div></footer>
+    <footer class="site-footer"><div class="section-shell footer-inner"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">FV</span><span>FeeVeto</span></a><p>Keep, switch, or cancel with confidence.</p><nav aria-label="Footer"><a href="#how-it-works">How it works</a><a href="#faq">Help</a><a href="#pricing">Premium</a><a href="./privacy.html">Privacy</a><a href="https://github.com/Asvenor/FeeVeto-Be-smarter-about-subscriptions">Source</a><span>by asvenor</span></nav></div></footer>
 
     <dialog id="clear-dialog" class="dialog confirm-dialog" aria-labelledby="clear-title"><form method="dialog"><h2 id="clear-title">Clear this audit?</h2><p>This removes every subscription from this browser. Export a backup first if you may need it later.</p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Keep my audit</button><button id="confirm-clear" class="button button-danger" value="confirm">Clear audit</button></div></form></dialog>
     <dialog id="guided-audit" class="dialog guided-dialog" aria-labelledby="guide-title" aria-describedby="guide-progress"><form id="guided-form"><div class="dialog-heading"><div><p id="guide-progress" class="eyebrow"></p><h2 id="guide-title" tabindex="-1"></h2></div><button id="guide-close" class="icon-button" type="button" aria-label="Close and keep my draft">×</button></div><div id="guide-content"></div><p id="guide-error" class="field-error" role="alert" tabindex="-1"></p><div class="guide-footer"><button id="guide-back" class="button button-secondary" type="button">Back</button><button id="guide-next" class="button button-primary" type="submit">Continue to my needs</button></div></form></dialog>
-    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden><span id="toast-message"></span><button id="toast-action" class="toast-action" type="button" hidden></button></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden=""><span id="toast-message"></span><button id="toast-action" class="toast-action" type="button" hidden=""></button></div>
     <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
     <script type="module" src="./js/app.js"></script>
-  </body>
-</html>
+
+
+</body></html>

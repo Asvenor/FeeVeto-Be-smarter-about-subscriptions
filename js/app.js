@@ -12,9 +12,11 @@ import { ORDINARY_ACCESS } from './access.js';
 import { initializeBilling } from './billing.js';
 import { initializeJourney } from './journey.js';
 import { journeyFromSubscription } from './journeyModel.js';
+import { initializeExperience, openDisclosures, revealContent } from './experience.js';
 
 document.title = `${APP_CONFIG.brandName} — ${APP_CONFIG.slogan}`;
 document.querySelector('meta[name="description"]')?.setAttribute('content', APP_CONFIG.description);
+initializeExperience(document);
 
 const byId = (id) => document.getElementById(id);
 const elements = {
@@ -112,6 +114,7 @@ function showErrors(errors) {
     elements.form.elements[field].setAttribute('aria-invalid', 'true');
     first ||= elements.form.elements[field];
   }
+  openDisclosures(first);
   first?.focus();
 }
 
@@ -262,6 +265,8 @@ function resetForm() {
   renderRequirementsForSelection();
   updateAdaptiveVisibility();
   clearErrors();
+  for (const detail of elements.form.querySelectorAll('details')) detail.open = false;
+  byId('show-entry').textContent = 'Add subscription +';
 }
 
 function populateReview(review) {
@@ -302,7 +307,11 @@ function beginEdit(id) {
   elements.formTitle.textContent = `Edit ${item.name}`;
   elements.cancelEdit.hidden = false;
   elements.editBadge.hidden = false;
-  byId('audit').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  byId('show-entry').textContent = 'Continue editing';
+  if (review) { byId('needs-disclosure').open = true; byId('switching-disclosure').open = true; }
+  if (item.renewalDate || item.cancellationUrl || typeof review?.activeContract === 'boolean') byId('billing-details').open = true;
+  revealContent('subscription-editor');
+  byId('subscription-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
   elements.form.elements.name.focus({ preventScroll: true });
 }
 
@@ -318,6 +327,7 @@ function applyRecognizedService(service, updateCategory = true) {
 }
 
 function focusResult(id) {
+  revealContent('results');
   const card = elements.list.querySelector(`[data-id="${CSS.escape(id)}"]`);
   card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   card?.focus({ preventScroll: true });
@@ -392,6 +402,7 @@ elements.form.addEventListener('submit', async (event) => {
     tab.setAttribute('aria-pressed', String(tab.dataset.filter === 'all'));
   }
   persist(); resetForm(); render();
+  byId('subscription-editor').open = false;
   showToast(`${item.name} ${editingId ? 'updated' : 'saved'} in this browser. Checking account save…`);
   announce(`${item.name} ${editingId ? 'updated' : 'saved'} in this browser and reviewed.`);
   void refreshAlternatives(item, true);
@@ -482,7 +493,7 @@ elements.currencyPreference.addEventListener('change', () => {
   showToast(`Examples and ${state.auditCurrency} dashboard totals updated. Alternatives are updating for that market. ${formNote} Existing prices were not converted.`);
 });
 
-elements.cancelEdit.addEventListener('click', () => { resetForm(); elements.form.elements.name.focus(); });
+elements.cancelEdit.addEventListener('click', () => { resetForm(); byId('subscription-editor').open = false; byId('show-entry').focus(); });
 elements.clearAll.addEventListener('click', () => elements.clearDialog.showModal());
 elements.confirmClear.addEventListener('click', () => {
   const previous = [...state.subscriptions];

@@ -1,6 +1,6 @@
 # FeeVeto
 
-See [the journey checkpoints](docs/JOURNEY-CHECKPOINTS.md) and [release instructions](docs/JOURNEY-RELEASE.md) for the latest implementation and validation. [The earlier polish report](docs/POLISH-QA.md) remains historical context.
+See [the local experience redesign](docs/experience-redesign.md) for the current workspace layout and its release boundaries. [The journey checkpoints](docs/JOURNEY-CHECKPOINTS.md), [journey release instructions](docs/JOURNEY-RELEASE.md) and [earlier polish report](docs/POLISH-QA.md) provide the preceding implementation history.
 
 **Keep, switch, or cancel with confidence.**
 
@@ -8,6 +8,7 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 
 ## Current features
 
+- Discover, My subscriptions and Saved audits workspace views, with retained form state and optional detail disclosures
 - Instant natural-language supported-service discovery with correctable interpretation, guest results, filters, and retry
 - Optional two-stage personalised audit with explicit unknowns, feature requirements, spending, and switching preferences
 - Explainable keep/downgrade/switch/cancel assessments with same-currency estimates and dated source evidence
@@ -33,9 +34,11 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 ## File structure
 
 ```text
-index.html                    One-page marketing, unified adaptive audit form, and results
+index.html                    Discover, subscriptions, saved audits, and supporting workspace views
 privacy.html                  Plain-language privacy overview
-style.css                     Light responsive visual system
+style.css                     Base responsive visual system
+experience.css                Green workspace layout and progressive-disclosure presentation
+js/experience.js              Hash navigation, view visibility, and disclosure/focus behavior
 js/app.js                     Browser events and application state coordination
 js/auth.js                    Clerk initialization and signed-in/signed-out navigation controls
 js/access.js                  Browser client for the server-verified access summary

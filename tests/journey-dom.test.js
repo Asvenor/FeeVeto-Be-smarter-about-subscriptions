@@ -166,7 +166,7 @@ const browserEntry = () => ({
 test('subscription save enters account list immediately; edits append to one audit and reload lists it', async () => {
   const env = await setup({ user: 'alice' });
   try {
-    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('Nothing saved to your account yet'));
     const item = browserEntry();
     await env.journey.saveSubscription(item);
     assert.match(env.byId('subscription-save-status').textContent, /Saved to your account and this browser/);
@@ -205,7 +205,7 @@ test('guest form save stays local; signing in never bulk uploads old entries', a
     env.clerk.user = { id: 'alice' };
     env.clerk.session = { getToken: async () => 'verified-test-session' };
     document.dispatchEvent(new CustomEvent('feeveto:access-change'));
-    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('Nothing saved to your account yet'));
     assert.equal(env.calls.filter((call) => call.path === '/api/audits' && call.body).length, 0);
   } finally { await env.cleanup(); }
 });
@@ -214,7 +214,7 @@ test('failed subscription save survives refresh and retries once without leaking
   let env = await setup({ user: 'alice' });
   let pending;
   try {
-    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('Nothing saved to your account yet'));
     env.setFailSave(true);
     await env.journey.saveSubscription(browserEntry());
     assert.match(env.byId('subscription-save-status').textContent, /account save did not finish/);
@@ -225,7 +225,7 @@ test('failed subscription save survives refresh and retries once without leaking
   } finally { await env.cleanup(); }
   env = await setup({ user: 'bob', subscriptionPending: pending });
   try {
-    await waitFor(() => env.byId('saved-audits-status').textContent.includes('No account audits'));
+    await waitFor(() => env.byId('saved-audits-status').textContent.includes('Nothing saved to your account yet'));
     assert.equal(env.byId('retry-subscription-save').hidden, true);
     assert.equal(env.calls.filter((call) => call.body).length, 0);
     env.clerk.user = { id: 'alice' };

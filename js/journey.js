@@ -23,6 +23,7 @@ import { initializeGuidedAudit } from "./guidedAudit.js";
 import { renderAssessment } from "./assessmentView.js";
 import { initializeSavedAudits } from "./savedAudits.js";
 import { initializeSubscriptionAccountSave } from "./subscriptionAccountSave.js";
+import { openDisclosures, revealContent } from "./experience.js";
 
 export function initializeJourney({ getClerk, getCurrency, storage }) {
   const byId = (id) => document.getElementById(id);
@@ -103,7 +104,9 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
         );
       byId("assessment-status").textContent =
         "Historical assessment. Use Reevaluate to check current information and save a new dated result.";
+      byId("retry-assessment").hidden = true;
       account.hideSave();
+      revealContent("personal-audit");
       byId("personal-audit-title").focus();
     },
   });
@@ -112,12 +115,18 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     getClerk, getCurrency, storage: tabStorage, onSaved: () => account.loadList(),
   });
 
-  function invalidateAssessment() {
+  function invalidateAssessment(message = 'Your answers changed. Refresh this review when you are ready; your answers are kept.') {
     assessmentRevision++;
     assessment = null;
-    byId("personal-audit").hidden = true;
+    account?.invalidatePresentation();
+    // Clear previous account data immediately, but leave an active review with a
+    // useful next action. Hiding only its child would strand the user in a blank view.
+    const activeReview = document.body.dataset.activeView === 'review';
+    byId("personal-audit").hidden = !activeReview;
     byId("personal-audit-content").replaceChildren();
     account?.hideSave();
+    byId("retry-assessment").hidden = !activeReview;
+    if (activeReview) byId("assessment-status").textContent = message;
   }
   async function runAssessment() {
     persist();
@@ -131,6 +140,8 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     byId("assessment-status").textContent =
       "Reviewing your answers and checked options…";
     byId("retry-assessment").hidden = true;
+    revealContent("personal-audit");
+    const navigationRevision = document.body.dataset.viewRevision;
     try {
       const { token } = await journeySession(getClerk);
       const value = await journeyRequest("assessment", { token, body: input });
@@ -149,7 +160,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       byId("assessment-status").textContent = error.message;
       byId("retry-assessment").hidden = false;
     }
-    if (revision === assessmentRevision) {
+    if (revision === assessmentRevision && navigationRevision === document.body.dataset.viewRevision) {
       byId("personal-audit").scrollIntoView({
         behavior: "smooth",
         block: "start",
@@ -164,6 +175,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
         "Your answers are available in this tab, but could not be saved on this device.";
   }
   function showUnderstood() {
+    byId("discover").hidden = false;
     correction.hidden = false;
     serviceSelect.value = draft.serviceId;
     typeSelect.value = draft.productType;
@@ -227,8 +239,10 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       );
     }
   }
-  async function runSearch({ focus = false } = {}) {
-    invalidateAssessment();
+  async function runSearch({ focus = false, invalidationMessage } = {}) {
+    if (focus) revealContent("discover");
+    const navigationRevision = document.body.dataset.viewRevision;
+    invalidateAssessment(invalidationMessage);
     showUnderstood();
     persist();
     requests.invalidateAll();
@@ -243,6 +257,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       };
       busy = false;
       renderResult();
+      if (focus) { openDisclosures(serviceSelect); serviceSelect.focus(); }
       return;
     }
     busy = true;
@@ -282,7 +297,7 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
         renderResult();
       }
     }
-    if (focus) {
+    if (focus && navigationRevision === document.body.dataset.viewRevision) {
       byId("discover").scrollIntoView({ behavior: "smooth", block: "start" });
       status.focus({ preventScroll: true });
     }
@@ -310,6 +325,8 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
       persist();
       renderResult();
       status.textContent = `Which subscription are you replacing: ${parsed.candidates.map((x) => x.name).join(" or ")}? Choose it above.`;
+      revealContent("discover");
+      openDisclosures(serviceSelect);
       serviceSelect.focus();
       return;
     }
@@ -374,7 +391,9 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     if (draft.amountMinor === null && !draft.currencyExplicit)
       draft.currency = lastCurrency;
     if (draft.budgetMinor === null) draft.budgetCurrency = lastCurrency;
-    if (draft.originalRequest || draft.productType) void runSearch();
+    const invalidationMessage = 'Display currency changed. Refresh this review for the new starting market. Your answers and original billing currency are kept.';
+    if (draft.originalRequest || draft.productType) void runSearch({ invalidationMessage });
+    else invalidateAssessment(invalidationMessage);
   });
   document.addEventListener("feeveto:access-change", () => {
     requests.invalidateAll();
@@ -382,7 +401,9 @@ export function initializeJourney({ getClerk, getCurrency, storage }) {
     busy = false;
     result = null;
     results.replaceChildren();
-    if (draft.productType) void runSearch();
+    const invalidationMessage = 'Account access changed. Earlier results were cleared. Refresh this review to check the information available to this account.';
+    if (draft.productType) void runSearch({ invalidationMessage });
+    else invalidateAssessment(invalidationMessage);
   });
   if (draft.originalRequest || draft.productType) showUnderstood();
   return {

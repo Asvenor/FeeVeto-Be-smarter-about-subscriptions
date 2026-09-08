@@ -30,8 +30,11 @@ export function initializeSavedAudits({
     currentOwner = "",
     owner = "",
     epoch = 0,
+    presentationRevision = 0,
     saving = false,
     loading = 0;
+  const presentationTicket = () => ({ revision: presentationRevision, navigation: document.body.dataset.viewRevision });
+  const canPresent = ticket => ticket.revision === presentationRevision && ticket.navigation === document.body.dataset.viewRevision && !byId('guided-audit')?.open;
   function storePending() {
     try {
       if (pending)
@@ -61,7 +64,7 @@ export function initializeSavedAudits({
       if (revision !== epoch) return;
       if (!user || !token) {
         byId("saved-audits-status").textContent =
-          "Sign in to open your account audits. Browser-saved subscriptions remain below.";
+          "Sign in to open your account audits. Device-only entries are in My subscriptions.";
         if (clerk) clerk.openSignIn();
         return;
       }
@@ -86,7 +89,7 @@ export function initializeSavedAudits({
       }
       byId("saved-audits-status").textContent = value.audits.length
         ? "Your account-owned audits. Opening history does not change it."
-        : "No account audits yet. Personalise a result, then choose Save this audit.";
+        : "Nothing saved to your account yet. Save and review a subscription while signed in, or save a personalised discovery result.";
       byId("saved-audits-more").hidden = value.nextOffset === null;
       byId("saved-audits-more").dataset.offset = value.nextOffset;
     } catch (error) {
@@ -95,6 +98,7 @@ export function initializeSavedAudits({
     }
   }
   function displayVersion(version) {
+    presentationRevision++;
     currentId = version.auditId;
     currentOwner = owner;
     label();
@@ -106,7 +110,8 @@ export function initializeSavedAudits({
   }
   async function openAudit(id, before) {
     const revision = epoch,
-      request = ++loading;
+      request = ++loading,
+      presentation = presentationTicket();
     try {
       const { token, user } = await session();
       if (revision !== epoch || !user) return;
@@ -115,6 +120,10 @@ export function initializeSavedAudits({
         { token },
       );
       if (revision !== epoch || request !== loading) return;
+      if (!canPresent(presentation)) {
+        byId("saved-audits-status").textContent = 'Your current page and draft were kept. Choose Open audit again when you want to view it.';
+        return;
+      }
       owner = user;
       if (!before) {
         history.replaceChildren();
@@ -144,7 +153,8 @@ export function initializeSavedAudits({
     saving = true;
     saveButton.disabled = true;
     const revision = epoch,
-      ticket = pending;
+      ticket = pending,
+      presentation = presentationTicket();
     try {
       const { clerk, user, token } = await session();
       if (revision !== epoch || pending !== ticket) return;
@@ -168,10 +178,21 @@ export function initializeSavedAudits({
       owner = user;
       message.textContent = "Saving a fresh, dated assessment to your account…";
       const value = await journeyRequest("audits", { token, body: ticket });
-      if (revision !== epoch || pending !== ticket) return;
-      clearPending();
-      displayVersion(value.saved);
+      if (revision !== epoch) return;
+      // The server may have saved successfully while the user began another draft.
+      // Refresh the list even then, without applying the old result to the new page.
       void loadList();
+      if (pending !== ticket) return;
+      clearPending();
+      if (canPresent(presentation)) displayVersion(value.saved);
+      else if (presentation.revision === presentationRevision) {
+        currentId = value.saved.auditId;
+        currentOwner = owner;
+        label();
+        saveButton.hidden = true;
+        byId("reevaluate-assessment").hidden = false;
+        message.textContent = 'Your assessment was saved. Open Saved audits when you want to view the dated result.';
+      } else message.textContent = 'The earlier assessment was saved to your account. Your current answers and page were kept.';
     } catch (error) {
       if (revision === epoch && pending === ticket) {
         onPending();
@@ -249,7 +270,9 @@ export function initializeSavedAudits({
   document.addEventListener("feeveto:access-change", () => void authChanged());
   void authChanged();
   return {
+    invalidatePresentation() { presentationRevision++; },
     draftChanged({ newAudit = false } = {}) {
+      presentationRevision++;
       clearPending();
       if (newAudit) {
         currentId = "";
