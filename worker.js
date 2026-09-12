@@ -33,9 +33,19 @@ const API_ROUTES = Object.freeze({
 });
 
 export async function handleWorkerRequest(request, env, executionContext, routes = API_ROUTES) {
-  const pathname = new URL(request.url).pathname;
+  const url = new URL(request.url);
+  const pathname = url.pathname;
   const handler = Object.hasOwn(routes, pathname) ? routes[pathname] : null;
   try {
+    // Match the request URL only, never caller-supplied forwarding headers.
+    // Keep workers.dev and local previews available for existing browser data.
+    if (url.hostname === 'www.feeveto.com' || (url.hostname === 'feeveto.com' && url.protocol === 'http:')) {
+      const canonical = new URL('https://feeveto.com');
+      canonical.pathname = url.pathname;
+      canonical.search = url.search;
+      return secureResponse(Response.redirect(canonical.href, 308));
+    }
+
     if (handler) {
       const blocked = await protectApiRequest(request, env);
       return secureResponse(blocked || await handler({

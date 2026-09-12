@@ -4,6 +4,21 @@ import { readFile } from 'node:fs/promises';
 
 const source = name => readFile(new URL(`../${name}`, import.meta.url), 'utf8');
 
+test('privacy publishes the confirmed operator and support contact without changing creator credit', async () => {
+  const privacy = await source('privacy.html');
+  assert.match(privacy, /<h2 id="operator-contact">Operator and contact<\/h2>/);
+  assert.match(privacy, /FeeVeto is operated by Edward Nyarko\./);
+  assert.match(privacy, /For support, privacy questions, or requests concerning your account data/);
+  assert.match(privacy, /<a href="mailto:inbox_business@outlook\.com">inbox_business@outlook\.com<\/a>/);
+  assert.match(privacy, /Account ownership must be verified before account data is provided or removed\./);
+  assert.doesNotMatch(privacy, /contact has not yet been provided|contact method and an account-data request process must be established/);
+  assert.match(privacy, /FeeVeto by asvenor/);
+  const readme = await source('README.md');
+  assert.match(readme, /confirmed operator is Edward Nyarko/);
+  assert.match(readme, /\[inbox_business@outlook\.com\]\(mailto:inbox_business@outlook\.com\)/);
+  assert.doesNotMatch(readme, /Public support\/privacy contact details are still required/);
+});
+
 test('CI retains the required quality job without publishing a second static site', async () => {
   const workflow = await source('.github/workflows/static.yml');
   assert.match(workflow, /name: Quality checks/);

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://feeveto.edward-nyarko.workers.dev/sitemap.xml
+Sitemap: https://feeveto.com/sitemap.xml

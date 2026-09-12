@@ -8,7 +8,7 @@ const root = new URL('../', import.meta.url);
 test('Public Beta metadata has a real social image and all six one-click examples', async () => {
   const html=await readFile(new URL('index.html',root),'utf8');
   assert.match(html,/Public Beta/); assert.match(html,/summary_large_image/);
-  assert.match(html,/property="og:image" content="https:\/\/feeveto\.edward-nyarko\.workers\.dev\/social-preview.png"/);
+  assert.match(html,/property="og:image" content="https:\/\/feeveto\.com\/social-preview.png"/);
   assert.equal([...html.matchAll(/data-example-intent=/g)].length,6);
   const image=await readFile(new URL('public/social-preview.png',root));
   assert.equal(image.subarray(1,4).toString(),'PNG'); assert.equal(image.readUInt32BE(16),1200); assert.equal(image.readUInt32BE(20),630);

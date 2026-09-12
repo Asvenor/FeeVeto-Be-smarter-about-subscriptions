@@ -1,6 +1,8 @@
 # FeeVeto
 
-Start with [the launch-readiness report](docs/LAUNCH-READINESS.md) for the current launch gate, required operator/domain decisions, production setup and rollback procedure. See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches and discount controls. Dated journey, polish and hardening reports preserve historical evidence; they are not statements of today's deployment status.
+Production domain: [feeveto.com](https://feeveto.com/). Start with [the current production-domain release evidence](docs/PRODUCTION-DOMAIN.md) for the deployed version, email-only Production authentication, verified account save/reopen/sign-out flow, remaining access-role checks and rollback boundaries. Google and Apple remain disabled, as do purchases. The canonical URLs, crawler metadata and social previews use this domain.
+
+The earlier [launch-readiness report](docs/LAUNCH-READINESS.md) preserves the pre-domain readiness baseline and remaining broader review requirements; it is not the current deployment status. Domain routing alone does not verify production authentication or all launch gates. See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches and discount controls. Dated journey, polish and hardening reports preserve historical evidence; they are not statements of today's deployment status.
 
 **Keep, switch, or cancel with confidence.**
 
@@ -221,6 +223,8 @@ Use fictional subscription information during testing.
 
 ### One production host: Cloudflare Workers
 
+The public production origin is `https://feeveto.com`. Connect this custom domain to the existing `feeveto` Worker so the frontend and protected `/api/*` endpoints share that origin. Keep public links, canonical metadata, social previews, `robots.txt` and `sitemap.xml` on this domain, not the former `workers.dev` address.
+
 The repository workflow installs locked dependencies and runs `npm run check` (tests and the production build) on pull requests and `main`. Its required job remains **Quality checks**. GitHub Actions does not publish a second static site. Cloudflare's Git integration is the production deployment path and must track `main` only.
 
 The old GitHub Pages publishing job has been removed because a static copy cannot serve FeeVeto's same-origin backend. If a prior Pages site is still published, the owner should unpublish it in repository **Settings → Pages** after confirming the Cloudflare URL. Removing the workflow does not itself remove a past deployment. No repository history needs deletion. [GitHub's unpublishing instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/unpublishing-a-github-pages-site)
@@ -242,14 +246,16 @@ FeeVeto uses a module Worker so the protected Clerk/KV endpoints and static Vite
 11. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
 12. After review and explicit release approval, deploy and test authentication, all four access states, catalogue filtering, account saving, module paths, privacy links, feedback and consent-based analytics on the approved custom domain. Confirm purchases remain disabled. Do not replace healthy catalogue data or reapply migrations just to launch.
 
-The current `workers.dev` URL is not the requested final custom domain. The owner must choose a domain and supply public operator/support details; never infer them from account credentials. Configure Clerk Production and migrate identity ownership deliberately before inviting strangers. The [launch report](docs/LAUNCH-READINESS.md) records these blockers, exact setup steps and the stable rollback point. A Worker rollback does not undo KV/D1 changes: retain additive tables and new user data, and never restore an old database merely to roll back code.
+The owner selected `feeveto.com`; its Cloudflare custom-domain routing, HTTPS and matching Clerk Production keys are now configured. A real Production account session, account save/reopen after refresh, and sign-out were verified; the Production owner/beta/cross-account matrix and further retry/re-login checks remain outstanding. See the [current release report](docs/PRODUCTION-DOMAIN.md) for the exact evidence and limits. The confirmed operator is Edward Nyarko, with public support/privacy contact [inbox_business@outlook.com](mailto:inbox_business@outlook.com). Account-data requests are handled through this contact and require verified account ownership; there is no self-service account-history export/deletion interface. Publishing these details does not by itself establish legal compliance. Production accounts are separate from Development accounts: no identities, roles or saved-account history have been reassigned. Any later migration needs an explicit ownership-verified plan. The [launch report](docs/LAUNCH-READINESS.md) preserves the pre-domain readiness baseline, setup steps and stable rollback point; verify any remaining gates against the current deployment. A Worker rollback does not undo KV/D1 changes: retain additive tables and new user data, and never restore an old database merely to roll back code.
+
+Browser-local subscriptions, currency preferences and unfinished drafts belong to their original origin and do not automatically transfer to `feeveto.com`. Keep the former Worker origin reachable until existing users can export their local subscriptions there and import that backup on the new domain. Do not automatically redirect away from their only accessible copy. This local export does not migrate Clerk identities or account-saved assessments; those need a separate verified ownership plan.
 
 For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, run `npm run build`, then run `npx wrangler dev`. Put only fictional data in shared development fixtures.
 
 ### Assigning owner and beta access in Clerk
 
-1. Open the Clerk Dashboard and select the FeeVeto application.
-2. Open **Users**, then select the account by its email address.
+1. Open the Clerk Dashboard, select the FeeVeto application, and select **Production** for accounts registered on `feeveto.com`.
+2. Have the person register and verify their email on `feeveto.com`, then open **Users** and verify the intended account's email and user ID. Development accounts and their roles do not transfer automatically.
 3. Open the user’s **Metadata** section and locate **Private metadata**. Do not use Public metadata or Unsafe metadata.
 4. For the owner account, save `{ "role": "admin", "betaAccess": false }`.
 5. For a friend who is a beta tester, save `{ "role": "user", "betaAccess": true }`.
