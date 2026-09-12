@@ -1,6 +1,11 @@
 {
   "name": "feeveto",
   "main": "worker.js",
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "feeveto.com", "custom_domain": true },
+    { "pattern": "www.feeveto.com", "custom_domain": true }
+  ],
   "compatibility_date": "2026-09-07",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,

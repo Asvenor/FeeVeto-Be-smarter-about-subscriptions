@@ -1,6 +1,8 @@
 # FeeVeto
 
-Start with [the launch-readiness report](docs/LAUNCH-READINESS.md) for the current launch gate, required operator/domain decisions, production setup and rollback procedure. See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches and discount controls. Dated journey, polish and hardening reports preserve historical evidence; they are not statements of today's deployment status.
+Production domain: [feeveto.com](https://feeveto.com/). The owner has selected this domain; the canonical URLs, crawler metadata and social previews use it.
+
+Start with [the launch-readiness report](docs/LAUNCH-READINESS.md) for the dated readiness baseline, required operator details, production setup and rollback procedure. Domain registration alone does not verify routing, authentication or remaining launch gates. See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches and discount controls. Dated journey, polish and hardening reports preserve historical evidence; they are not statements of today's deployment status.
 
 **Keep, switch, or cancel with confidence.**
 
@@ -221,6 +223,8 @@ Use fictional subscription information during testing.
 
 ### One production host: Cloudflare Workers
 
+The public production origin is `https://feeveto.com`. Connect this custom domain to the existing `feeveto` Worker so the frontend and protected `/api/*` endpoints share that origin. Keep public links, canonical metadata, social previews, `robots.txt` and `sitemap.xml` on this domain, not the former `workers.dev` address.
+
 The repository workflow installs locked dependencies and runs `npm run check` (tests and the production build) on pull requests and `main`. Its required job remains **Quality checks**. GitHub Actions does not publish a second static site. Cloudflare's Git integration is the production deployment path and must track `main` only.
 
 The old GitHub Pages publishing job has been removed because a static copy cannot serve FeeVeto's same-origin backend. If a prior Pages site is still published, the owner should unpublish it in repository **Settings → Pages** after confirming the Cloudflare URL. Removing the workflow does not itself remove a past deployment. No repository history needs deletion. [GitHub's unpublishing instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/unpublishing-a-github-pages-site)
@@ -242,7 +246,9 @@ FeeVeto uses a module Worker so the protected Clerk/KV endpoints and static Vite
 11. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
 12. After review and explicit release approval, deploy and test authentication, all four access states, catalogue filtering, account saving, module paths, privacy links, feedback and consent-based analytics on the approved custom domain. Confirm purchases remain disabled. Do not replace healthy catalogue data or reapply migrations just to launch.
 
-The current `workers.dev` URL is not the requested final custom domain. The owner must choose a domain and supply public operator/support details; never infer them from account credentials. Configure Clerk Production and migrate identity ownership deliberately before inviting strangers. The [launch report](docs/LAUNCH-READINESS.md) records these blockers, exact setup steps and the stable rollback point. A Worker rollback does not undo KV/D1 changes: retain additive tables and new user data, and never restore an old database merely to roll back code.
+The owner has selected `feeveto.com`; configure and verify its Cloudflare custom-domain route, HTTPS certificate and matching Clerk Production instance before treating the domain migration as complete. The confirmed operator is Edward Nyarko, with public support/privacy contact [inbox_business@outlook.com](mailto:inbox_business@outlook.com). Account-data requests are handled through this contact and require verified account ownership; there is no self-service account-history export/deletion interface. Publishing these details does not by itself establish legal compliance. Configure Clerk Production and migrate identity ownership deliberately before inviting strangers. The [launch report](docs/LAUNCH-READINESS.md) preserves the pre-domain readiness baseline, setup steps and stable rollback point; verify any remaining gates against the current deployment. A Worker rollback does not undo KV/D1 changes: retain additive tables and new user data, and never restore an old database merely to roll back code.
+
+Browser-local subscriptions, currency preferences and unfinished drafts belong to their original origin and do not automatically transfer to `feeveto.com`. Keep the former Worker origin reachable until existing users can export their local subscriptions there and import that backup on the new domain. Do not automatically redirect away from their only accessible copy. This local export does not migrate Clerk identities or account-saved assessments; those need a separate verified ownership plan.
 
 For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, run `npm run build`, then run `npx wrangler dev`. Put only fictional data in shared development fixtures.
 
