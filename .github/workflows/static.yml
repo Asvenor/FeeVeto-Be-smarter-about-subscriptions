@@ -1,4 +1,4 @@
-name: Test and deploy FeeVeto
+name: FeeVeto quality checks
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: "pages-${{ github.ref }}"
+  group: "quality-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -30,45 +30,3 @@ jobs:
         run: npm ci
       - name: Run automated checks
         run: npm run check
-
-  deploy:
-    name: Deploy to GitHub Pages
-    if: github.event_name != 'pull_request'
-    needs: quality
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Validate Clerk configuration
-        env:
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
-        run: test -n "$VITE_CLERK_PUBLISHABLE_KEY"
-      - name: Build public site
-        env:
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
-        run: npm run build
-      - name: Set up Pages
-        uses: actions/configure-pages@v6
-      - name: Prepare public site
-        run: cp robots.txt sitemap.xml dist/
-      - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: "dist"
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v5

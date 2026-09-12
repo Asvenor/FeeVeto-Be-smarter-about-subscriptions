@@ -1,11 +1,11 @@
 import { APP_CONFIG } from './config.js';
 import { fromMinorUnits } from './calculations.js';
 import { fillCurrencyOptions, renderIllustrativeMoney, shouldApplyCurrencyDefault, validCurrencyPreference } from './currencyPreference.js';
-import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider, recommendationRequestFor } from './alternativeProvider.js';
+import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider, alternativeUpdateAnnouncement, recommendationRequestFor } from './alternativeProvider.js';
 import { buildDetailedReview, categoryForProductType, upsertSubscription } from './formModel.js';
 import { renderDashboard } from './render.js';
 import { detectSupportedService, matchingProfileFor, PRODUCT_TYPES, serviceById, supportedServiceFor, SUPPORTED_SERVICES } from './serviceCatalog.js';
-import { loadState, normalizeSubscription, parseImportedState, saveState } from './storage.js';
+import { loadState, normalizeSubscription, readImportedFile, saveState } from './storage.js';
 import { createId, validateSubscriptionInput } from './validation.js';
 import { initializeAuth } from './auth.js';
 import { initializeAnalytics } from './analytics.js';
@@ -375,7 +375,7 @@ async function refreshAlternatives(item, focus = false) {
   const resultHadFocus = document.activeElement === elements.list.querySelector(`[data-id="${CSS.escape(item.id)}"]`);
   render();
   if (resultHadFocus) elements.list.querySelector(`[data-id="${CSS.escape(item.id)}"]`)?.focus({ preventScroll: true });
-  announce('Alternatives updated. Your subscription is saved.');
+  announce(alternativeUpdateAnnouncement(alternativeResults.get(item.id)));
 }
 
 elements.form.addEventListener('submit', async (event) => {
@@ -517,7 +517,7 @@ elements.importFile.addEventListener('change', async () => {
   elements.importFile.value = '';
   if (!file) return;
   try {
-    const imported = parseImportedState(await file.text());
+    const imported = await readImportedFile(file);
     if (!window.confirm(`Replace this audit with ${imported.subscriptions.length} subscriptions from the selected backup?`)) return;
     state = imported;
     invalidateAllAlternativeRequests();

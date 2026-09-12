@@ -1,5 +1,7 @@
 # FeeVeto intent-to-audit checkpoints
 
+Historical implementation evidence from September 7, 2026, not the current launch checklist. See [launch readiness](LAUNCH-READINESS.md) for current deployment, verification and remaining blockers.
+
 ## Phase 0 — Baseline (passed, September 7, 2026)
 
 - Base: `6b27309`, containing the local payment implementation and currency-market change; latest `origin/main` remains `411e151`. Working tree was clean. Work continues on `feature/intent-audit-experience` without rewriting either branch.

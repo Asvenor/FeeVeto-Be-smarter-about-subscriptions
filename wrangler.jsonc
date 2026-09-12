@@ -7,7 +7,11 @@
   "observability": { "enabled": true, "head_sampling_rate": 0.1, "redact_query_string": true, "logs": { "enabled": true, "invocation_logs": false } },
   "vars": { "PRODUCT_ANALYTICS_ENABLED": "true" },
   "analytics_engine_datasets": [{ "binding": "FEEVETO_EVENTS", "dataset": "feeveto_product_events" }],
-  "ratelimits": [{ "name": "FEEVETO_EVENT_LIMIT", "namespace_id": "260908001", "simple": { "limit": 60, "period": 60 } }],
+  "ratelimits": [
+    { "name": "FEEVETO_EVENT_LIMIT", "namespace_id": "260908001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "FEEVETO_API_LIMIT", "namespace_id": "260912001", "simple": { "limit": 120, "period": 60 } },
+    { "name": "FEEVETO_WRITE_LIMIT", "namespace_id": "260912002", "simple": { "limit": 20, "period": 60 } }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

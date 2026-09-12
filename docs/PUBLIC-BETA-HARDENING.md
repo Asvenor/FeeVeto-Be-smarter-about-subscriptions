@@ -1,6 +1,8 @@
 # Public Beta hardening — review release
 
-Not deployed or merged. Payments must remain disabled. This pass polishes the existing product rather than replacing its architecture or expanding its catalogue.
+Historical review record from September 8, 2026. The implementation was subsequently merged and deployed; statements below about pending deployment, old versions and test coverage describe that checkpoint, not today's production state. Use [launch readiness](LAUNCH-READINESS.md) for the current release gate and rollback point. Payments remain disabled.
+
+At the time of this review, the changes were not deployed or merged. The pass polished the existing product rather than replacing its architecture or expanding its catalogue.
 
 ## Baseline recorded before editing — 8 September 2026
 

@@ -16,7 +16,7 @@ async function call(path, body) {
   });
   return { status: response.status, body: await response.json() };
 }
-for (const service of ["netflix", "canva", "dropbox"]) {
+for (const service of ["canva", "netflix", "chatgpt", "claude", "photoshop", "dropbox"]) {
   const initial = await call("/api/alternatives/recommendations", {
     serviceId: service,
     marketCurrency: "USD",
@@ -29,6 +29,10 @@ for (const service of ["netflix", "canva", "dropbox"]) {
   assert.ok(
     initial.body.items.every((item) => item.pricingModel !== "free"),
     "No restricted free records for guests",
+  );
+  assert.ok(
+    initial.body.items.every((item) => item.feeVetoMatch?.score === null),
+    "Sparse answers must not produce a precise personal score",
   );
   const { draft } = parseIntent(`${service} is too expensive`);
   const assessment = await call("/api/assessment", {

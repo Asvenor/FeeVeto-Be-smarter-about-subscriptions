@@ -21,6 +21,12 @@ export class AlternativeRequestError extends Error {
   }
 }
 
+export function alternativeUpdateAnnouncement(result) {
+  return result?.status === 'error'
+    ? result.message || 'Alternatives could not be loaded. Your subscription is saved. Please retry.'
+    : 'Alternatives updated. Your subscription is saved.';
+}
+
 export class AlternativeRequestTracker {
   constructor() {
     this.epoch = 0;

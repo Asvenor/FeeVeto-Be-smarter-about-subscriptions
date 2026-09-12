@@ -1,5 +1,7 @@
 # Catalogue expansion — approved live publication
 
+Historical catalogue publication record, not today's Worker release identity. Keep its private backups and provenance. See [launch readiness](LAUNCH-READINESS.md) for current verification and the stable code rollback point.
+
 Published September 7, 2026, after the owner approved backing up/replacing the
 live catalogue and deploying the country-list fix. No GitHub merge, payment
 activation, account-data migration or new database was performed.

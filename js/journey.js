@@ -383,9 +383,21 @@ export function initializeJourney({ getClerk, getSearchClerk = getClerk, getCurr
       country.reportValidity();
       return;
     }
+    // Correcting the inferred intent must also release an inferred free-only
+    // filter. Merely correcting country/platform must keep explicit preferences.
+    const changedIntent = motivation.value !== draft.motivation;
+    let pricePreferences = {};
+    if (changedIntent && motivation.value === 'free') {
+      pricePreferences = { includeFree: true, includePaid: false };
+      filter = 'free';
+    } else if (changedIntent && (draft.motivation === 'free' || filter === 'free')) {
+      pricePreferences = { includeFree: null, includePaid: null };
+      filter = 'all';
+    }
     draft = normalizeJourneyDraft(
       {
         ...draft,
+        ...pricePreferences,
         motivation: motivation.value,
         country: country.value,
         platform: byId("intent-platform").value,

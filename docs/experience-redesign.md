@@ -1,5 +1,7 @@
 # FeeVeto experience redesign
 
+Historical design/release notes. The layout description remains current; deployment identities and verification below describe that release. See [launch readiness](LAUNCH-READINESS.md) for today's production checks and remaining blockers.
+
 Status: redesign and [owner controls](OWNER-CONTROLS.md) are published on the live FeeVeto Worker. See that release record for the deployed version and independent live verification. The historical checks below remain local evidence. Payments are on hold; publishing the design did not activate payments.
 
 ## A clearer workspace

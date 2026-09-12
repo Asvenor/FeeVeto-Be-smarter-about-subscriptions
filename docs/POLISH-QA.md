@@ -1,5 +1,7 @@
 # FeeVeto polish and QA — 7 September 2026
 
+Historical QA evidence. Branches, dependencies, deployment state and test counts below describe this dated pass and may have been superseded. See [launch readiness](LAUNCH-READINESS.md) for current verification and remaining blockers.
+
 ## Scope and baseline
 
 Repository: Asvenor/FeeVeto-Be-smarter-about-subscriptions. Branch `fix/feeveto-polish` was created from fetched `origin/main` (`60c9248`). The working tree was clean. Still-unmerged PR #16's partial-information fix (`473615a`) was carried forward as `ce37eb0`; its original branch remains untouched. This PR therefore includes that fix and should be reviewed with #16 in mind, not treated as an independent second implementation of it.

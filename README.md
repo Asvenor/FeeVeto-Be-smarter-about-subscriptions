@@ -1,6 +1,6 @@
 # FeeVeto
 
-See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches, discount drafts and release boundaries. [The journey checkpoints](docs/JOURNEY-CHECKPOINTS.md), [journey release instructions](docs/JOURNEY-RELEASE.md) and [earlier polish report](docs/POLISH-QA.md) provide the preceding implementation history.
+Start with [the launch-readiness report](docs/LAUNCH-READINESS.md) for the current launch gate, required operator/domain decisions, production setup and rollback procedure. See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches and discount controls. Dated journey, polish and hardening reports preserve historical evidence; they are not statements of today's deployment status.
 
 **Keep, switch, or cancel with confidence.**
 
@@ -24,7 +24,7 @@ FeeVeto is a private subscription audit. It helps people understand recurring co
 - Add, edit, delete, clear, filter, and search controls
 - JSON backup export and import
 - Optional Clerk sign-up, sign-in, profile management, and sign-out controls
-- Stripe Checkout for $2.99 USD/month or $49.99 USD lifetime Premium, with server-verified access and self-service billing
+- Implemented but launch-disabled Stripe Checkout for $2.99 USD/month or $49.99 USD lifetime Premium, with server-verified access and self-service billing
 - Signed Stripe webhook fulfillment backed by a Cloudflare D1 entitlement record
 - Curated matching for six launch subscriptions plus verified additional product types
 - Server-side product-type and requirement matching with protected free-plan records
@@ -87,7 +87,7 @@ Potential savings totals include only strong cancellation candidates. They do no
 
 FeeVeto stores its versioned state under `feeveto_state_v2`. The state contains one global display-currency preference and subscriptions, including each entry's original billing currency and optional adaptive-form answers. The existing `auditCurrency` field remains the persisted preference name for backup compatibility. New visitors default to USD. Existing valid preferences, imported backups, legacy preferences, saved amounts, and saved billing currencies are preserved. Browser storage can be unavailable or corrupted, so reads and writes are guarded; the page remains usable and explains when changes may not persist.
 
-Product measurement is optional and off by default. First-party events use a strict non-sensitive allowlist; inline feedback sends only an explicit choice, fixed reason and known service/context. Browser privacy signals disable both. See [Public Beta hardening](docs/PUBLIC-BETA-HARDENING.md) for the event schema, scoring model, setup, verification and launch gaps. These changes are a review release, not a production deployment.
+Product measurement is optional and off by default. First-party events use a strict non-sensitive allowlist; inline feedback sends only an explicit choice, fixed reason and known service/context. Browser privacy signals disable both. See [Public Beta hardening](docs/PUBLIC-BETA-HARDENING.md) for the event schema and scoring model, and [launch readiness](docs/LAUNCH-READINESS.md) for current verification and remaining gaps. Analytics and feedback are implemented; sign-up button clicks are measured, not completed registrations or unique-user conversion.
 
 Alternative-matching requests send structured requirements, not the local name, bill amount, notes, totals, or full list. Instant discovery also sends optional budget, switching tolerance, and market context. Personal assessment additionally sends the original request, current spending, and guided answers for server calculation. Save this audit, or Save and review while signed in, explicitly stores the selected entry's assessment in D1. Private notes stay local. Guest saves remain browser-only; sign-in alone never uploads earlier entries. See [journey release notes](docs/JOURNEY-RELEASE.md) for privacy, storage, and verification boundaries.
 
@@ -105,7 +105,7 @@ The Cloudflare Worker verifies each Clerk session before reading access settings
 - `{ "role": "user", "betaAccess": true }` grants complimentary premium access without admin privileges.
 - `{ "role": "user", "betaAccess": false }`, missing metadata, or invalid values grant ordinary unpaid access.
 
-The browser receives a small access summary, not the raw private metadata. `/api/premium/status` checks premium permission before responding, and `/api/admin/status` checks admin permission. These endpoints are guard examples for future protected features; no admin dashboard is included. The free audit remains public and does not call either protected endpoint.
+The browser receives a small access summary, not the raw private metadata. `/api/premium/status` checks premium permission before responding, and `/api/admin/status` checks admin permission. The existing Owner panel uses separately protected settings and discount endpoints; only a server-verified admin may use them. The free audit remains public and does not call either protected status endpoint.
 
 Paid access remains deliberately separate from Clerk beta/admin metadata. The Worker looks up an active Stripe-backed entitlement in the `FEEVETO_BILLING` D1 database. A browser flag, request body, public Clerk metadata, or an unverified redirect can never grant premium access.
 
@@ -113,7 +113,7 @@ Never use `publicMetadata`, `unsafeMetadata`, request bodies, or local storage a
 
 ## Payments
 
-FeeVeto Premium offers $2.99 USD/month or $49.99 USD once for lifetime access. Both unlock the same features for one signed-in Clerk account. The site's display currency still controls examples, new audit entries, and market hints; it does not convert these purchase prices. Checkout is disabled unless explicitly configured. Local and sandbox checkout use test credentials and a visible test-mode notice.
+New purchases are disabled for this Public Beta. The implemented future plans are $2.99 USD/month or $49.99 USD once for lifetime access, with the same features for one signed-in Clerk account. The site's display currency still controls examples, new audit entries, and market hints; it does not convert these purchase prices. Keep the server launch gate `BILLING_ENABLED=false`. A configured billing mode or owner purchase switch cannot override that gate. Local and sandbox checkout use test credentials and a visible test-mode notice; live payment activation requires separate approval.
 
 The Worker verifies Clerk identity, selects an approved Stripe price, and reserves one checkout per account. A redirect never grants access: signed Stripe webhooks and server reconciliation verify the payment, product, mode and account ownership. Monthly access requires a verified paid invoice and expires at its paid-through date. Lifetime purchases are separate grants. Full refunds revoke only the matching purchase or invoice grant, including when refund notifications arrive first. Card data stays at Stripe.
 
@@ -177,18 +177,18 @@ All current outbound actions use the verified `officialUrl` directly with `rel="
 
 ## Run locally
 
-Install dependencies, then start the Vite development server:
+Use a Node.js version supported by `package.json` (22.22.2+, 24.15.0+, or 26+) and install the locked dependencies. Vite alone previews the interface, not the account or alternatives APIs:
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
-Open the local address Vite prints, normally `http://127.0.0.1:5173`. Clerk authentication requires `VITE_CLERK_PUBLISHABLE_KEY` in an ignored `.env.local` file.
+Open the local address Vite prints, normally `http://127.0.0.1:5173`. Clerk authentication requires `VITE_CLERK_PUBLISHABLE_KEY` in an ignored `.env.local` file. For a working full-stack preview, follow the [local Worker instructions](docs/JOURNEY-RELEASE.md#local-preview) using development credentials and isolated local storage, never production D1 for test payments.
 
 ## Run tests
 
-Node.js 20 or newer is required.
+Use the Node.js versions specified in `package.json`; Node.js 20 is not supported by the current dependencies.
 
 ```sh
 npm run check
@@ -212,35 +212,37 @@ The command checks browser and backend modules, validates the fictional public f
 12. Test keyboard navigation, validation focus, result focus, and visible focus styles.
 13. Check widths around 375, 768, 1024, and 1440 pixels for overflow.
 14. Test signed-out, ordinary, beta, and admin accounts and confirm the catalogue access restrictions remain server-controlled.
-15. In Stripe test mode, sign in as an ordinary account and open checkout in each currency. Complete one test payment and confirm premium activates only after the signed webhook; repeat a delivered event and confirm no duplicate entitlement appears.
-16. Confirm an owner, beta tester, and already-paid account cannot start another checkout. Test a full sandbox refund and confirm only its matching paid entitlement is revoked.
+15. Payment verification is separate from free-beta launch: in an isolated Stripe sandbox, sign in as an ordinary account and test the fixed USD monthly and lifetime prices. Display-currency changes must not relabel them. Confirm premium activates only after verified server fulfillment; replay a delivered event and confirm no duplicate entitlement appears.
+16. Confirm owner/beta accounts cannot buy, lifetime buyers cannot buy again, and monthly buyers may intentionally upgrade to lifetime without creating duplicate monthly subscriptions. Test a full sandbox refund and confirm only its matching paid entitlement is revoked. See the complete [billing lifecycle matrix](docs/BILLING.md) before any commercial release.
 
 Use fictional subscription information during testing.
 
 ## Deployment
 
-### GitHub Pages
+### One production host: Cloudflare Workers
 
-The repository workflow installs locked dependencies and runs the full test and production-build suite for pull requests and `main`. After checks pass on `main`, it builds the Vite application and publishes only `dist`, plus the robots and sitemap files.
+The repository workflow installs locked dependencies and runs `npm run check` (tests and the production build) on pull requests and `main`. Its required job remains **Quality checks**. GitHub Actions does not publish a second static site. Cloudflare's Git integration is the production deployment path and must track `main` only.
 
-Before deployment, create the repository Actions variable `VITE_CLERK_PUBLISHABLE_KEY` with FeeVeto’s Clerk publishable key. Publishable keys are intended for browser use; never configure `CLERK_SECRET_KEY` in the frontend or Pages build.
+The old GitHub Pages publishing job has been removed because a static copy cannot serve FeeVeto's same-origin backend. If a prior Pages site is still published, the owner should unpublish it in repository **Settings → Pages** after confirming the Cloudflare URL. Removing the workflow does not itself remove a past deployment. No repository history needs deletion. [GitHub's unpublishing instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/unpublishing-a-github-pages-site)
 
 ### Cloudflare Workers
 
 FeeVeto uses a module Worker so the protected Clerk/KV endpoints and static Vite assets run on the same origin. The previously used assets-only deploy command is insufficient because assets-only Workers cannot receive runtime secrets or bindings.
 
-1. Keep the existing Git-connected Worker named `feeveto`.
-2. Use `npm run build` as the build command and `npx wrangler deploy` as the deploy command.
+1. Keep the existing Git-connected Worker named `feeveto`, with production branch `main`. Do not enable feature-branch deployments against production storage.
+2. Install from the lockfile with `npm ci`; use `npm run build` as the build command and `npx wrangler deploy` as the deploy command. Cloudflare deploys only the reviewed commit after it reaches `main`; this document does not authorize a merge or deployment.
 3. Use a Node.js version supported by `package.json` (22.22.2+, 24.15.0+, or 26+) and add `VITE_CLERK_PUBLISHABLE_KEY` as a build variable.
 4. Keep `worker.js` and `wrangler.jsonc` at the repository root. The Worker routes `/api/*` through the existing protected handlers and delegates all other requests to the `ASSETS` binding.
 5. The versioned `wrangler.jsonc` connects `FEEVETO_ALTERNATIVES` to the dedicated `feeveto-alternatives` KV namespace. If a separate Preview Worker is added later, give it a separate namespace instead of sharing production catalogue state.
 6. The same file binds `FEEVETO_BILLING` to the dedicated `feeveto-billing` D1 database. Back up, review and apply pending migrations (including `0004_monthly_lifetime_billing.sql` and `0005_owner_controls.sql`) to the intended environment before deploying dependent code. Use separate local/test storage; never use the production D1 binding for sandbox payments.
 7. Add `CLERK_PUBLISHABLE_KEY` as a runtime variable and `CLERK_SECRET_KEY` as an encrypted runtime secret. The publishable values may be the same key; the secret key must never enter Vite or a tracked file.
-8. Configure `BILLING_MODE`, `BILLING_ENABLED`, `STRIPE_MONTHLY_PRICE_ID`, `STRIPE_LIFETIME_PRICE_ID`, and `STRIPE_PORTAL_CONFIGURATION_ID` as runtime variables. Store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` only as encrypted Worker secrets. Keep existing approved price IDs in the same-mode legacy allowlist. See `docs/BILLING.md` for exact prices and portal settings.
-9. Register the intended environment's `/api/billing/webhook` in Stripe with the complete event list in `docs/BILLING.md`. Store its signing secret securely; never paste it into chat, Vite variables, or a tracked file. Local Stripe forwarding uses its own signing secret, not the deployed endpoint's secret.
+8. For this free beta, preserve `BILLING_ENABLED=false`; no new Stripe products, secrets or payment configuration are needed. Before a separately approved commercial release, configure same-mode prices, portal, encrypted Stripe secrets and signed webhook delivery using [billing setup](docs/BILLING.md). Never copy sandbox credentials or data into production.
+9. Keep `PRODUCT_ANALYTICS_ENABLED=true`, the `FEEVETO_EVENTS` Analytics Engine binding and `FEEVETO_EVENT_LIMIT` rate-limiter binding as documented in `wrangler.jsonc`. Analytics Engine must be enabled on the account before deploying this binding. This enables the endpoint, not visitor consent. Preserve dashboard-managed variables with `keep_vars=true` and retain existing runtime secrets.
 10. Optionally add `CLERK_AUTHORIZED_PARTIES` as a comma-separated runtime variable for additional trusted frontend origins. The current request origin is always included automatically.
 11. Validate the ignored private file, test it against development storage, then explicitly import it to KV with the documented `catalogue:publish` command. The JSON root must contain `{"schemaVersion":2,"offers":[...]}` and the stored key is `catalogue:v2`.
-12. Deploy and test authentication, all four access states, checkout, signed webhook fulfillment, refund handling, catalogue filtering, storage, module paths, and privacy links on the final domain.
+12. After review and explicit release approval, deploy and test authentication, all four access states, catalogue filtering, account saving, module paths, privacy links, feedback and consent-based analytics on the approved custom domain. Confirm purchases remain disabled. Do not replace healthy catalogue data or reapply migrations just to launch.
+
+The current `workers.dev` URL is not the requested final custom domain. The owner must choose a domain and supply public operator/support details; never infer them from account credentials. Configure Clerk Production and migrate identity ownership deliberately before inviting strangers. The [launch report](docs/LAUNCH-READINESS.md) records these blockers, exact setup steps and the stable rollback point. A Worker rollback does not undo KV/D1 changes: retain additive tables and new user data, and never restore an old database merely to roll back code.
 
 For local Worker testing, copy `.dev.vars.example` to the ignored `.dev.vars`, add development credentials, run `npm run build`, then run `npx wrangler dev`. Put only fictional data in shared development fixtures.
 
@@ -272,7 +274,7 @@ Do not add payment, analytics, or API credentials to frontend files.
 - Real catalogue records require the private Cloudflare KV binding and are intentionally absent from Git
 - Cost-per-use is an estimate based on a frequency range
 - Recommendations depend on the accuracy and completeness of user-entered answers
-- Stripe is configured only in sandbox until the live account name, business details, tax obligations, customer support details, legal terms, and refund policy are reviewed
+- New purchases remain disabled; Stripe sandbox verification is separate from production activation, regardless of the configured runtime mode. Required seller/purchase information and lifecycle verification must be complete before a later payment launch.
 
 ## Planned provider architecture
 
