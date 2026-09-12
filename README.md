@@ -1,8 +1,8 @@
 # FeeVeto
 
-Production domain: [feeveto.com](https://feeveto.com/). The owner has selected this domain; the canonical URLs, crawler metadata and social previews use it.
+Production domain: [feeveto.com](https://feeveto.com/). Start with [the current production-domain release evidence](docs/PRODUCTION-DOMAIN.md) for the deployed version, live checks, pending production authentication setup and rollback boundaries. The canonical URLs, crawler metadata and social previews use this domain.
 
-Start with [the launch-readiness report](docs/LAUNCH-READINESS.md) for the dated readiness baseline, required operator details, production setup and rollback procedure. Domain registration alone does not verify routing, authentication or remaining launch gates. See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches and discount controls. Dated journey, polish and hardening reports preserve historical evidence; they are not statements of today's deployment status.
+The earlier [launch-readiness report](docs/LAUNCH-READINESS.md) preserves the pre-domain readiness baseline and remaining broader review requirements; it is not the current deployment status. Domain routing alone does not verify production authentication or all launch gates. See [the experience redesign](docs/experience-redesign.md) for the workspace layout and [owner controls](docs/OWNER-CONTROLS.md) for purchase switches and discount controls. Dated journey, polish and hardening reports preserve historical evidence; they are not statements of today's deployment status.
 
 **Keep, switch, or cancel with confidence.**
 
