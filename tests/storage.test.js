@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_CONFIG } from '../js/config.js';
-import { loadState, parseImportedState, saveState } from '../js/storage.js';
+import { loadState, MAX_BACKUP_BYTES, MAX_BACKUP_SUBSCRIPTIONS, parseImportedState, readImportedFile, saveState } from '../js/storage.js';
 
 function memoryStorage(entries = {}, { throws = false } = {}) {
   const values = new Map(Object.entries(entries));
@@ -77,4 +77,43 @@ test('oldest legacy keys migrate without duplication', () => {
 test('backup import validates the expected shape', () => {
   assert.throws(() => parseImportedState('{broken'), /valid JSON/);
   assert.throws(() => parseImportedState('{}'), /valid FeeVeto backup/);
+});
+
+test('oversized backup files are rejected before reading and leave the existing audit unchanged', async () => {
+  const original = { version: 2, auditCurrency: 'CHF', subscriptions: [] };
+  const storage = memoryStorage({ [APP_CONFIG.storageKey]: JSON.stringify(original) });
+  const before = storage.getItem(APP_CONFIG.storageKey);
+  let read = false;
+  await assert.rejects(readImportedFile({ size: MAX_BACKUP_BYTES + 1, async text() { read = true; return '{}'; } }), /5 MiB.*not been replaced/);
+  assert.equal(read, false);
+  assert.equal(storage.getItem(APP_CONFIG.storageKey), before);
+});
+
+test('backup limits count actual UTF-8 bytes and records before normalization', async () => {
+  const oversizedText = ' '.repeat(MAX_BACKUP_BYTES + 1);
+  assert.throws(() => parseImportedState(oversizedText), /5 MiB/);
+  const multibyteText = JSON.stringify({ subscriptions: [], note: '€'.repeat(Math.ceil(MAX_BACKUP_BYTES / 3)) });
+  assert.ok(multibyteText.length < MAX_BACKUP_BYTES);
+  assert.throws(() => parseImportedState(multibyteText), /5 MiB/);
+  // Defensive second check if a nonstandard file reader reports an incorrect size.
+  await assert.rejects(readImportedFile({ size: 1, text: async () => oversizedText }), /5 MiB/);
+  assert.throws(() => parseImportedState(JSON.stringify({ subscriptions: Array(MAX_BACKUP_SUBSCRIPTIONS + 1).fill(null) })), /more than 1,000.*not been replaced/);
+  await assert.rejects(readImportedFile({ size: 100, async text() { throw new Error('private device path'); } }), /could not be read.*not been replaced/);
+});
+
+test('normal backup imports preserve original currency and existing detailed answers at the record limit', async () => {
+  const record = { id: 'saved', name: 'Creative subscription', amountMinor: 2450, currency: 'CHF', cycle: 'yearly',
+    detailedReview: { productType: 'graphic_design', country: 'CH', acceptAds: false, considerFree: null, mustHaveRequirements: ['templates'], neededFeatures: 'Existing private note' } };
+  const backup = JSON.stringify({ version: 2, auditCurrency: 'EUR', subscriptions: Array.from({ length: MAX_BACKUP_SUBSCRIPTIONS }, (_, index) => ({ ...record, id: `saved-${index}` })) });
+  const imported = await readImportedFile({ size: new TextEncoder().encode(backup).length, text: async () => backup });
+  assert.equal(imported.subscriptions.length, MAX_BACKUP_SUBSCRIPTIONS);
+  assert.equal(imported.auditCurrency, 'EUR');
+  const first = imported.subscriptions[0];
+  assert.equal(first.amountMinor, 2450);
+  assert.equal(first.currency, 'CHF');
+  assert.equal(first.cycle, 'yearly');
+  assert.equal(first.detailedReview.acceptAds, false);
+  assert.equal(first.detailedReview.considerFree, null);
+  assert.deepEqual(first.detailedReview.mustHaveRequirements, ['templates']);
+  assert.equal(first.detailedReview.neededFeatures, 'Existing private note');
 });

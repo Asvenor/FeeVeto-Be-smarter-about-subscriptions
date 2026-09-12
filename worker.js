@@ -13,6 +13,7 @@ import { handleAssessmentRequest } from './functions/api/assessment.js';
 import { handleAuditsRequest } from './functions/api/audits.js';
 import { json } from './functions/_shared/http.js';
 import { handleProductEvent } from './functions/api/events.js';
+import { protectApiRequest, secureResponse, unexpectedRequestError } from './functions/_shared/request-safety.js';
 
 const API_ROUTES = Object.freeze({
   '/api/events': handleProductEvent,
@@ -34,23 +35,28 @@ const API_ROUTES = Object.freeze({
 export async function handleWorkerRequest(request, env, executionContext, routes = API_ROUTES) {
   const pathname = new URL(request.url).pathname;
   const handler = Object.hasOwn(routes, pathname) ? routes[pathname] : null;
-  if (handler) {
-    return handler({
-      request,
-      env,
-      waitUntil: executionContext?.waitUntil?.bind(executionContext),
-    });
-  }
+  try {
+    if (handler) {
+      const blocked = await protectApiRequest(request, env);
+      return secureResponse(blocked || await handler({
+        request,
+        env,
+        waitUntil: executionContext?.waitUntil?.bind(executionContext),
+      }));
+    }
 
-  if (pathname === '/api' || pathname.startsWith('/api/')) {
-    return json({ error: 'API endpoint not found.' }, { status: 404 });
-  }
+    if (pathname === '/api' || pathname.startsWith('/api/')) {
+      return secureResponse(json({ error: 'API endpoint not found.' }, { status: 404 }));
+    }
 
-  if (!env?.ASSETS || typeof env.ASSETS.fetch !== 'function') {
-    return json({ error: 'Static assets are not configured.' }, { status: 503 });
-  }
+    if (!env?.ASSETS || typeof env.ASSETS.fetch !== 'function') {
+      return secureResponse(json({ error: 'Static assets are not configured.' }, { status: 503 }));
+    }
 
-  return env.ASSETS.fetch(request);
+    return secureResponse(await env.ASSETS.fetch(request));
+  } catch {
+    return secureResponse(unexpectedRequestError(handler ? 'api' : 'static'));
+  }
 }
 
 export default {

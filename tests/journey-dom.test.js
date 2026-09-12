@@ -456,6 +456,35 @@ test('guest discovery does not wait for account initialization', async () => {
   } finally {release(env.clerk);await new Promise(resolve=>setImmediate(resolve));await env.cleanup();}
 });
 
+test('correcting free intent synchronizes price filters without clearing country-only preferences', async () => {
+  const env = await setup();
+  try {
+    env.byId('intent-input').value = 'A free alternative to Canva';
+    env.byId('intent-form').requestSubmit();
+    await waitFor(() => env.byId('intent-form').getAttribute('aria-busy') === 'false');
+    const latestQuery = () => env.calls.filter(call => call.path === '/api/alternatives/recommendations').at(-1).body;
+    assert.equal(latestQuery().includePaid, false);
+    env.byId('intent-motivation').value = 'cost';
+    env.byId('intent-correction').requestSubmit();
+    await waitFor(() => env.byId('instant-results').querySelector('.alternative-card'));
+    assert.equal(latestQuery().includePaid, null);
+    assert.equal(env.byId('intent-filters').querySelector('[data-intent-filter="all"]').getAttribute('aria-pressed'), 'true');
+    env.byId('intent-motivation').value = 'free';
+    env.byId('intent-correction').requestSubmit();
+    await waitFor(() => env.byId('intent-form').getAttribute('aria-busy') === 'false');
+    assert.equal(latestQuery().includePaid, false);
+    assert.equal(latestQuery().includeFree, true);
+    assert.equal(env.byId('intent-filters').querySelector('[data-intent-filter="free"]').getAttribute('aria-pressed'), 'true');
+    env.byId('intent-country').value = 'CH';
+    env.byId('intent-correction').requestSubmit();
+    await waitFor(() => env.byId('intent-form').getAttribute('aria-busy') === 'false');
+    assert.equal(latestQuery().country, 'CH');
+    assert.equal(latestQuery().includePaid, false);
+    assert.equal(env.journey.getDraft().originalRequest, 'A free alternative to Canva');
+    assert.deepEqual(env.errors, []);
+  } finally { await env.cleanup(); }
+});
+
 test("failed alternatives preserve intent; retry and service correction work without a questionnaire", async () => {
   const env = await setup();
   try {

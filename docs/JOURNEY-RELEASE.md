@@ -1,5 +1,7 @@
 # Intent-to-audit release
 
+Historical release record from September 7, 2026. Deployment identities, pending work and test counts below describe those checkpoints. Use [launch readiness](LAUNCH-READINESS.md) for current production status, launch instructions and the stable rollback point. Local setup and data-boundary explanations remain useful; do not reapply historical production actions without checking current state.
+
 This branch evolves the existing FeeVeto app: instant supported-service discovery, optional two-stage questions, explainable server assessments, and account-owned append-only history. The old local subscription list and export format remain unchanged.
 
 ## Current release status — September 7, 2026

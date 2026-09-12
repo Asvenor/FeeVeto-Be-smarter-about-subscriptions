@@ -4,7 +4,7 @@ import { handleWorkerRequest } from '../worker.js';
 
 test('worker routes API requests through the protected backend', async () => {
   const request = new Request('https://feeveto.example/api/example');
-  const response = await handleWorkerRequest(request, { marker: 'environment' }, null, {
+  const response = await handleWorkerRequest(request, { marker: 'environment', FEEVETO_API_LIMIT: { limit: async () => ({ success: true }) } }, null, {
     '/api/example': ({ request: routedRequest, env }) => new Response(`${new URL(routedRequest.url).pathname}:${env.marker}`),
   });
 
@@ -29,7 +29,7 @@ test('worker fails closed when static assets are not configured', async () => {
 
 test('worker exposes checkout and webhook only as POST API routes', async () => {
   for (const pathname of ['/api/billing/checkout', '/api/billing/webhook']) {
-    const response = await handleWorkerRequest(new Request(`https://feeveto.example${pathname}`), {}, null);
+    const response = await handleWorkerRequest(new Request(`https://feeveto.example${pathname}`), { FEEVETO_API_LIMIT: { limit: async () => ({ success: true }) } }, null);
     assert.equal(response.status, 405);
     assert.equal(response.headers.get('allow'), 'POST');
   }

@@ -16,6 +16,11 @@ const IMPORTANCE = validValues(IMPORTANCE_OPTIONS);
 const CATEGORIES = validValues(CATEGORY_OPTIONS);
 const STATUSES = validValues(STATUS_OPTIONS);
 const MAX_AMOUNT_MINOR = 999_999_999;
+// Import-only safeguards: do not truncate or reject records already saved on the
+// device. A backup is validated completely before the caller replaces its audit.
+export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
+export const MAX_BACKUP_SUBSCRIPTIONS = 1000;
+const BACKUP_SIZE_ERROR = 'That backup is larger than the 5 MiB import limit. Choose a smaller backup. Your current audit has not been replaced.';
 
 function safeRead(storage, key) {
   try { return storage.getItem(key); } catch { return null; }
@@ -196,8 +201,15 @@ export function saveState(storage, state) {
 }
 
 export function parseImportedState(text) {
+  if (typeof text !== 'string') throw new Error('That file is not valid JSON.');
+  // Check characters first so an unexpectedly large string is not copied just
+  // to measure it. The byte check also covers non-ASCII names and notes.
+  if (text.length > MAX_BACKUP_BYTES || new TextEncoder().encode(text).byteLength > MAX_BACKUP_BYTES) throw new Error(BACKUP_SIZE_ERROR);
   const parsed = safeParse(text);
   if (!parsed) throw new Error('That file is not valid JSON.');
+  if (Array.isArray(parsed.subscriptions) && parsed.subscriptions.length > MAX_BACKUP_SUBSCRIPTIONS) {
+    throw new Error('That backup contains more than 1,000 subscriptions. Choose a smaller backup. Your current audit has not been replaced.');
+  }
   const state = normalizeState(parsed);
   if (!state) throw new Error('That file is not a valid FeeVeto backup.');
   if (parsed.subscriptions.some((item) => !CURRENCIES.includes(item?.currency) || !CYCLES.has(item?.cycle))) {
@@ -205,4 +217,16 @@ export function parseImportedState(text) {
   }
   if (state.subscriptions.length !== parsed.subscriptions.length) throw new Error('Some entries in this backup are invalid. Your current audit has not been replaced.');
   return state;
+}
+
+export async function readImportedFile(file) {
+  if (!file || typeof file.text !== 'function' || !Number.isSafeInteger(file.size) || file.size < 0) {
+    throw new Error('That backup could not be read. Your current audit has not been replaced.');
+  }
+  // File.size is available without loading the contents into browser memory.
+  if (file.size > MAX_BACKUP_BYTES) throw new Error(BACKUP_SIZE_ERROR);
+  let text;
+  try { text = await file.text(); }
+  catch { throw new Error('That backup could not be read. Try selecting it again. Your current audit has not been replaced.'); }
+  return parseImportedState(text);
 }

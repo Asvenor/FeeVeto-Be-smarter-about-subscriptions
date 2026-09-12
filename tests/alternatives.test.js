@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { normalizeRecommendationQuery, selectRecommendations, validateOffer } from '../functions/_shared/alternatives.js';
 import { CatalogueConfigurationError, loadPrivateCatalogue } from '../functions/_shared/catalogue-store.js';
 import { handleRecommendationsRequest } from '../functions/api/alternatives/recommendations.js';
-import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider, normalizeAlternativesResponse, recommendationRequestFor } from '../js/alternativeProvider.js';
+import { AlternativeRequestError, AlternativeRequestTracker, BackendAlternativesProvider, alternativeUpdateAnnouncement, normalizeAlternativesResponse, recommendationRequestFor } from '../js/alternativeProvider.js';
+
+test('failed refresh announces the error instead of claiming alternatives updated', () => {
+  const message = 'Too many requests. Wait a minute, then retry.';
+  assert.equal(alternativeUpdateAnnouncement({ status: 'error', message }), message);
+  assert.match(alternativeUpdateAnnouncement({ status: 'error' }), /could not be loaded.*saved.*retry/i);
+  assert.match(alternativeUpdateAnnouncement({ status: 'ready' }), /Alternatives updated/);
+});
 import { detectSupportedService, serviceById, SERVICE_IDS } from '../js/serviceCatalog.js';
 
 function offer(overrides = {}) {
